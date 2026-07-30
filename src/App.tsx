@@ -1,143 +1,206 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { supabase } from './supabaseClient';
-import { appConfig } from './config';
-import TopBar from './components/TopBar';
-import GridArea from './components/GridArea';
-import MapArea from './components/MapArea';
-import ProfileAndNav from './components/ProfileAndNav';
-import FlyingMessages from './components/FlyingMessages';
-import type { GridUser, ViewMode } from './types';
+import { createClient } from '@supabase/supabase-js';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Initialize Supabase client
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+interface Profile {
+  id: string;
+  telegram_id: number;
+  username: string;
+  first_name: string;
+  photos: string[];
+  latitude: number;
+  longitude: number;
+  distance?: number; // calculated distance from self
+}
 
 export default function App() {
-  const [users, setUsers] = useState<GridUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<GridUser | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [, setTgUser] = useState<{ id: number; username?: string; first_name?: string; photo_url?: string } | null>(null);
-
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Try RPC first, fall back to direct table query
-      let data: GridUser[] | null = null;
-      let rpcError = false;
-
-      try {
-        const result = await supabase.rpc('get_grid_users', {
-          p_lat: 0,
-          p_lng: 0,
-          p_radius_km: 50,
-        });
-        if (result.error) {
-          console.warn('RPC get_grid_users not available:', result.error.message);
-          rpcError = true;
-        } else {
-          data = result.data as GridUser[] | null;
-        }
-      } catch {
-        rpcError = true;
-      }
-
-      if (rpcError) {
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('profiles')
-          .select('*')
-          .limit(20);
-
-        if (fallbackError) {
-          console.warn('Profiles table unavailable:', fallbackError.message);
-        } else if (fallbackData && fallbackData.length > 0) {
-          data = fallbackData as GridUser[];
-        }
-      }
-
-      if (data && data.length > 0) {
-        setUsers(data);
-      } else {
-        // Showcase sample users when no data
-        const sampleUsers: GridUser[] = [
-          { id: '1', telegram_id: '101', first_name: 'Sophie', age: 24, distance_m: 320, intent: 'Dating', is_vip: true },
-          { id: '2', telegram_id: '102', first_name: 'Emma', age: 27, distance_m: 850, intent: 'Friends' },
-          { id: '3', telegram_id: '103', first_name: 'Lena', age: 22, distance_m: 1500, intent: 'Casual' },
-          { id: '4', telegram_id: '104', first_name: 'Mia', age: 25, distance_m: 2100, intent: 'Dating', is_premium: true },
-          { id: '5', telegram_id: '105', first_name: 'Zoe', age: 26, distance_m: 430, intent: 'Friends' },
-          { id: '6', telegram_id: '106', first_name: 'Ava', age: 23, distance_m: 1200, intent: 'Dating' },
-        ];
-        setUsers(sampleUsers);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [selfProfile, setSelfProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
-    // Initialize Telegram WebApp
-    try {
-      WebApp.ready();
-      WebApp.expand();
+    // Initialize Telegram Web App SDK
+    WebApp.ready();
+    WebApp.expand();
 
-      const initData = WebApp.initDataUnsafe;
-      if (initData?.user) {
-        setTgUser({
-          id: initData.user.id,
-          username: initData.user.username,
-          first_name: initData.user.first_name,
-          photo_url: initData.user.photo_url,
-        });
+    const currentUser = WebApp.initDataUnsafe?.user;
+    const defaultLat = 22.3193; // Default fallback (e.g., Hong Kong)
+    const defaultLng = 114.1694;
+
+    // Helper to calculate distance in km using Haversine formula
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371; // Radius of the earth in km
+      const dLat = (lat2 - lat1) * (Math.PI / 180);
+      const dLon = (lon2 - lon1) * (Math.PI / 180);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    const fetchAndSetupProfiles = async (userLat: number, userLng: number) => {
+      try {
+        const { data, error } = await supabase.from('profiles').select('*');
+        
+        let allProfiles: Profile[] = data || [];
+
+        // If current Telegram user exists, construct or match self profile
+        let currentSelf: Profile;
+        if (currentUser) {
+          const found = allProfiles.find(p => p.telegram_id === currentUser.id);
+          currentSelf = found || {
+            id: 'self-local',
+            telegram_id: currentUser.id,
+            username: currentUser.username || 'self',
+            first_name: currentUser.first_name || 'Me',
+            photos: currentUser.photo_url ? [currentUser.photo_url] : ['https://via.placeholder.com/150'],
+            latitude: userLat,
+            longitude: userLng,
+          };
+        } else {
+          // Fallback mock self if opened outside Telegram browser
+          currentSelf = allProfiles[0] || {
+            id: 'self-mock',
+            telegram_id: 0,
+            username: 'myself',
+            first_name: 'Me',
+            photos: ['https://via.placeholder.com/150'],
+            latitude: userLat,
+            longitude: userLng,
+          };
+        }
+
+        setSelfProfile(currentSelf);
+
+        // Filter out self from others list, compute distances, sort closest to furthest, max 20 rows (20 * 5 = 100 profiles max, or slice to 20 total closest profiles)
+        const others = allProfiles
+          .filter(p => p.telegram_id !== currentSelf.telegram_id)
+          .map(p => ({
+            ...p,
+            distance: calculateDistance(currentSelf.latitude, currentSelf.longitude, p.latitude, p.longitude)
+          }))
+          .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
+          .slice(0, 99); // up to 20 rows * 5 columns = 100 slots total including self
+
+        setProfiles(others);
+      } catch (err) {
+        console.error('Error fetching profiles:', err);
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      console.warn('Not running in Telegram Mini App environment');
+    };
+
+    // Obtain geolocation if possible, else use defaults
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          fetchAndSetupProfiles(position.coords.latitude, position.coords.longitude);
+        },
+        () => {
+          fetchAndSetupProfiles(defaultLat, defaultLng);
+        },
+        { timeout: 10000 }
+      );
+    } else {
+      fetchAndSetupProfiles(defaultLat, defaultLng);
+    }
+  }, []);
+
+  // Initialize Leaflet Map using Telegram's theme / standard tiles
+  useEffect(() => {
+    if (mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+      }).setView([selfProfile.latitude, selfProfile.longitude], 13);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Add marker for self
+      L.marker([selfProfile.latitude, selfProfile.longitude]).addTo(map)
+        .bindPopup('<b>You are here</b>');
+
+      // Add markers for nearby profiles
+      profiles.forEach(p => {
+        if (p.latitude && p.longitude) {
+          L.marker([p.latitude, p.longitude]).addTo(map)
+            .bindPopup(`<b>${p.first_name}</b><br/>${p.distance?.toFixed(1)} km away`);
+        }
+      });
+
+      mapInstanceRef.current = map;
     }
 
-    // Apply theme vars
-    document.documentElement.style.setProperty('--bg-color', appConfig.theme.bg);
-    document.documentElement.style.setProperty('--primary-color', appConfig.theme.primary);
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [selfProfile, profiles]);
 
-    fetchUsers();
-  }, [fetchUsers]);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white">
+        <p className="text-lg animate-pulse">Loading profiles and map...</p>
+      </div>
+    );
+  }
 
-  const handleRefresh = useCallback(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-
-  const handleSelectUser = useCallback((user: GridUser) => {
-    setSelectedUser(user);
-  }, []);
-
-  const handleCloseProfile = useCallback(() => {
-    setSelectedUser(null);
-  }, []);
-
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-  }, []);
+  // Combine self as the absolute first item, followed by sorted closest profiles up to 20 rows (100 items max)
+  const gridItems = selfProfile ? [selfProfile, ...profiles].slice(0, 100) : profiles.slice(0, 100);
 
   return (
-    <div className="app" style={{ backgroundColor: appConfig.theme.bg }}>
-      <TopBar onRefresh={handleRefresh} loading={loading} userCount={users.length} />
+    <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6">
+      {/* Telegram Native Map Container */}
+      <div className="w-full h-72 relative shadow-inner">
+        <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900" />
+      </div>
 
-      <main className="app-content">
-        {viewMode === 'grid' ? (
-          <GridArea users={users} loading={loading} error={error} onSelectUser={handleSelectUser} />
-        ) : (
-          <MapArea users={users} loading={loading} error={error} onSelectUser={handleSelectUser} />
-        )}
-      </main>
+      {/* Grid Section: 5 columns per row, up to 20 rows max */}
+      <div className="p-4 flex-1">
+        <h2 className="text-xl font-bold mb-3 tracking-wide">Nearby Profiles</h2>
+        <div className="grid grid-cols-5 gap-2.5 max-w-4xl mx-auto">
+          {gridItems.map((profile, index) => {
+            const firstPhoto = profile.photos && profile.photos.length > 0 
+              ? profile.photos[0] 
+              : 'https://via.placeholder.com/150';
+            const isSelf = index === 0;
 
-      <FlyingMessages visible={users.length > 0} />
-
-      <ProfileAndNav
-        selectedUser={selectedUser}
-        onClose={handleCloseProfile}
-        viewMode={viewMode}
-        onViewModeChange={handleViewModeChange}
-      />
+            return (
+              <div 
+                key={profile.id || index}
+                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-slate-800'} shadow-md transition-transform active:scale-95`}
+              >
+                <img 
+                  src={firstPhoto} 
+                  alt={profile.first_name} 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-1 text-[10px] flex flex-col justify-end">
+                  <span className="font-semibold truncate text-white">{isSelf ? 'You' : profile.first_name}</span>
+                  {!isSelf && profile.distance !== undefined && (
+                    <span className="text-slate-300 text-[9px]">{profile.distance.toFixed(1)} km</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
