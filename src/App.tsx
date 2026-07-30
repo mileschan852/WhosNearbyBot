@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Initialize Supabase client
+// Initialize Supabase client safely with fallback checks
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -28,8 +28,12 @@ export default function App() {
   const mapInstanceRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
-    WebApp.ready();
-    WebApp.expand();
+    try {
+      WebApp.ready();
+      WebApp.expand();
+    } catch {
+      // Running outside Telegram WebApp environment
+    }
 
     const currentUser = WebApp.initDataUnsafe?.user;
     const defaultLat = 22.3193; 
@@ -53,7 +57,7 @@ export default function App() {
         const allProfiles: Profile[] = data || [];
 
         let currentSelf: Profile;
-        if (currentUser) {
+        if (currentUser && currentUser.id) {
           const found = allProfiles.find(p => p.telegram_id === currentUser.id);
           currentSelf = found || {
             id: 'self-local',
@@ -90,6 +94,16 @@ export default function App() {
         setProfiles(others);
       } catch (err) {
         console.error('Error fetching profiles:', err);
+        // Fallback default self if Supabase fetch fails entirely
+        setSelfProfile({
+          id: 'self-fallback',
+          telegram_id: 1,
+          username: 'fallback',
+          first_name: 'Me',
+          photos: ['https://via.placeholder.com/150'],
+          latitude: userLat,
+          longitude: userLng,
+        });
       } finally {
         setLoading(false);
       }
@@ -110,24 +124,20 @@ export default function App() {
     }
   }, []);
 
-  // Initialize Leaflet Map with proper world tiles loading and pin-only popups
   useEffect(() => {
-    if (mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
+    if (!loading && mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
         attributionControl: false,
       }).setView([selfProfile.latitude, selfProfile.longitude], 13);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd',
       }).addTo(map);
 
-      // Add marker for self (only opens popup on click)
       L.marker([selfProfile.latitude, selfProfile.longitude]).addTo(map)
         .bindPopup(`<b>You (${selfProfile.first_name})</b>`);
 
-      // Add markers for nearby profiles (only opens popup on click)
       profiles.forEach(p => {
         if (p.latitude && p.longitude) {
           L.marker([p.latitude, p.longitude]).addTo(map)
@@ -137,10 +147,9 @@ export default function App() {
 
       mapInstanceRef.current = map;
       
-      // Force Leaflet to invalidate size after mount to ensure tiles render correctly
       setTimeout(() => {
         map.invalidateSize();
-      }, 250);
+      }, 200);
     }
 
     return () => {
@@ -149,7 +158,7 @@ export default function App() {
         mapInstanceRef.current = null;
       }
     };
-  }, [selfProfile, profiles]);
+  }, [loading, selfProfile, profiles]);
 
   if (loading) {
     return (
@@ -159,17 +168,14 @@ export default function App() {
     );
   }
 
-  // Ensure self profile is explicitly the very first item, followed by closest profiles up to 20 rows (100 items total)
   const gridItems = selfProfile ? [selfProfile, ...profiles].slice(0, 100) : profiles.slice(0, 100);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6">
-      {/* Map Container */}
       <div className="w-full h-72 relative shadow-inner">
         <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900 absolute inset-0" />
       </div>
 
-      {/* Grid Section: strictly 5 columns per row, up to 20 rows max */}
       <div className="p-4 flex-1">
         <h2 className="text-xl font-bold mb-3 tracking-wide">Nearby Profiles</h2>
         <div className="grid grid-cols-5 gap-2.5 w-full">
@@ -177,7 +183,6 @@ export default function App() {
             const firstPhoto = profile.photos && profile.photos.length > 0 
               ? profile.photos[0] 
               : 'https://via.placeholder.com/150';
-            // Index 0 is guaranteed to be self since selfProfile is prepended
             const isSelf = index === 0;
 
             return (
