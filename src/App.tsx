@@ -94,7 +94,6 @@ export default function App() {
         setProfiles(others);
       } catch (err) {
         console.error('Error fetching profiles:', err);
-        // Fallback default self if Supabase fetch fails entirely
         setSelfProfile({
           id: 'self-fallback',
           telegram_id: 1,
@@ -149,7 +148,7 @@ export default function App() {
       
       setTimeout(() => {
         map.invalidateSize();
-      }, 200);
+      }, 250);
     }
 
     return () => {
