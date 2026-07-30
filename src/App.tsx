@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { createClient } from '@supabase/supabase-js';
 import L from 'leaflet';
@@ -17,7 +17,7 @@ interface Profile {
   photos: string[];
   latitude: number;
   longitude: number;
-  distance?: number; // calculated distance from self
+  distance?: number;
 }
 
 export default function App() {
@@ -28,17 +28,15 @@ export default function App() {
   const mapInstanceRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
-    // Initialize Telegram Web App SDK
     WebApp.ready();
     WebApp.expand();
 
     const currentUser = WebApp.initDataUnsafe?.user;
-    const defaultLat = 22.3193; // Default fallback (e.g., Hong Kong)
+    const defaultLat = 22.3193; 
     const defaultLng = 114.1694;
 
-    // Helper to calculate distance in km using Haversine formula
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-      const R = 6371; // Radius of the earth in km
+      const R = 6371; 
       const dLat = (lat2 - lat1) * (Math.PI / 180);
       const dLon = (lon2 - lon1) * (Math.PI / 180);
       const a =
@@ -51,11 +49,10 @@ export default function App() {
 
     const fetchAndSetupProfiles = async (userLat: number, userLng: number) => {
       try {
-        const { data, error } = await supabase.from('profiles').select('*');
+        const { data } = await supabase.from('profiles').select('*');
         
-        let allProfiles: Profile[] = data || [];
+        const allProfiles: Profile[] = data || [];
 
-        // If current Telegram user exists, construct or match self profile
         let currentSelf: Profile;
         if (currentUser) {
           const found = allProfiles.find(p => p.telegram_id === currentUser.id);
@@ -69,7 +66,6 @@ export default function App() {
             longitude: userLng,
           };
         } else {
-          // Fallback mock self if opened outside Telegram browser
           currentSelf = allProfiles[0] || {
             id: 'self-mock',
             telegram_id: 0,
@@ -83,7 +79,6 @@ export default function App() {
 
         setSelfProfile(currentSelf);
 
-        // Filter out self from others list, compute distances, sort closest to furthest, max 20 rows (20 * 5 = 100 profiles max, or slice to 20 total closest profiles)
         const others = allProfiles
           .filter(p => p.telegram_id !== currentSelf.telegram_id)
           .map(p => ({
@@ -91,7 +86,7 @@ export default function App() {
             distance: calculateDistance(currentSelf.latitude, currentSelf.longitude, p.latitude, p.longitude)
           }))
           .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
-          .slice(0, 99); // up to 20 rows * 5 columns = 100 slots total including self
+          .slice(0, 99);
 
         setProfiles(others);
       } catch (err) {
@@ -101,7 +96,6 @@ export default function App() {
       }
     };
 
-    // Obtain geolocation if possible, else use defaults
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -117,7 +111,6 @@ export default function App() {
     }
   }, []);
 
-  // Initialize Leaflet Map using Telegram's theme / standard tiles
   useEffect(() => {
     if (mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
       const map = L.map(mapContainerRef.current, {
@@ -129,11 +122,9 @@ export default function App() {
         maxZoom: 19,
       }).addTo(map);
 
-      // Add marker for self
       L.marker([selfProfile.latitude, selfProfile.longitude]).addTo(map)
         .bindPopup('<b>You are here</b>');
 
-      // Add markers for nearby profiles
       profiles.forEach(p => {
         if (p.latitude && p.longitude) {
           L.marker([p.latitude, p.longitude]).addTo(map)
@@ -160,17 +151,14 @@ export default function App() {
     );
   }
 
-  // Combine self as the absolute first item, followed by sorted closest profiles up to 20 rows (100 items max)
   const gridItems = selfProfile ? [selfProfile, ...profiles].slice(0, 100) : profiles.slice(0, 100);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6">
-      {/* Telegram Native Map Container */}
       <div className="w-full h-72 relative shadow-inner">
         <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900" />
       </div>
 
-      {/* Grid Section: 5 columns per row, up to 20 rows max */}
       <div className="p-4 flex-1">
         <h2 className="text-xl font-bold mb-3 tracking-wide">Nearby Profiles</h2>
         <div className="grid grid-cols-5 gap-2.5 max-w-4xl mx-auto">
