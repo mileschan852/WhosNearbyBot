@@ -4,7 +4,19 @@ import { createClient } from '@supabase/supabase-js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Initialize Supabase client safely with fallback checks
+// Fix missing Leaflet default marker icons in Vite/Webpack builds
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+const DefaultIcon = L.icon({
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// Initialize Supabase client
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -32,7 +44,7 @@ export default function App() {
       WebApp.ready();
       WebApp.expand();
     } catch {
-      // Running outside Telegram WebApp environment
+      // Running outside Telegram WebApp
     }
 
     const currentUser = WebApp.initDataUnsafe?.user;
@@ -52,60 +64,51 @@ export default function App() {
     };
 
     const fetchAndSetupProfiles = async (userLat: number, userLng: number) => {
+      let allProfiles: Profile[] = [];
       try {
         const { data } = await supabase.from('profiles').select('*');
-        const allProfiles: Profile[] = data || [];
-
-        let currentSelf: Profile;
-        if (currentUser && currentUser.id) {
-          const found = allProfiles.find(p => p.telegram_id === currentUser.id);
-          currentSelf = found || {
-            id: 'self-local',
-            telegram_id: currentUser.id,
-            username: currentUser.username || 'self',
-            first_name: currentUser.first_name || 'Me',
-            photos: currentUser.photo_url ? [currentUser.photo_url] : ['https://via.placeholder.com/150'],
-            latitude: userLat,
-            longitude: userLng,
-          };
-        } else {
-          currentSelf = allProfiles[0] || {
-            id: 'self-mock',
-            telegram_id: 0,
-            username: 'myself',
-            first_name: 'Me',
-            photos: ['https://via.placeholder.com/150'],
-            latitude: userLat,
-            longitude: userLng,
-          };
-        }
-
-        setSelfProfile(currentSelf);
-
-        const others = allProfiles
-          .filter(p => p.telegram_id !== currentSelf.telegram_id)
-          .map(p => ({
-            ...p,
-            distance: calculateDistance(currentSelf.latitude, currentSelf.longitude, p.latitude, p.longitude)
-          }))
-          .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
-          .slice(0, 99);
-
-        setProfiles(others);
+        if (data) allProfiles = data;
       } catch (err) {
-        console.error('Error fetching profiles:', err);
-        setSelfProfile({
-          id: 'self-fallback',
-          telegram_id: 1,
-          username: 'fallback',
+        console.error('Supabase fetch error:', err);
+      }
+
+      let currentSelf: Profile;
+      if (currentUser && currentUser.id) {
+        const found = allProfiles.find(p => p.telegram_id === currentUser.id);
+        currentSelf = found || {
+          id: 'self-local',
+          telegram_id: currentUser.id,
+          username: currentUser.username || 'self',
+          first_name: currentUser.first_name || 'Me',
+          photos: currentUser.photo_url ? [currentUser.photo_url] : ['https://via.placeholder.com/150'],
+          latitude: userLat,
+          longitude: userLng,
+        };
+      } else {
+        currentSelf = allProfiles[0] || {
+          id: 'self-mock',
+          telegram_id: 0,
+          username: 'myself',
           first_name: 'Me',
           photos: ['https://via.placeholder.com/150'],
           latitude: userLat,
           longitude: userLng,
-        });
-      } finally {
-        setLoading(false);
+        };
       }
+
+      setSelfProfile(currentSelf);
+
+      const others = allProfiles
+        .filter(p => p.telegram_id !== currentSelf.telegram_id)
+        .map(p => ({
+          ...p,
+          distance: calculateDistance(currentSelf.latitude, currentSelf.longitude, p.latitude, p.longitude)
+        }))
+        .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
+        .slice(0, 99);
+
+      setProfiles(others);
+      setLoading(false);
     };
 
     if (navigator.geolocation) {
@@ -123,32 +126,36 @@ export default function App() {
     }
   }, []);
 
+  // Setup Leaflet map with standard OpenStreetMap tiles, restricted popup triggers on marker click only
   useEffect(() => {
     if (!loading && mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
         attributionControl: false,
+        closePopupOnClick: false,
       }).setView([selfProfile.latitude, selfProfile.longitude], 13);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
       }).addTo(map);
 
-      L.marker([selfProfile.latitude, selfProfile.longitude]).addTo(map)
-        .bindPopup(`<b>You (${selfProfile.first_name})</b>`);
+      // Self marker
+      const selfMarker = L.marker([selfProfile.latitude, selfProfile.longitude]).addTo(map);
+      selfMarker.bindPopup(`<b>You (${selfProfile.first_name})</b>`);
 
+      // Profiles markers
       profiles.forEach(p => {
         if (p.latitude && p.longitude) {
-          L.marker([p.latitude, p.longitude]).addTo(map)
-            .bindPopup(`<b>${p.first_name}</b><br/>${p.distance?.toFixed(1)} km away`);
+          const marker = L.marker([p.latitude, p.longitude]).addTo(map);
+          marker.bindPopup(`<b>${p.first_name}</b><br/>${p.distance?.toFixed(1)} km away`);
         }
       });
 
       mapInstanceRef.current = map;
-      
+
       setTimeout(() => {
         map.invalidateSize();
-      }, 250);
+      }, 300);
     }
 
     return () => {
@@ -161,23 +168,26 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 text-white">
         <p className="text-lg animate-pulse">Loading profiles and map...</p>
       </div>
     );
   }
 
+  // Self is strictly index 0, followed by up to 99 sorted nearby profiles (total 100 items = 20 rows of 5)
   const gridItems = selfProfile ? [selfProfile, ...profiles].slice(0, 100) : profiles.slice(0, 100);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6">
-      <div className="w-full h-72 relative shadow-inner">
-        <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900 absolute inset-0" />
+      {/* Map Container */}
+      <div className="w-full h-72 relative">
+        <div ref={mapContainerRef} className="w-full h-full z-0 absolute inset-0 bg-slate-900" />
       </div>
 
+      {/* Grid Section: exactly 5 items per row */}
       <div className="p-4 flex-1">
         <h2 className="text-xl font-bold mb-3 tracking-wide">Nearby Profiles</h2>
-        <div className="grid grid-cols-5 gap-2.5 w-full">
+        <div className="grid grid-cols-5 gap-2 w-full max-w-lg mx-auto">
           {gridItems.map((profile, index) => {
             const firstPhoto = profile.photos && profile.photos.length > 0 
               ? profile.photos[0] 
@@ -187,7 +197,7 @@ export default function App() {
             return (
               <div 
                 key={profile.id || index}
-                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-slate-800'} shadow-md transition-transform active:scale-95`}
+                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-slate-800'} shadow-md`}
               >
                 <img 
                   src={firstPhoto} 
