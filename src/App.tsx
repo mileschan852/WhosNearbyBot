@@ -129,7 +129,14 @@ export default function App() {
   const [howManyPref, setHowManyPref] = useState<string>('1on1');
 
   // Non-man seeking men preferences (Radio option state)
-  const [nonManMode, setNonManMode] = useState<string>('Meetup');
+  const [nonManMode, setNonManMode] = useState<string>('Meet up');
+
+  // Tracking existing saved fields to lock them if they were already filled
+  const [savedGender, setSavedGender] = useState<string>('');
+  const [savedSeeking, setSavedSeeking] = useState<string>('');
+  const [savedDob, setSavedDob] = useState<string>('');
+  const [savedHeight, setSavedHeight] = useState<string>('');
+  const [savedWeight, setSavedWeight] = useState<string>('');
 
   // Generate Height Options (1.0m to 3.0m by 0.1m)
   const heightOptions = [];
@@ -205,7 +212,37 @@ export default function App() {
           return;
         }
 
-        if (!existingProfile || !existingProfile.gender || !existingProfile.seeking || !existingProfile.dob || !existingProfile.height || !existingProfile.weight) {
+        if (existingProfile) {
+          if (existingProfile.gender) {
+            setGender(existingProfile.gender);
+            setSavedGender(existingProfile.gender);
+          }
+          if (existingProfile.seeking) {
+            setSeeking(existingProfile.seeking);
+            setSavedSeeking(existingProfile.seeking);
+          }
+          if (existingProfile.dob) {
+            setDob(existingProfile.dob);
+            setSavedDob(existingProfile.dob);
+          }
+          if (existingProfile.height) {
+            setHeight(existingProfile.height);
+            setSavedHeight(existingProfile.height);
+          }
+          if (existingProfile.weight) {
+            setWeight(existingProfile.weight);
+            setSavedWeight(existingProfile.weight);
+          }
+          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
+          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
+          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
+          if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
+          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
+          if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
+        }
+
+        const isFullySetup = existingProfile && existingProfile.gender && existingProfile.seeking && existingProfile.dob && existingProfile.height && existingProfile.weight;
+        if (!isFullySetup) {
           setShowProfileSetup(true);
         }
 
@@ -229,7 +266,7 @@ export default function App() {
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
           where_pref: existingProfile?.where_pref || 'Host',
           how_many_pref: existingProfile?.how_many_pref || '1on1',
-          non_man_mode: isManSeekingMenProfile ? 'Meetup' : (existingProfile?.non_man_mode || 'Meetup'),
+          non_man_mode: isManSeekingMenProfile ? 'Meet up' : (existingProfile?.non_man_mode || 'Meet up'),
           is_underage: false,
         };
 
@@ -258,7 +295,7 @@ export default function App() {
               playstyle_pref: u.playstyle_pref || '',
               where_pref: u.where_pref || '',
               how_many_pref: u.how_many_pref || '',
-              non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meetup' : (u.non_man_mode || ''),
+              non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || ''),
               is_underage: u.is_underage || false,
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -332,7 +369,7 @@ export default function App() {
       playstyle_pref: isManSeekingMen ? playstylePref : null,
       where_pref: isManSeekingMen ? wherePref : null,
       how_many_pref: isManSeekingMen ? howManyPref : null,
-      non_man_mode: isManSeekingMen ? 'Meetup' : nonManMode,
+      non_man_mode: isManSeekingMen ? 'Meet up' : nonManMode,
       is_underage: false,
       last_seen: new Date().toISOString(),
     };
@@ -371,7 +408,7 @@ export default function App() {
           playstyle_pref: u.playstyle_pref || '',
           where_pref: u.where_pref || '',
           how_many_pref: u.how_many_pref || '',
-          non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meetup' : (u.non_man_mode || ''),
+          non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || ''),
           is_underage: u.is_underage || false,
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -482,7 +519,12 @@ export default function App() {
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
-              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
+              <select 
+                value={gender} 
+                onChange={(e) => !savedGender && setGender(e.target.value)} 
+                disabled={Boolean(savedGender)}
+                style={{ padding: '12px', backgroundColor: savedGender ? '#1a1a1a' : '#222', color: savedGender ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedGender ? 'not-allowed' : 'pointer' }}
+              >
                 <option value="man">Man</option>
                 <option value="woman">Woman</option>
               </select>
@@ -490,7 +532,12 @@ export default function App() {
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
-              <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
+              <select 
+                value={seeking} 
+                onChange={(e) => !savedSeeking && setSeeking(e.target.value)} 
+                disabled={Boolean(savedSeeking)}
+                style={{ padding: '12px', backgroundColor: savedSeeking ? '#1a1a1a' : '#222', color: savedSeeking ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedSeeking ? 'not-allowed' : 'pointer' }}
+              >
                 <option value="women">Women</option>
                 <option value="men">Men</option>
                 <option value="man & women">Men & Women</option>
@@ -501,7 +548,12 @@ export default function App() {
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-              <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
+              <select 
+                value={height} 
+                onChange={(e) => !savedHeight && setHeight(e.target.value)} 
+                disabled={Boolean(savedHeight)}
+                style={{ padding: '12px', backgroundColor: savedHeight ? '#1a1a1a' : '#222', color: savedHeight ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedHeight ? 'not-allowed' : 'pointer' }}
+              >
                 {heightOptions.map((h, idx) => (
                   <option key={idx} value={h}>{h}</option>
                 ))}
@@ -510,7 +562,12 @@ export default function App() {
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-              <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
+              <select 
+                value={weight} 
+                onChange={(e) => !savedWeight && setWeight(e.target.value)} 
+                disabled={Boolean(savedWeight)}
+                style={{ padding: '12px', backgroundColor: savedWeight ? '#1a1a1a' : '#222', color: savedWeight ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedWeight ? 'not-allowed' : 'pointer' }}
+              >
                 {weightOptions.map((w, idx) => (
                   <option key={idx} value={w}>{w}</option>
                 ))}
@@ -520,7 +577,14 @@ export default function App() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
+            <input 
+              type="date" 
+              value={dob} 
+              onChange={(e) => !savedDob && setDob(e.target.value)} 
+              disabled={Boolean(savedDob)}
+              style={{ padding: '12px', backgroundColor: savedDob ? '#1a1a1a' : '#222', color: savedDob ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: savedDob ? 'not-allowed' : 'pointer' }} 
+              required 
+            />
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
