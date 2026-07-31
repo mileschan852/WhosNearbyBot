@@ -106,9 +106,9 @@ export default function App() {
   const [isReady, setIsReady] = useState<boolean>(false);
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
 
-  // Setup Form State
+  // Setup Form State (seeking initialized to 'women')
   const [gender, setGender] = useState<string>('man');
-  const [seeking, setSeeking] = useState<string>('men');
+  const [seeking, setSeeking] = useState<string>('women');
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
@@ -200,7 +200,7 @@ export default function App() {
           lng,
           last_seen: new Date().toISOString(),
           gender: existingProfile?.gender || '',
-          seeking: existingProfile?.seeking || '',
+          seeking: existingProfile?.seeking || 'women',
           dob: existingProfile?.dob || '',
           height: existingProfile?.height || '',
           weight: existingProfile?.weight || '',
@@ -226,7 +226,7 @@ export default function App() {
               lng: typeof u.lng === 'number' ? u.lng : lng,
               last_seen: u.last_seen || new Date().toISOString(),
               gender: u.gender || '',
-              seeking: u.seeking || '',
+              seeking: u.seeking || 'women',
               dob: u.dob || '',
               height: u.height || '',
               weight: u.weight || '',
@@ -297,7 +297,7 @@ export default function App() {
           lng: typeof u.lng === 'number' ? u.lng : location.lng,
           last_seen: u.last_seen || new Date().toISOString(),
           gender: u.gender || '',
-          seeking: u.seeking || '',
+          seeking: u.seeking || 'women',
           dob: u.dob || '',
           height: u.height || '',
           weight: u.weight || '',
@@ -361,8 +361,8 @@ export default function App() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
               <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
-                <option value="men">Men</option>
                 <option value="women">Women</option>
+                <option value="men">Men</option>
                 <option value="man & women">Men & Women</option>
               </select>
             </div>
