@@ -46,8 +46,9 @@ interface UserProfile {
   weight?: string;
   role_pref?: string | null;
   safety_pref?: string | null;
-  lifestyle_pref?: string | null;
-  hosting_pref?: string | null;
+  playstyle_pref?: string | null;
+  where_pref?: string | null;
+  non_man_mode?: string | null;
   distance?: number;
 }
 
@@ -81,7 +82,7 @@ function MapController({ center }: { center: [number, number] }) {
 }
 
 // --- CUSTOM LEAFLET ICON ---
-const createProfileIcon = (user: UserProfile) => {
+const createProfileIcon = (user: UserProfile, isEnabled: boolean) => {
   let innerHtml = '';
   if (user.avatar) {
     innerHtml = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;" />`;
@@ -90,9 +91,12 @@ const createProfileIcon = (user: UserProfile) => {
     innerHtml = `<div style="width: 100%; height: 100%; background-color: #0088cc; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">${initial}</div>`;
   }
 
+  const opacity = isEnabled ? '1' : '0.3';
+  const filter = isEnabled ? 'none' : 'grayscale(100%)';
+
   return L.divIcon({
     className: 'custom-map-pin',
-    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background-color: #222;">${innerHtml}</div>`,
+    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid ${isEnabled ? '#007bff' : '#555'}; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background-color: #222; opacity: ${opacity}; filter: ${filter};">${innerHtml}</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
   });
@@ -113,11 +117,14 @@ export default function App() {
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
 
-  // Toggable Hidden Preferences (Man seeking Men)
+  // Man seeking Men preferences
   const [rolePref, setRolePref] = useState<string>('Versatile');
   const [safetyPref, setSafetyPref] = useState<string>('Safe');
-  const [lifestylePref, setLifestylePref] = useState<string>('Clean');
-  const [hostingPref, setHostingPref] = useState<string>('Host');
+  const [playstylePref, setPlaystylePref] = useState<string>('Clean');
+  const [wherePref, setWherePref] = useState<string>('Host');
+
+  // Non-man seeking men preferences
+  const [nonManMode, setNonManMode] = useState<string>('Meetup');
 
   // Generate Height Options (1.0m to 3.0m by 0.1m)
   const heightOptions = [];
@@ -206,8 +213,9 @@ export default function App() {
           weight: existingProfile?.weight || '',
           role_pref: existingProfile?.role_pref || 'Versatile',
           safety_pref: existingProfile?.safety_pref || 'Safe',
-          lifestyle_pref: existingProfile?.lifestyle_pref || 'Clean',
-          hosting_pref: existingProfile?.hosting_pref || 'Host',
+          playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
+          where_pref: existingProfile?.where_pref || 'Host',
+          non_man_mode: existingProfile?.non_man_mode || 'Meetup',
         };
 
         setCurrentUser(myProfile);
@@ -232,8 +240,9 @@ export default function App() {
               weight: u.weight || '',
               role_pref: u.role_pref || '',
               safety_pref: u.safety_pref || '',
-              lifestyle_pref: u.lifestyle_pref || '',
-              hosting_pref: u.hosting_pref || '',
+              playstyle_pref: u.playstyle_pref || '',
+              where_pref: u.where_pref || '',
+              non_man_mode: u.non_man_mode || '',
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
             
@@ -258,6 +267,8 @@ export default function App() {
     e.preventDefault();
     if (!currentUser || !supabase) return;
 
+    const isManSeekingMen = gender === 'man' && seeking === 'men';
+
     const updatedProfile = {
       ...currentUser,
       gender,
@@ -265,10 +276,11 @@ export default function App() {
       dob,
       height,
       weight,
-      role_pref: gender === 'man' && seeking === 'men' ? rolePref : null,
-      safety_pref: gender === 'man' && seeking === 'men' ? safetyPref : null,
-      lifestyle_pref: gender === 'man' && seeking === 'men' ? lifestylePref : null,
-      hosting_pref: gender === 'man' && seeking === 'men' ? hostingPref : null,
+      role_pref: isManSeekingMen ? rolePref : null,
+      safety_pref: isManSeekingMen ? safetyPref : null,
+      playstyle_pref: isManSeekingMen ? playstylePref : null,
+      where_pref: isManSeekingMen ? wherePref : null,
+      non_man_mode: !isManSeekingMen ? nonManMode : null,
       last_seen: new Date().toISOString(),
     };
 
@@ -301,6 +313,11 @@ export default function App() {
           dob: u.dob || '',
           height: u.height || '',
           weight: u.weight || '',
+          role_pref: u.role_pref || '',
+          safety_pref: u.safety_pref || '',
+          playstyle_pref: u.playstyle_pref || '',
+          where_pref: u.where_pref || '',
+          non_man_mode: u.non_man_mode || '',
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
         setUsers(processed);
@@ -310,8 +327,51 @@ export default function App() {
     }
   };
 
-  const handleStartChat = (targetUser: UserProfile) => {
+  const checkMatchStatus = (me: UserProfile, target: UserProfile) => {
+    if (me.id === target.id) return true;
+    if (me.gender !== 'man' || me.seeking !== 'men') return true;
+
+    // Role matching matrix
+    const myRole = me.role_pref;
+    const targetRole = target.role_pref;
+    let roleMatch = false;
+    if (myRole === 'Versatile' || targetRole === 'Versatile') roleMatch = true;
+    else if (myRole === 'Bottom' && targetRole === 'Top') roleMatch = true;
+    else if (myRole === 'Top' && targetRole === 'Bottom') roleMatch = true;
+    else if (myRole === 'Side' && targetRole === 'Side') roleMatch = true;
+
+    // Safety matching (must be exact)
+    const safetyMatch = me.safety_pref === target.safety_pref;
+
+    // Playstyle matching (must be exact)
+    const playstyleMatch = me.playstyle_pref === target.playstyle_pref;
+
+    // Where matching
+    let whereMatch = false;
+    const myWhere = me.where_pref;
+    const targetWhere = target.where_pref;
+    if (myWhere === '1on1' && targetWhere === '1on1') whereMatch = true;
+    else if (myWhere === 'Group' && (targetWhere === 'Group' || targetWhere === '1on1')) whereMatch = true;
+    else if (targetWhere === 'Group' && myWhere === '1on1') whereMatch = true;
+
+    return roleMatch && safetyMatch && playstyleMatch && whereMatch;
+  };
+
+  const handleStartChat = (targetUser: UserProfile, isEnabled: boolean) => {
     if (currentUser && targetUser.id === currentUser.id) return;
+    
+    // Check if non-man seeking men mode restricts messaging
+    if (currentUser?.gender !== 'man' || currentUser?.seeking !== 'men') {
+      if (currentUser?.non_man_mode === 'Just browsing') {
+        alert('You are in Just browsing mode and cannot initiate messages.');
+        return;
+      }
+    }
+
+    if (!isEnabled) {
+      alert('This user does not match your preferences.');
+      return;
+    }
     
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
@@ -344,15 +404,15 @@ export default function App() {
   if (showProfileSetup) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <h2 style={{ fontSize: '22px', marginBottom: '8px', color: '#007bff' }}>Complete Your Profile</h2>
-        <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '20px' }}>Please complete your details to unlock the nearby grid.</p>
+        <h2 style={{ fontSize: '22px', marginBottom: '4px', color: '#007bff' }}>Complete Your Profile</h2>
+        <p style={{ fontSize: '13px', color: '#ff4d4d', marginBottom: '20px', fontWeight: 'bold' }}>This cannot be modified later.</p>
         
         <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto', paddingBottom: '40px' }}>
           
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
-              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
+              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
                 <option value="man">Man</option>
                 <option value="woman">Woman</option>
               </select>
@@ -360,7 +420,7 @@ export default function App() {
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
-              <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
+              <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
                 <option value="women">Women</option>
                 <option value="men">Men</option>
                 <option value="man & women">Men & Women</option>
@@ -371,7 +431,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-              <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
+              <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
                 {heightOptions.map((h, idx) => (
                   <option key={idx} value={h}>{h}</option>
                 ))}
@@ -380,7 +440,7 @@ export default function App() {
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-              <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
+              <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
                 {weightOptions.map((w, idx) => (
                   <option key={idx} value={w}>{w}</option>
                 ))}
@@ -393,6 +453,7 @@ export default function App() {
             <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
           </div>
 
+          {/* Man seeking Men preferences */}
           {gender === 'man' && seeking === 'men' && (
             <>
               <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
@@ -401,9 +462,9 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Role:</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {['Top', 'Versatile', 'Bottom'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setRolePref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: rolePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {['Top', 'Versatile', 'Bottom', 'Side'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setRolePref(opt)} style={{ flex: 1, minWidth: '70px', padding: '8px', backgroundColor: rolePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -414,7 +475,7 @@ export default function App() {
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Safety:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {['Raw', 'Safe'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setSafetyPref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: safetyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <button type="button" key={opt} onClick={() => setSafetyPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: safetyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -422,10 +483,10 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>Lifestyle:</label>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>Playstyle:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {['Clean', 'Party'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setLifestylePref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: lifestylePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <button type="button" key={opt} onClick={() => setPlaystylePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: playstylePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -433,14 +494,29 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>Hosting:</label>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>Where?</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  {['Host', 'Travel'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setHostingPref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: hostingPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                  {['1on1', 'Group'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setWherePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: wherePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+
+          {/* Non-man seeking men modes */}
+          {!(gender === 'man' && seeking === 'men') && (
+            <>
+              <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
+                <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
+                  <option value="Just browsing">Just browsing</option>
+                  <option value="Online interactions">Online interactions</option>
+                  <option value="Meetup">Meetup</option>
+                </select>
               </div>
             </>
           )}
@@ -453,19 +529,25 @@ export default function App() {
     );
   }
 
+  // --- FILTERING LOGIC ---
   const filteredUsers = users.filter((u) => {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
 
-    const myGender = currentUser.gender.toLowerCase();
+    // Check non-man mode visibility restrictions
+    if (u.non_man_mode === 'Just browsing' || u.non_man_mode === 'Online interactions') {
+      return false; // Hidden from map and grid
+    }
+
     const mySeeking = currentUser.seeking.toLowerCase();
     const theirGender = u.gender.toLowerCase();
-    const theirSeeking = u.seeking.toLowerCase();
 
-    const amISeekingThem = mySeeking.includes(theirGender) || mySeeking === 'man & women';
-    const areTheySeekingMe = theirSeeking.includes(myGender) || theirSeeking === 'man & women';
+    // The grid will only show the gender user selected
+    if (mySeeking === 'men' && theirGender !== 'man') return false;
+    if (mySeeking === 'women' && theirGender !== 'woman') return false;
+    if (mySeeking === 'man & women' && theirGender !== 'man' && theirGender !== 'woman') return false;
 
-    return amISeekingThem && areTheySeekingMe;
+    return true;
   });
 
   const sortedGridUsers = currentUser 
@@ -502,12 +584,13 @@ export default function App() {
             {sortedGridUsers.map((user, index) => {
               const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
               const isSelf = currentUser && user.id === currentUser.id;
+              const isEnabled = isSelf || checkMatchStatus(currentUser!, user);
 
               return (
                 <div 
                   key={user.id || index} 
-                  onClick={() => handleStartChat(user)}
-                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={() => handleStartChat(user, isEnabled)}
+                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isEnabled ? 1 : 0.4, filter: isEnabled ? 'none' : 'grayscale(100%)' }}
                 >
                   {user.avatar ? (
                     <img 
@@ -525,7 +608,7 @@ export default function App() {
                     {isSelf ? 'You' : `${user.distance ?? 0}m`}
                   </div>
 
-                  {isOnline && (
+                  {isOnline && isEnabled && (
                     <div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212' }} />
                   )}
                 </div>
@@ -534,30 +617,40 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1 }}>
-          <MapContainer 
-            center={[location.lat, location.lng]} 
-            zoom={15} 
-            style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
-            zoomControl={false}
-          >
-            <MapController center={[location.lat, location.lng]} />
-            <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            />
-            {filteredUsers.map((user) => (
-              <Marker 
-                key={user.id} 
-                position={[user.lat, user.lng]} 
-                icon={createProfileIcon(user)}
-                eventHandlers={{
-                  click: () => handleStartChat(user),
-                }}
+        {/* MAP VIEW - Disabled if currentUser is in 'Online interactions' mode */}
+        {currentUser?.non_man_mode === 'Online interactions' ? (
+          <div style={{ display: view === 'map' ? 'flex' : 'none', height: '100%', justifyContent: 'center', alignItems: 'center', color: '#888', textAlign: 'center', padding: '20px' }}>
+            <p>Map is disabled in Online interactions mode.</p>
+          </div>
+        ) : (
+          <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1 }}>
+            <MapContainer 
+              center={[location.lat, location.lng]} 
+              zoom={15} 
+              style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
+              zoomControl={false}
+            >
+              <MapController center={[location.lat, location.lng]} />
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
-            ))}
-          </MapContainer>
-        </div>
+              {filteredUsers.map((user) => {
+                const isEnabled = checkMatchStatus(currentUser!, user);
+                return (
+                  <Marker 
+                    key={user.id} 
+                    position={[user.lat, user.lng]} 
+                    icon={createProfileIcon(user, isEnabled)}
+                    eventHandlers={{
+                      click: () => handleStartChat(user, isEnabled),
+                    }}
+                  />
+                );
+              })}
+            </MapContainer>
+          </div>
+        )}
 
       </main>
 
@@ -575,17 +668,19 @@ export default function App() {
           <span style={{ fontSize: '12px', marginTop: '4px' }}>Grid</span>
         </button>
         
-        <button 
-          onClick={() => setView('map')}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-            <line x1="9" y1="3" x2="9" y2="21"></line>
-            <line x1="15" y1="3" x2="15" y2="21"></line>
-          </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
-        </button>
+        {currentUser?.non_man_mode !== 'Online interactions' && (
+          <button 
+            onClick={() => setView('map')}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer' }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <line x1="15" y1="3" x2="15" y2="21"></line>
+            </svg>
+            <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
+          </button>
+        )}
       </footer>
     </div>
   );
