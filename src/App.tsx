@@ -145,11 +145,14 @@ export default function App() {
         setCurrentUser(myProfile);
 
         if (supabase) {
-          // Upsert current user location & profile
-          await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
-          
-          // Fetch all active profiles from database
+          console.log('Syncing profile to Supabase:', myProfile);
+          const { error: upsertError } = await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
+          if (upsertError) console.error('Supabase Upsert Error:', upsertError);
+
+          console.log('Fetching all profiles from Supabase...');
           const { data, error } = await supabase.from('profiles').select('*');
+          console.log('Supabase fetch response:', { data, error });
+
           if (!error && data && Array.isArray(data)) {
             const processed = data.map((u: any) => ({
               id: u.id || 'unknown',
@@ -160,11 +163,14 @@ export default function App() {
               last_seen: u.last_seen || new Date().toISOString(),
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+            
+            console.log('Processed users for grid/map:', processed);
             setUsers(processed);
           } else {
             setUsers([myProfile]);
           }
         } else {
+          console.warn('Supabase client is not initialized!');
           setUsers([myProfile]);
         }
       } catch (err) {
@@ -180,7 +186,6 @@ export default function App() {
   const handleRefresh = async () => {
     if (!currentUser || !supabase) return;
     try {
-      // Re-sync current user position on refresh
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
