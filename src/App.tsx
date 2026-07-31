@@ -106,7 +106,7 @@ export default function App() {
   const [isReady, setIsReady] = useState<boolean>(false);
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
 
-  // Setup Form State (seeking initialized to 'women')
+  // Setup Form State
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('women');
   const [dob, setDob] = useState<string>('1995-01-01');
@@ -343,16 +343,16 @@ export default function App() {
 
   if (showProfileSetup) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <h2 style={{ fontSize: '22px', marginBottom: '8px', color: '#007bff' }}>Complete Your Profile</h2>
         <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '20px' }}>Please complete your details to unlock the nearby grid.</p>
         
-        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto' }}>
+        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto', paddingBottom: '40px' }}>
           
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
-              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
                 <option value="man">Man</option>
                 <option value="woman">Woman</option>
               </select>
@@ -360,7 +360,7 @@ export default function App() {
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
-              <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+              <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
                 <option value="women">Women</option>
                 <option value="men">Men</option>
                 <option value="man & women">Men & Women</option>
@@ -371,7 +371,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-              <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+              <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
                 {heightOptions.map((h, idx) => (
                   <option key={idx} value={h}>{h}</option>
                 ))}
@@ -380,7 +380,7 @@ export default function App() {
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-              <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+              <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', zIndex: 9999 }}>
                 {weightOptions.map((w, idx) => (
                   <option key={idx} value={w}>{w}</option>
                 ))}
@@ -390,7 +390,7 @@ export default function App() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
+            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
           </div>
 
           {gender === 'man' && seeking === 'men' && (
@@ -403,7 +403,7 @@ export default function App() {
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Role:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {['Top', 'Versatile', 'Bottom'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setRolePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: rolePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <button type="button" key={opt} onClick={() => setRolePref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: rolePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -414,7 +414,7 @@ export default function App() {
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Safety:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {['Raw', 'Safe'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setSafetyPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: safetyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <button type="button" key={opt} onClick={() => setSafetyPref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: safetyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -425,7 +425,7 @@ export default function App() {
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Lifestyle:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {['Clean', 'Party'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setLifestylePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: lifestylePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <button type="button" key={opt} onClick={() => setLifestylePref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: lifestylePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -436,7 +436,7 @@ export default function App() {
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Hosting:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {['Host', 'Travel'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setHostingPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: hostingPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                    <button type="button" key={opt} onClick={() => setHostingPref(opt)} style={{ flex: 1, padding: '10px', backgroundColor: hostingPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
@@ -445,7 +445,7 @@ export default function App() {
             </>
           )}
 
-          <button type="submit" style={{ marginTop: '10px', padding: '12px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
+          <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
             Save & Enter Grid
           </button>
         </form>
