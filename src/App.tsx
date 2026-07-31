@@ -1,31 +1,47 @@
-import { useState } from 'react';
-
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { createClient } from '@supabase/supabase-js';
 
-// --- MOCK DATA GENERATION ---
-// I am generating your 100 closest users here. 
-const generateUsers = () => {
-  const users = [];
-  for (let i = 0; i < 100; i++) {
-    users.push({
-      id: i,
-      name: i === 0 ? 'You' : `User ${i}`,
-      isSelf: i === 0,
-      distance: i === 0 ? '0m' : `${Math.floor(Math.random() * 500) + 10}m`,
-      isOnline: i === 0 ? true : Math.random() > 0.5,
-      avatar: `https://i.pravatar.cc/150?u=${i}`,
-      lat: 22.3193 + (Math.random() - 0.5) * 0.01, // Near Hong Kong
-      lng: 114.1694 + (Math.random() - 0.5) * 0.01,
-    });
-  }
-  return users;
+// --- SUPABASE CLIENT SETUP ---
+// Replace these with your actual Supabase credentials or environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+interface UserProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  lat: number;
+  lng: number;
+  last_seen: string;
+  distance?: number; // Calculated distance in meters
+}
+
+// --- HELPER: CALCULATE DISTANCE (Haversine formula) ---
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371e3; // Earth radius in meters
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
 };
 
-const mockUsers = generateUsers();
+// --- MAP CONTROLLER TO LOCK AND CENTER LOCATION ---
+function MapController({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom(), { animate: true });
+  }, [center, map]);
+  return null;
+}
 
 // --- CUSTOM LEAFLET ICON ---
-// This ensures profile pictures show up on the map pins.
 const createProfileIcon = (avatarUrl: string) => {
   return L.divIcon({
     className: 'custom-map-pin',
@@ -37,17 +53,92 @@ const createProfileIcon = (avatarUrl: string) => {
 
 export default function App() {
   const [view, setView] = useState<'grid' | 'map'>('grid');
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
 
-  const handleStartChat = (userId: number) => {
-    // This is where your private message logic will trigger.
+  // 1. Get User Location & Register/Login to Database on Load
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      fetchAndSyncUsers(22.3193, 114.1694);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setLocation({ lat, lng });
+        fetchAndSyncUsers(lat, lng);
+      },
+      () => {
+        // Fallback to default coordinates if permission denied
+        fetchAndSyncUsers(22.3193, 114.1694);
+      },
+      { enableHighAccuracy: true }
+    );
+  }, []);
+
+  const fetchAndSyncUsers = async (lat: number, lng: number) => {
+    // Generate or fetch a persistent device/user ID
+    let userId = localStorage.getItem('app_user_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36.substring(2, 9));
+      localStorage.setItem('app_user_id', userId);
+    }
+
+    const userData: UserProfile = {
+      id: userId,
+      name: userId === localStorage.getItem('app_user_id') ? 'You' : `User`,
+      avatar: `https://i.pravatar.cc/150?u=${userId}`,
+      lat,
+      lng,
+      last_seen: new Date().toISOString(),
+    };
+
+    setCurrentUser(userData);
+
+    // Upsert current user to database on login/load
+    await supabase.from('profiles').upsert([userData]);
+
+    // Fetch all users from database
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (error) {
+      console.error('Error fetching users:', error);
+      return;
+    }
+
+    if (data) {
+      // Calculate distance for each user and sort closest to furthest
+      const processedUsers = data.map((u: UserProfile) => ({
+        ...u,
+        distance: calculateDistance(lat, lng, u.lat, u.lng),
+      })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+      setUsers(processedUsers);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (currentUser) {
+      fetchAndSyncUsers(location.lat, location.lng);
+    }
+  };
+
+  const handleStartChat = (userId: string) => {
+    if (currentUser && userId === currentUser.id) return; // Don't chat with self
     console.log(`Starting private chat with user ID: ${userId}`);
     alert(`Starting private chat with user ${userId}`);
   };
 
-  const handleRefresh = () => {
-    console.log('Refreshing user data...');
-    // Supabase fetch logic will go here later.
-  };
+  // Ensure current user is always first in the grid, followed by closest others
+  const sortedGridUsers = currentUser 
+    ? [
+        { ...currentUser, distance: 0 }, 
+        ...users.filter(u => u.id !== currentUser.id)
+      ]
+    : users;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
@@ -55,7 +146,6 @@ export default function App() {
       {/* TOP BAR */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* App Icon */}
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
@@ -64,8 +154,8 @@ export default function App() {
         </div>
         
         {/* Refresh Button */}
-        <button onClick={handleRefresh} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
             <path d="M3 3v5h5"></path>
           </svg>
@@ -76,38 +166,44 @@ export default function App() {
       <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         {view === 'grid' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
-            {mockUsers.map((user) => (
-              <div 
-                key={user.id} 
-                onClick={() => handleStartChat(user.id)}
-                style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#333', overflow: 'hidden', borderRadius: '4px' }}
-              >
-                <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                
-                {/* Distance overlay */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
-                  {user.distance}
-                </div>
+            {sortedGridUsers.map((user, index) => {
+              const isOnline = new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000;
+              const isSelf = currentUser && user.id === currentUser.id;
 
-                {/* Online Indicator */}
-                {user.isOnline && (
-                  <div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212' }} />
-                )}
-              </div>
-            ))}
+              return (
+                <div 
+                  key={user.id || index} 
+                  onClick={() => handleStartChat(user.id)}
+                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#333', overflow: 'hidden', borderRadius: '4px' }}
+                >
+                  <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  
+                  {/* Distance Overlay */}
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
+                    {isSelf ? 'You' : `${user.distance}m`}
+                  </div>
+
+                  {/* Online Indicator (Green dot if online within 15 mins) */}
+                  {isOnline && (
+                    <div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212' }} />
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <MapContainer 
-            center={[22.3193, 114.1694]} 
-            zoom={14} 
+            center={[location.lat, location.lng]} 
+            zoom={15} 
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
           >
+            <MapController center={[location.lat, location.lng]} />
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            {mockUsers.map((user) => (
+            {users.map((user) => (
               <Marker 
                 key={user.id} 
                 position={[user.lat, user.lng]} 
