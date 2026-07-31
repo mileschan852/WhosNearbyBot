@@ -31,7 +31,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(R * c);
 };
 
-// --- MAP CONTROLLER TO PERMANENTLY CENTER & LOCK ONTO USER ---
+// --- MAP CONTROLLER TO LOCK & CENTER LOCATION ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -57,63 +57,86 @@ export default function App() {
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      fetchAndSyncUsers(22.3193, 114.1694);
-      return;
-    }
+    const initializeApp = async () => {
+      let lat = 22.3193;
+      let lng = 114.1694;
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        setLocation({ lat, lng });
-        fetchAndSyncUsers(lat, lng);
-      },
-      () => {
-        fetchAndSyncUsers(22.3193, 114.1694);
-      },
-      { enableHighAccuracy: true }
-    );
-  }, []);
+      if (navigator.geolocation) {
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              lat = position.coords.latitude;
+              lng = position.coords.longitude;
+              setLocation({ lat, lng });
+              resolve();
+            },
+            () => resolve(),
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        });
+      }
 
-  const fetchAndSyncUsers = async (lat: number, lng: number) => {
-    let userId = localStorage.getItem('app_user_id');
-    if (!userId) {
-      userId = 'user_' + Math.random().toString(36).substring(2, 9);
-      localStorage.setItem('app_user_id', userId);
-    }
-
-    const userData: UserProfile = {
-      id: userId,
-      name: userId === localStorage.getItem('app_user_id') ? 'You' : `User`,
-      avatar: `https://i.pravatar.cc/150?u=${userId}`,
-      lat,
-      lng,
-      last_seen: new Date().toISOString(),
+      await syncUserAndFetchOthers(lat, lng);
     };
 
-    setCurrentUser(userData);
-    await supabase.from('profiles').upsert([userData]);
+    initializeApp();
+  }, []);
 
-    const { data, error } = await supabase.from('profiles').select('*');
-    if (error) {
-      console.error('Error fetching users:', error);
-      return;
-    }
+  const syncUserAndFetchOthers = async (lat: number, lng: number) => {
+    try {
+      let userId = localStorage.getItem('app_user_id');
+      if (!userId) {
+        userId = 'user_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('app_user_id', userId);
+      }
 
-    if (data) {
-      const processedUsers = data.map((u: UserProfile) => ({
-        ...u,
-        distance: calculateDistance(lat, lng, u.lat, u.lng),
-      })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      // Use a consistent profile picture or stored custom avatar
+      const userAvatar = localStorage.getItem('app_user_avatar') || `https://i.pravatar.cc/150?u=${userId}`;
 
-      setUsers(processedUsers);
+      const userData: UserProfile = {
+        id: userId,
+        name: 'You',
+        avatar: userAvatar,
+        lat,
+        lng,
+        last_seen: new Date().toISOString(),
+      };
+
+      setCurrentUser(userData);
+
+      // Save user to Supabase database safely
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert([userData], { onConflict: 'id' });
+
+      if (upsertError) {
+        console.error('Database sync error:', upsertError.message);
+      }
+
+      // Fetch all users from database
+      const { data, error: fetchError } = await supabase.from('profiles').select('*');
+      if (fetchError) {
+        console.error('Error fetching users:', fetchError.message);
+        setUsers([userData]);
+        return;
+      }
+
+      if (data) {
+        const processedUsers = data.map((u: UserProfile) => ({
+          ...u,
+          distance: calculateDistance(lat, lng, u.lat, u.lng),
+        })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+        setUsers(processedUsers);
+      }
+    } catch (err) {
+      console.error('Initialization exception:', err);
     }
   };
 
   const handleRefresh = () => {
     if (currentUser) {
-      fetchAndSyncUsers(location.lat, location.lng);
+      syncUserAndFetchOthers(location.lat, location.lng);
     }
   };
 
