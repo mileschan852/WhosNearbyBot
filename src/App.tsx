@@ -141,7 +141,7 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id'] || 'user_' + Math.random().toString(36).substring(2, 9));
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
           localStorage.setItem('whos_nearby_user_id', userId);
         }
@@ -177,7 +177,6 @@ export default function App() {
           }
         }
 
-        // Check if required info is missing
         if (!existingProfile || !existingProfile.gender || !existingProfile.seeking || !existingProfile.dob || !existingProfile.height || !existingProfile.weight) {
           setShowProfileSetup(true);
         }
@@ -259,7 +258,7 @@ export default function App() {
 
     setCurrentUser(updatedProfile);
     setShowProfileSetup(false);
-    window.location.reload(); // Refresh to fetch newly filtered pool
+    window.location.reload();
   };
 
   const handleRefresh = async () => {
@@ -320,7 +319,6 @@ export default function App() {
     );
   }
 
-  // --- PREVENT ACCESS & SHOW SETUP SCREEN IF INFO IS MISSING ---
   if (showProfileSetup) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
@@ -329,7 +327,6 @@ export default function App() {
         
         <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '400px', width: '100%', margin: '0 auto' }}>
           
-          {/* I am a [dropdown] seeking [dropdown] */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: 'bold' }}>I am a:</label>
             <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
@@ -347,13 +344,11 @@ export default function App() {
             </select>
           </div>
 
-          {/* Date of Birth */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Date of Birth:</label>
             <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px', colorScheme: 'dark' }} required />
           </div>
 
-          {/* Height Dropdown */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Height:</label>
             <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
@@ -363,7 +358,6 @@ export default function App() {
             </select>
           </div>
 
-          {/* Weight Dropdown */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Weight:</label>
             <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
@@ -381,10 +375,8 @@ export default function App() {
     );
   }
 
-  // --- MUTUAL GENDER FILTERING LOGIC ---
-  // The grid will only show users that match current user's seeking preference AND whose seeking preference matches current user's gender.
   const filteredUsers = users.filter((u) => {
-    if (currentUser && u.id === currentUser.id) return true; // Always allow self
+    if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
 
     const myGender = currentUser.gender.toLowerCase();
@@ -392,9 +384,7 @@ export default function App() {
     const theirGender = u.gender.toLowerCase();
     const theirSeeking = u.seeking.toLowerCase();
 
-    // Check if I am seeking their gender
     const amISeekingThem = mySeeking.includes(theirGender) || mySeeking === 'man & women';
-    // Check if they are seeking my gender
     const areTheySeekingMe = theirSeeking.includes(myGender) || theirSeeking === 'man & women';
 
     return amISeekingThem && areTheySeekingMe;
@@ -410,7 +400,6 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
-      {/* TOP BAR */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -428,10 +417,8 @@ export default function App() {
         </button>
       </header>
 
-      {/* MAIN CONTENT AREA */}
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
-        {/* GRID VIEW */}
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
             {sortedGridUsers.map((user, index) => {
@@ -469,7 +456,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* MAP VIEW */}
         <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1 }}>
           <MapContainer 
             center={[location.lat, location.lng]} 
@@ -497,7 +483,6 @@ export default function App() {
 
       </main>
 
-      {/* BOTTOM NAV BAR */}
       <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
         <button 
           onClick={() => setView('grid')}
