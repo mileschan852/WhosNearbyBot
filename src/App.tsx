@@ -161,7 +161,7 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id'] || 'user_' + Math.random().toString(36).substring(2, 9));
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
           localStorage.setItem('whos_nearby_user_id', userId);
         }
@@ -278,20 +278,17 @@ export default function App() {
     e.preventDefault();
     setErrorMessage('');
 
-    // --- DATA VALIDATION FOR FIELDS ABOVE THE DIVIDING LINE ---
     if (!gender || !seeking || !dob || !height || !weight) {
       setErrorMessage('Please fill out all required fields above the dividing line.');
       return;
     }
 
-    // --- NON-MAN SEEKING MEN VALIDATION ---
     const isNonManSeekingMen = gender !== 'man' && seeking === 'men';
     if (isNonManSeekingMen && !nonManMode) {
       setErrorMessage('Please select a valid account mode preference.');
       return;
     }
 
-    // Calculate Age from DOB
     const birthDate = new Date(dob);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -440,7 +437,6 @@ export default function App() {
     );
   }
 
-  // --- UNDERAGE LOCKED SCREEN ---
   if (isUnderageLocked) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
@@ -510,10 +506,8 @@ export default function App() {
             <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
           </div>
 
-          {/* --- DIVIDING LINE --- */}
           <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
 
-          {/* Man seeking Men preferences */}
           {gender === 'man' && seeking === 'men' && (
             <>
               <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 4px 0' }}>Preferences (Man seeking Men):</p>
@@ -564,7 +558,6 @@ export default function App() {
             </>
           )}
 
-          {/* Non-man seeking men modes with radio explanations */}
           {!(gender === 'man' && seeking === 'men') && (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -605,7 +598,6 @@ export default function App() {
     );
   }
 
-  // --- FILTERING LOGIC ---
   const filteredUsers = users.filter((u) => {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
