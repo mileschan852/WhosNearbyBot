@@ -20,6 +20,8 @@ declare global {
         ready?: () => void;
         expand?: () => void;
         openTelegramLink?: (url: string) => void;
+        openLink?: (url: string) => void;
+        showAlert?: (message: string) => void;
       };
     };
   }
@@ -199,20 +201,22 @@ export default function App() {
     }
   };
 
-  const handleStartChat = (targetUserId: string) => {
+  const handleStartChat = (targetUserId: string, targetName: string) => {
     if (currentUser && targetUserId === currentUser.id) return;
     
     if (targetUserId.startsWith('tg_')) {
       const rawTgId = targetUserId.replace('tg_', '');
-      // Use Telegram's direct user scheme tg://user?id= which opens chats directly without phone number errors
-      const chatUrl = `tg://user?id=${rawTgId}`;
+      const profileUrl = `https://t.me/user?id=${rawTgId}`;
+      
       if (window.Telegram?.WebApp?.openTelegramLink) {
-        window.Telegram.WebApp.openTelegramLink(chatUrl);
+        window.Telegram.WebApp.openTelegramLink(profileUrl);
+      } else if (window.Telegram?.WebApp?.showAlert) {
+        window.Telegram.WebApp.showAlert(`Selected user: ${targetName}`);
       } else {
-        window.location.href = chatUrl;
+        alert(`Selected user: ${targetName} (${rawTgId})`);
       }
     } else {
-      alert(`Cannot open chat with test user ID: ${targetUserId}`);
+      alert(`Test User Selected: ${targetName}`);
     }
   };
 
@@ -265,7 +269,7 @@ export default function App() {
               return (
                 <div 
                   key={user.id || index} 
-                  onClick={() => handleStartChat(user.id)}
+                  onClick={() => handleStartChat(user.id, user.name)}
                   style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   {user.avatar ? (
@@ -312,7 +316,7 @@ export default function App() {
                 position={[user.lat, user.lng]} 
                 icon={createProfileIcon(user)}
                 eventHandlers={{
-                  click: () => handleStartChat(user.id),
+                  click: () => handleStartChat(user.id, user.name),
                 }}
               />
             ))}
