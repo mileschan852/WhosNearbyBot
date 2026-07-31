@@ -56,7 +56,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
-// --- MAP CONTROLLER TO PERMANENTLY CENTER & LOCK ONTO USER ---
+// --- MAP CONTROLLER ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -102,16 +102,13 @@ export default function App() {
 
         let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         if (!tgUser) {
-          await new Promise((res) => setTimeout(res, 200));
+          await new Promise((res) => setTimeout(res, 300));
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
-        if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
-          localStorage.setItem('whos_nearby_user_id', userId);
-        }
-
-        const userName = tgUser?.first_name || 'You';
+        // CRITICAL FIX: If Telegram user exists, use their ID. Otherwise, use a persistent prompt or storage key
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : 'user_test_' + Math.abs(navigator.userAgent.hashCode || 12345);
+        const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
         const userAvatar = tgUser?.photo_url || '';
 
         let lat = 22.3193;
@@ -145,14 +142,11 @@ export default function App() {
         setCurrentUser(myProfile);
 
         if (supabase) {
-          console.log('Syncing profile to Supabase:', myProfile);
-          const { error: upsertError } = await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
-          if (upsertError) console.error('Supabase Upsert Error:', upsertError);
+          // Upsert current user profile
+          await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
 
-          console.log('Fetching all profiles from Supabase...');
+          // Fetch all profiles
           const { data, error } = await supabase.from('profiles').select('*');
-          console.log('Supabase fetch response:', { data, error });
-
           if (!error && data && Array.isArray(data)) {
             const processed = data.map((u: any) => ({
               id: u.id || 'unknown',
@@ -164,17 +158,15 @@ export default function App() {
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
             
-            console.log('Processed users for grid/map:', processed);
             setUsers(processed);
           } else {
             setUsers([myProfile]);
           }
         } else {
-          console.warn('Supabase client is not initialized!');
           setUsers([myProfile]);
         }
       } catch (err) {
-        console.error('Initialization error caught safely:', err);
+        console.error('Initialization error:', err);
       } finally {
         setIsReady(true);
       }
@@ -186,20 +178,6 @@ export default function App() {
   const handleRefresh = async () => {
     if (!currentUser || !supabase) return;
     try {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            setLocation({ lat, lng });
-            const updatedProfile = { ...currentUser, lat, lng, last_seen: new Date().toISOString() };
-            await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
-          },
-          () => {},
-          { enableHighAccuracy: true }
-        );
-      }
-
       const { data, error } = await supabase.from('profiles').select('*');
       if (!error && data && Array.isArray(data)) {
         const processed = data.map((u: any) => ({
@@ -226,7 +204,7 @@ export default function App() {
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
-        <p>Syncing Telegram profile and loading nearby users...</p>
+        <p>Loading profiles...</p>
       </div>
     );
   }
@@ -248,7 +226,7 @@ export default function App() {
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby</h1>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({users.length})</h1>
         </div>
         
         <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
