@@ -1,10 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
-import WebApp from '@twa-dev/sdk';
 import { createClient } from '@supabase/supabase-js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// I am forcing this in so your map pins actually show up instead of breaking the app.
+// Forcing Leaflet map pins to use CDNs so they don't break on mobile
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -36,10 +35,19 @@ export default function App() {
   const mapInstanceRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
-    WebApp.ready();
-    WebApp.expand();
+    // Tapping directly into the global window object instead of the broken npm package
+    const WebApp = (window as any).Telegram?.WebApp;
+    
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.warn('Telegram WebApp expansion failed:', e);
+      }
+    }
 
-    const currentUser = WebApp.initDataUnsafe?.user;
+    const currentUser = WebApp?.initDataUnsafe?.user;
     const defaultLat = 22.3193; 
     const defaultLng = 114.1694;
 
@@ -57,9 +65,7 @@ export default function App() {
 
     const fetchAndSetupProfiles = async (userLat: number, userLng: number) => {
       try {
-        // FIXED: Removed the unused 'error' variable that broke your build
         const { data } = await supabase.from('profiles').select('*');
-        
         let allProfiles: Profile[] = data || [];
 
         let currentSelf: Profile;
@@ -142,6 +148,10 @@ export default function App() {
       });
 
       mapInstanceRef.current = map;
+      
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 250);
     }
 
     return () => {
@@ -164,13 +174,13 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6">
-      <div className="w-full h-72 relative shadow-inner">
-        <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900" />
+      <div className="w-full h-72 relative shadow-inner border-b border-slate-800">
+        <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900 absolute inset-0" />
       </div>
 
-      <div className="p-4 flex-1">
-        <h2 className="text-xl font-bold mb-3 tracking-wide">Nearby Profiles</h2>
-        <div className="grid grid-cols-5 gap-2.5 max-w-4xl mx-auto">
+      <div className="p-4 flex-1 w-full max-w-4xl mx-auto">
+        <h2 className="text-xl font-bold mb-4 tracking-wide">Nearby Profiles</h2>
+        <div className="grid grid-cols-5 gap-2 w-full">
           {gridItems.map((profile, index) => {
             const firstPhoto = profile.photos && profile.photos.length > 0 
               ? profile.photos[0] 
@@ -180,7 +190,7 @@ export default function App() {
             return (
               <div 
                 key={profile.id || index}
-                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-slate-800'} shadow-md transition-transform active:scale-95`}
+                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/50 z-10' : 'border-slate-800'} shadow-md transition-transform active:scale-95`}
               >
                 <img 
                   src={firstPhoto} 
@@ -188,9 +198,9 @@ export default function App() {
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-1 text-[10px] flex flex-col justify-end">
-                  <span className="font-semibold truncate text-white">{isSelf ? 'You' : profile.first_name}</span>
+                  <span className="font-semibold truncate text-white drop-shadow-md">{isSelf ? 'YOU' : profile.first_name}</span>
                   {!isSelf && profile.distance !== undefined && (
-                    <span className="text-slate-300 text-[9px]">{profile.distance.toFixed(1)} km</span>
+                    <span className="text-slate-300 text-[9px] drop-shadow-md">{profile.distance.toFixed(1)} km</span>
                   )}
                 </div>
               </div>
