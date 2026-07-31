@@ -4,9 +4,9 @@ import L from 'leaflet';
 import { createClient } from '@supabase/supabase-js';
 
 // --- SUPABASE CLIENT SETUP ---
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 interface UserProfile {
   id: string;
@@ -35,7 +35,9 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 15, { animate: true });
+    if (map) {
+      map.setView(center, 15, { animate: true });
+    }
   }, [center, map]);
   return null;
 }
@@ -55,34 +57,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
+  const [hasError, setHasError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeApp = async () => {
-      let lat = 22.3193;
-      let lng = 114.1694;
-
-      if (navigator.geolocation) {
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              lat = position.coords.latitude;
-              lng = position.coords.longitude;
-              setLocation({ lat, lng });
-              resolve();
-            },
-            () => resolve(),
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
-        });
-      }
-
-      await syncUserAndFetchOthers(lat, lng);
-    };
-
-    initializeApp();
-  }, []);
-
-  const syncUserAndFetchOthers = async (lat: number, lng: number) => {
     try {
       let userId = localStorage.getItem('app_user_id');
       if (!userId) {
@@ -90,53 +67,74 @@ export default function App() {
         localStorage.setItem('app_user_id', userId);
       }
 
-      // Use a consistent profile picture or stored custom avatar
-      const userAvatar = localStorage.getItem('app_user_avatar') || `https://i.pravatar.cc/150?u=${userId}`;
-
-      const userData: UserProfile = {
+      const defaultAvatar = `https://i.pravatar.cc/150?u=${userId}`;
+      const initialUser: UserProfile = {
         id: userId,
         name: 'You',
-        avatar: userAvatar,
+        avatar: defaultAvatar,
+        lat: 22.3193,
+        lng: 114.1694,
+        last_seen: new Date().toISOString(),
+      };
+
+      setCurrentUser(initialUser);
+      setUsers([initialUser]);
+
+      // Attempt Geolocation safely
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            setLocation({ lat, lng });
+            updateDatabaseAndFetch(userId, lat, lng, defaultAvatar);
+          },
+          () => {
+            // Fallback if permission denied
+            updateDatabaseAndFetch(userId, 22.3193, 114.1694, defaultAvatar);
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      } else {
+        updateDatabaseAndFetch(userId, 22.3193, 114.1694, defaultAvatar);
+      }
+    } catch (err: any) {
+      setHasError(err?.message || 'Initialization failed');
+    }
+  }, []);
+
+  const updateDatabaseAndFetch = async (userId: string, lat: number, lng: number, avatar: string) => {
+    try {
+      const updatedUser: UserProfile = {
+        id: userId,
+        name: 'You',
+        avatar,
         lat,
         lng,
         last_seen: new Date().toISOString(),
       };
 
-      setCurrentUser(userData);
+      setCurrentUser(updatedUser);
 
-      // Save user to Supabase database safely
-      const { error: upsertError } = await supabase
-        .from('profiles')
-        .upsert([userData], { onConflict: 'id' });
-
-      if (upsertError) {
-        console.error('Database sync error:', upsertError.message);
+      if (supabase) {
+        await supabase.from('profiles').upsert([updatedUser], { onConflict: 'id' });
+        const { data } = await supabase.from('profiles').select('*');
+        if (data && data.length > 0) {
+          const processedUsers = data.map((u: UserProfile) => ({
+            ...u,
+            distance: calculateDistance(lat, lng, u.lat, u.lng),
+          })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+          setUsers(processedUsers);
+        }
       }
-
-      // Fetch all users from database
-      const { data, error: fetchError } = await supabase.from('profiles').select('*');
-      if (fetchError) {
-        console.error('Error fetching users:', fetchError.message);
-        setUsers([userData]);
-        return;
-      }
-
-      if (data) {
-        const processedUsers = data.map((u: UserProfile) => ({
-          ...u,
-          distance: calculateDistance(lat, lng, u.lat, u.lng),
-        })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-
-        setUsers(processedUsers);
-      }
-    } catch (err) {
-      console.error('Initialization exception:', err);
+    } catch (dbErr) {
+      console.error('Supabase operation failed, running locally:', dbErr);
     }
   };
 
   const handleRefresh = () => {
     if (currentUser) {
-      syncUserAndFetchOthers(location.lat, location.lng);
+      updateDatabaseAndFetch(currentUser.id, location.lat, location.lng, currentUser.avatar);
     }
   };
 
@@ -151,6 +149,15 @@ export default function App() {
         ...users.filter(u => u.id !== currentUser.id)
       ]
     : users;
+
+  if (hasError) {
+    return (
+      <div style={{ padding: '20px', color: '#ff4d4d', backgroundColor: '#121212', height: '100vh', fontFamily: 'sans-serif' }}>
+        <h2>Runtime Error</h2>
+        <p>{hasError}</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -180,7 +187,7 @@ export default function App() {
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
             {sortedGridUsers.map((user, index) => {
-              const isOnline = new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000;
+              const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
               const isSelf = currentUser && user.id === currentUser.id;
 
               return (
@@ -192,7 +199,7 @@ export default function App() {
                   <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
-                    {isSelf ? 'You' : `${user.distance}m`}
+                    {isSelf ? 'You' : `${user.distance ?? 0}m`}
                   </div>
 
                   {isOnline && (
