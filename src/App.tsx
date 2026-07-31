@@ -19,6 +19,7 @@ declare global {
         };
         ready?: () => void;
         expand?: () => void;
+        openTelegramLink?: (url: string) => void;
       };
     };
   }
@@ -56,11 +57,12 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
-// --- MAP CONTROLLER ---
+// --- MAP CONTROLLER & RESIZE FIXER ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    if (map && center) {
+    if (map) {
+      map.invalidateSize();
       map.setView(center, 15, { animate: true });
     }
   }, [center, map]);
@@ -199,7 +201,18 @@ export default function App() {
 
   const handleStartChat = (targetUserId: string) => {
     if (currentUser && targetUserId === currentUser.id) return;
-    alert(`Starting private chat with user ${targetUserId}`);
+    
+    if (targetUserId.startsWith('tg_')) {
+      const rawTgId = targetUserId.replace('tg_', '');
+      const chatUrl = `https://t.me/${rawTgId}`;
+      if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(chatUrl);
+      } else {
+        window.open(chatUrl, '_blank');
+      }
+    } else {
+      alert(`Cannot open chat with test user ID: ${targetUserId}`);
+    }
   };
 
   if (!isReady) {
@@ -239,10 +252,10 @@ export default function App() {
       </header>
 
       {/* MAIN CONTENT AREA */}
-      <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
         {/* GRID VIEW */}
-        <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto' }}>
+        <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
             {sortedGridUsers.map((user, index) => {
               const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
@@ -280,11 +293,11 @@ export default function App() {
         </div>
 
         {/* MAP VIEW */}
-        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}>
+        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1 }}>
           <MapContainer 
             center={[location.lat, location.lng]} 
             zoom={15} 
-            style={{ height: '100%', width: '100%' }}
+            style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
             zoomControl={false}
           >
             <MapController center={[location.lat, location.lng]} />
