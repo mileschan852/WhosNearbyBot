@@ -209,6 +209,8 @@ export default function App() {
           setShowProfileSetup(true);
         }
 
+        const isManSeekingMenProfile = (existingProfile?.gender === 'man' && existingProfile?.seeking === 'men');
+
         const myProfile: UserProfile = {
           id: userId,
           name: userName,
@@ -227,7 +229,7 @@ export default function App() {
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
           where_pref: existingProfile?.where_pref || 'Host',
           how_many_pref: existingProfile?.how_many_pref || '1on1',
-          non_man_mode: existingProfile?.non_man_mode || 'Meetup',
+          non_man_mode: isManSeekingMenProfile ? 'Meetup' : (existingProfile?.non_man_mode || 'Meetup'),
           is_underage: false,
         };
 
@@ -256,7 +258,7 @@ export default function App() {
               playstyle_pref: u.playstyle_pref || '',
               where_pref: u.where_pref || '',
               how_many_pref: u.how_many_pref || '',
-              non_man_mode: u.non_man_mode || '',
+              non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meetup' : (u.non_man_mode || ''),
               is_underage: u.is_underage || false,
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -330,7 +332,7 @@ export default function App() {
       playstyle_pref: isManSeekingMen ? playstylePref : null,
       where_pref: isManSeekingMen ? wherePref : null,
       how_many_pref: isManSeekingMen ? howManyPref : null,
-      non_man_mode: !isManSeekingMen ? nonManMode : null,
+      non_man_mode: isManSeekingMen ? 'Meetup' : nonManMode,
       is_underage: false,
       last_seen: new Date().toISOString(),
     };
@@ -369,7 +371,7 @@ export default function App() {
           playstyle_pref: u.playstyle_pref || '',
           where_pref: u.where_pref || '',
           how_many_pref: u.how_many_pref || '',
-          non_man_mode: u.non_man_mode || '',
+          non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meetup' : (u.non_man_mode || ''),
           is_underage: u.is_underage || false,
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -462,6 +464,8 @@ export default function App() {
   }
 
   if (showProfileSetup) {
+    const isNonManSeekingMenForm = gender !== 'man' && seeking === 'men';
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <h2 style={{ fontSize: '22px', marginBottom: '4px', color: '#007bff' }}>Complete Your Profile</h2>
@@ -582,7 +586,7 @@ export default function App() {
             </>
           )}
 
-          {!(gender === 'man' && seeking === 'men') && (
+          {isNonManSeekingMenForm && (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
@@ -603,15 +607,23 @@ export default function App() {
                   </div>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meetup' ? '1px solid #007bff' : '1px solid #333' }}>
-                  <input type="radio" name="nonManMode" value="Meetup" checked={nonManMode === 'Meetup'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meet up' ? '1px solid #007bff' : '1px solid #333' }}>
+                  <input type="radio" name="nonManMode" value="Meet up" checked={nonManMode === 'Meet up'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
                   <div>
-                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meetup</strong>
+                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meet up</strong>
                     <span style={{ fontSize: '12px', color: '#aaa' }}>Shown on both grid and map for in-person meetings.</span>
                   </div>
                 </label>
               </div>
             </>
+          )}
+
+          {isNonManSeekingMenForm && (
+            <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.15)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '12px', borderRadius: '6px', fontSize: '13px', lineHeight: '1.4' }}>
+              {nonManMode === 'Just browsing' && 'Warning: You will not be able to interact with other users but view when on grid and map.'}
+              {nonManMode === 'Online interactions' && 'Warning: You are only visible on Grid not on map, your map will be disabled.'}
+              {nonManMode === 'Meet up' && 'Warning: You have full function of grid and map but others will be able to see your location too.'}
+            </div>
           )}
 
           <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -626,8 +638,12 @@ export default function App() {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
 
-    if (u.non_man_mode === 'Just browsing' || u.non_man_mode === 'Online interactions') {
-      return false;
+    if (u.gender === 'man' && u.seeking === 'men') {
+      // Man seeking men are always Meet up mode equivalent
+    } else {
+      if (u.non_man_mode === 'Just browsing' || u.non_man_mode === 'Online interactions') {
+        return false;
+      }
     }
 
     const mySeeking = currentUser.seeking.toLowerCase();
@@ -646,6 +662,8 @@ export default function App() {
         ...filteredUsers.filter(u => u.id !== currentUser.id)
       ]
     : filteredUsers;
+
+  const isCurrentUserOnlineInteractions = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Online interactions';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -707,7 +725,7 @@ export default function App() {
           </div>
         </div>
 
-        {currentUser?.non_man_mode === 'Online interactions' ? (
+        {isCurrentUserOnlineInteractions ? (
           <div style={{ display: view === 'map' ? 'flex' : 'none', height: '100%', justifyContent: 'center', alignItems: 'center', color: '#888', textAlign: 'center', padding: '20px' }}>
             <p>Map is disabled in Online interactions mode.</p>
           </div>
@@ -757,7 +775,7 @@ export default function App() {
           <span style={{ fontSize: '12px', marginTop: '4px' }}>Grid</span>
         </button>
         
-        {currentUser?.non_man_mode !== 'Online interactions' && (
+        {!isCurrentUserOnlineInteractions && (
           <button 
             onClick={() => setView('map')}
             style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer' }}
