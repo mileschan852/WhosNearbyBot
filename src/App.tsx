@@ -49,6 +49,7 @@ interface UserProfile {
   playstyle_pref?: string | null;
   where_pref?: string | null;
   non_man_mode?: string | null;
+  is_underage?: boolean;
   distance?: number;
 }
 
@@ -109,6 +110,8 @@ export default function App() {
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
   const [isReady, setIsReady] = useState<boolean>(false);
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
+  const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Setup Form State
   const [gender, setGender] = useState<string>('man');
@@ -123,7 +126,7 @@ export default function App() {
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');
   const [wherePref, setWherePref] = useState<string>('Host');
 
-  // Non-man seeking men preferences
+  // Non-man seeking men preferences (Radio option state)
   const [nonManMode, setNonManMode] = useState<string>('Meetup');
 
   // Generate Height Options (1.0m to 3.0m by 0.1m)
@@ -158,7 +161,7 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id'] || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
           localStorage.setItem('whos_nearby_user_id', userId);
         }
@@ -194,6 +197,12 @@ export default function App() {
           }
         }
 
+        if (existingProfile?.is_underage) {
+          setIsUnderageLocked(true);
+          setIsReady(true);
+          return;
+        }
+
         if (!existingProfile || !existingProfile.gender || !existingProfile.seeking || !existingProfile.dob || !existingProfile.height || !existingProfile.weight) {
           setShowProfileSetup(true);
         }
@@ -216,6 +225,7 @@ export default function App() {
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
           where_pref: existingProfile?.where_pref || 'Host',
           non_man_mode: existingProfile?.non_man_mode || 'Meetup',
+          is_underage: false,
         };
 
         setCurrentUser(myProfile);
@@ -243,6 +253,7 @@ export default function App() {
               playstyle_pref: u.playstyle_pref || '',
               where_pref: u.where_pref || '',
               non_man_mode: u.non_man_mode || '',
+              is_underage: u.is_underage || false,
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
             
@@ -265,6 +276,43 @@ export default function App() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
+
+    // --- DATA VALIDATION FOR FIELDS ABOVE THE DIVIDING LINE ---
+    if (!gender || !seeking || !dob || !height || !weight) {
+      setErrorMessage('Please fill out all required fields above the dividing line.');
+      return;
+    }
+
+    // --- NON-MAN SEEKING MEN VALIDATION ---
+    const isNonManSeekingMen = gender !== 'man' && seeking === 'men';
+    if (isNonManSeekingMen && !nonManMode) {
+      setErrorMessage('Please select a valid account mode preference.');
+      return;
+    }
+
+    // Calculate Age from DOB
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    if (age < 18) {
+      if (currentUser && supabase) {
+        const underageProfile = {
+          ...currentUser,
+          dob,
+          is_underage: true,
+        };
+        await supabase.from('profiles').upsert([underageProfile], { onConflict: 'id' });
+      }
+      setIsUnderageLocked(true);
+      return;
+    }
+
     if (!currentUser || !supabase) return;
 
     const isManSeekingMen = gender === 'man' && seeking === 'men';
@@ -281,12 +329,13 @@ export default function App() {
       playstyle_pref: isManSeekingMen ? playstylePref : null,
       where_pref: isManSeekingMen ? wherePref : null,
       non_man_mode: !isManSeekingMen ? nonManMode : null,
+      is_underage: false,
       last_seen: new Date().toISOString(),
     };
 
     const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
     if (error) {
-      alert('Error saving profile. Please try again.');
+      setErrorMessage('Error saving profile. Please try again.');
       return;
     }
 
@@ -318,6 +367,7 @@ export default function App() {
           playstyle_pref: u.playstyle_pref || '',
           where_pref: u.where_pref || '',
           non_man_mode: u.non_man_mode || '',
+          is_underage: u.is_underage || false,
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
         setUsers(processed);
@@ -331,10 +381,8 @@ export default function App() {
     if (me.id === target.id) return true;
     if (me.gender !== 'man' || me.seeking !== 'men') return true;
 
-    // If target is seeking Men & Women, they are always lit up
     if (target.seeking === 'man & women') return true;
 
-    // Role matching matrix
     const myRole = me.role_pref;
     const targetRole = target.role_pref;
     let roleMatch = false;
@@ -343,10 +391,7 @@ export default function App() {
     else if (myRole === 'Top' && targetRole === 'Bottom') roleMatch = true;
     else if (myRole === 'Side' && targetRole === 'Side') roleMatch = true;
 
-    // Safety matching (must be exact)
     const safetyMatch = me.safety_pref === target.safety_pref;
-
-    // Playstyle matching (must be exact)
     const playstyleMatch = me.playstyle_pref === target.playstyle_pref;
 
     return roleMatch && safetyMatch && playstyleMatch;
@@ -395,12 +440,30 @@ export default function App() {
     );
   }
 
+  // --- UNDERAGE LOCKED SCREEN ---
+  if (isUnderageLocked) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>Access Denied</h2>
+        <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
+          The app is for adults only. Access has been locked for this account due to age restrictions.
+        </p>
+      </div>
+    );
+  }
+
   if (showProfileSetup) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <h2 style={{ fontSize: '22px', marginBottom: '4px', color: '#007bff' }}>Complete Your Profile</h2>
-        <p style={{ fontSize: '13px', color: '#ff4d4d', marginBottom: '20px', fontWeight: 'bold' }}>This cannot be modified later.</p>
+        <p style={{ fontSize: '13px', color: '#ff4d4d', marginBottom: '16px', fontWeight: 'bold' }}>This cannot be modified later.</p>
         
+        {errorMessage && (
+          <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}>
+            {errorMessage}
+          </div>
+        )}
+
         <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto', paddingBottom: '40px' }}>
           
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -447,11 +510,12 @@ export default function App() {
             <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
           </div>
 
+          {/* --- DIVIDING LINE --- */}
+          <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
+
           {/* Man seeking Men preferences */}
           {gender === 'man' && seeking === 'men' && (
             <>
-              <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
-              
               <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 4px 0' }}>Preferences (Man seeking Men):</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -500,17 +564,35 @@ export default function App() {
             </>
           )}
 
-          {/* Non-man seeking men modes */}
+          {/* Non-man seeking men modes with radio explanations */}
           {!(gender === 'man' && seeking === 'men') && (
             <>
-              <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
-                <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist' }}>
-                  <option value="Just browsing">Just browsing</option>
-                  <option value="Online interactions">Online interactions</option>
-                  <option value="Meetup">Meetup</option>
-                </select>
+                
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Just browsing' ? '1px solid #007bff' : '1px solid #333' }}>
+                  <input type="radio" name="nonManMode" value="Just browsing" checked={nonManMode === 'Just browsing'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Just browsing</strong>
+                    <span style={{ fontSize: '12px', color: '#aaa' }}>Only able to see other users; unable to initiate nor receive messages from others.</span>
+                  </div>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Online interactions' ? '1px solid #007bff' : '1px solid #333' }}>
+                  <input type="radio" name="nonManMode" value="Online interactions" checked={nonManMode === 'Online interactions'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Online interactions</strong>
+                    <span style={{ fontSize: '12px', color: '#aaa' }}>Able to chat and receive messages from strangers, but not shown on map (map disabled).</span>
+                  </div>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meetup' ? '1px solid #007bff' : '1px solid #333' }}>
+                  <input type="radio" name="nonManMode" value="Meetup" checked={nonManMode === 'Meetup'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meetup</strong>
+                    <span style={{ fontSize: '12px', color: '#aaa' }}>Shown on both grid and map for in-person meetings.</span>
+                  </div>
+                </label>
               </div>
             </>
           )}
