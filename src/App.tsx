@@ -39,6 +39,11 @@ interface UserProfile {
   lat: number;
   lng: number;
   last_seen: string;
+  gender?: string;
+  seeking?: string;
+  dob?: string;
+  height?: string;
+  weight?: string;
   distance?: number;
 }
 
@@ -95,6 +100,32 @@ export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
   const [isReady, setIsReady] = useState<boolean>(false);
+  const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
+
+  // Setup Form State
+  const [gender, setGender] = useState<string>('man');
+  const [seeking, setSeeking] = useState<string>('men');
+  const [dob, setDob] = useState<string>('1995-01-01');
+  const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
+  const [weight, setWeight] = useState<string>('70kg (154lbs)');
+
+  // Generate Height Options (1.0m to 3.0m by 0.1m)
+  const heightOptions = [];
+  for (let i = 10; i <= 30; i++) {
+    const m = (i / 10).toFixed(1);
+    const cm = i * 10;
+    const totalInches = Math.round(cm / 2.54);
+    const ft = Math.floor(totalInches / 12);
+    const inch = totalInches % 12;
+    heightOptions.push(`${m}m (${ft}ft ${inch}in)`);
+  }
+
+  // Generate Weight Options (35kg to 160kg)
+  const weightOptions = [];
+  for (let kg = 35; kg <= 160; kg += 1) {
+    const lbs = Math.round(kg * 2.20462);
+    weightOptions.push(`${kg}kg (${lbs}lbs)`);
+  }
 
   useEffect(() => {
     const initApp = async () => {
@@ -110,7 +141,7 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id'] || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
           localStorage.setItem('whos_nearby_user_id', userId);
         }
@@ -138,6 +169,19 @@ export default function App() {
 
         setLocation({ lat, lng });
 
+        let existingProfile: any = null;
+        if (supabase) {
+          const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+          if (data) {
+            existingProfile = data;
+          }
+        }
+
+        // Check if required info is missing
+        if (!existingProfile || !existingProfile.gender || !existingProfile.seeking || !existingProfile.dob || !existingProfile.height || !existingProfile.weight) {
+          setShowProfileSetup(true);
+        }
+
         const myProfile: UserProfile = {
           id: userId,
           name: userName,
@@ -146,6 +190,11 @@ export default function App() {
           lat,
           lng,
           last_seen: new Date().toISOString(),
+          gender: existingProfile?.gender || '',
+          seeking: existingProfile?.seeking || '',
+          dob: existingProfile?.dob || '',
+          height: existingProfile?.height || '',
+          weight: existingProfile?.weight || '',
         };
 
         setCurrentUser(myProfile);
@@ -163,6 +212,11 @@ export default function App() {
               lat: typeof u.lat === 'number' ? u.lat : lat,
               lng: typeof u.lng === 'number' ? u.lng : lng,
               last_seen: u.last_seen || new Date().toISOString(),
+              gender: u.gender || '',
+              seeking: u.seeking || '',
+              dob: u.dob || '',
+              height: u.height || '',
+              weight: u.weight || '',
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
             
@@ -183,6 +237,31 @@ export default function App() {
     initApp();
   }, []);
 
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !supabase) return;
+
+    const updatedProfile = {
+      ...currentUser,
+      gender,
+      seeking,
+      dob,
+      height,
+      weight,
+      last_seen: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
+    if (error) {
+      alert('Error saving profile. Please try again.');
+      return;
+    }
+
+    setCurrentUser(updatedProfile);
+    setShowProfileSetup(false);
+    window.location.reload(); // Refresh to fetch newly filtered pool
+  };
+
   const handleRefresh = async () => {
     if (!currentUser || !supabase) return;
     try {
@@ -196,6 +275,11 @@ export default function App() {
           lat: typeof u.lat === 'number' ? u.lat : location.lat,
           lng: typeof u.lng === 'number' ? u.lng : location.lng,
           last_seen: u.last_seen || new Date().toISOString(),
+          gender: u.gender || '',
+          seeking: u.seeking || '',
+          dob: u.dob || '',
+          height: u.height || '',
+          weight: u.weight || '',
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
         setUsers(processed);
@@ -231,17 +315,97 @@ export default function App() {
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
-        <p>Loading profiles...</p>
+        <p>Loading profile...</p>
       </div>
     );
   }
 
+  // --- PREVENT ACCESS & SHOW SETUP SCREEN IF INFO IS MISSING ---
+  if (showProfileSetup) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
+        <h2 style={{ fontSize: '22px', marginBottom: '8px', color: '#007bff' }}>Complete Your Profile</h2>
+        <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '24px' }}>Please complete your details to unlock the nearby grid.</p>
+        
+        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '400px', width: '100%', margin: '0 auto' }}>
+          
+          {/* I am a [dropdown] seeking [dropdown] */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>I am a:</label>
+            <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
+              <option value="man">Man</option>
+              <option value="woman">Woman</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Seeking:</label>
+            <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
+              <option value="men">Men</option>
+              <option value="women">Women</option>
+              <option value="man & women">Men & Women</option>
+            </select>
+          </div>
+
+          {/* Date of Birth */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Date of Birth:</label>
+            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px', colorScheme: 'dark' }} required />
+          </div>
+
+          {/* Height Dropdown */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Height:</label>
+            <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
+              {heightOptions.map((h, idx) => (
+                <option key={idx} value={h}>{h}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Weight Dropdown */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Weight:</label>
+            <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
+              {weightOptions.map((w, idx) => (
+                <option key={idx} value={w}>{w}</option>
+              ))}
+            </select>
+          </div>
+
+          <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+            Save & Enter Grid
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // --- MUTUAL GENDER FILTERING LOGIC ---
+  // The grid will only show users that match current user's seeking preference AND whose seeking preference matches current user's gender.
+  const filteredUsers = users.filter((u) => {
+    if (currentUser && u.id === currentUser.id) return true; // Always allow self
+    if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
+
+    const myGender = currentUser.gender.toLowerCase();
+    const mySeeking = currentUser.seeking.toLowerCase();
+    const theirGender = u.gender.toLowerCase();
+    const theirSeeking = u.seeking.toLowerCase();
+
+    // Check if I am seeking their gender
+    const amISeekingThem = mySeeking.includes(theirGender) || mySeeking === 'man & women';
+    // Check if they are seeking my gender
+    const areTheySeekingMe = theirSeeking.includes(myGender) || theirSeeking === 'man & women';
+
+    return amISeekingThem && areTheySeekingMe;
+  });
+
   const sortedGridUsers = currentUser 
     ? [
         { ...currentUser, distance: 0 }, 
-        ...users.filter(u => u.id !== currentUser.id)
+        ...filteredUsers.filter(u => u.id !== currentUser.id)
       ]
-    : users;
+    : filteredUsers;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -253,7 +417,7 @@ export default function App() {
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({users.length})</h1>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({filteredUsers.length})</h1>
         </div>
         
         <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -318,7 +482,7 @@ export default function App() {
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <Marker 
                 key={user.id} 
                 position={[user.lat, user.lng]} 
