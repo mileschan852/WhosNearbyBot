@@ -44,6 +44,10 @@ interface UserProfile {
   dob?: string;
   height?: string;
   weight?: string;
+  role_pref?: string;
+  safety_pref?: string;
+  lifestyle_pref?: string;
+  hosting_pref?: string;
   distance?: number;
 }
 
@@ -108,6 +112,12 @@ export default function App() {
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
+
+  // Toggable Hidden Preferences (Man seeking Men)
+  const [rolePref, setRolePref] = useState<string>('Versatile');
+  const [safetyPref, setSafetyPref] = useState<string>('Safe');
+  const [lifestylePref, setLifestylePref] = useState<string>('Clean');
+  const [hostingPref, setHostingPref] = useState<string>('Host');
 
   // Generate Height Options (1.0m to 3.0m by 0.1m)
   const heightOptions = [];
@@ -194,6 +204,10 @@ export default function App() {
           dob: existingProfile?.dob || '',
           height: existingProfile?.height || '',
           weight: existingProfile?.weight || '',
+          role_pref: existingProfile?.role_pref || 'Versatile',
+          safety_pref: existingProfile?.safety_pref || 'Safe',
+          lifestyle_pref: existingProfile?.lifestyle_pref || 'Clean',
+          hosting_pref: existingProfile?.hosting_pref || 'Host',
         };
 
         setCurrentUser(myProfile);
@@ -216,6 +230,10 @@ export default function App() {
               dob: u.dob || '',
               height: u.height || '',
               weight: u.weight || '',
+              role_pref: u.role_pref || '',
+              safety_pref: u.safety_pref || '',
+              lifestyle_pref: u.lifestyle_pref || '',
+              hosting_pref: u.hosting_pref || '',
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
             
@@ -247,6 +265,10 @@ export default function App() {
       dob,
       height,
       weight,
+      role_pref: gender === 'man' && seeking === 'men' ? rolePref : null,
+      safety_pref: gender === 'man' && seeking === 'men' ? safetyPref : null,
+      lifestyle_pref: gender === 'man' && seeking === 'men' ? lifestylePref : null,
+      hosting_pref: gender === 'man' && seeking === 'men' ? hostingPref : null,
       last_seen: new Date().toISOString(),
     };
 
@@ -319,55 +341,120 @@ export default function App() {
     );
   }
 
+  // --- PROFILE SETUP SCREEN WITH YOUR EXACT LAYOUT ---
   if (showProfileSetup) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
         <h2 style={{ fontSize: '22px', marginBottom: '8px', color: '#007bff' }}>Complete Your Profile</h2>
-        <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '24px' }}>Please complete your details to unlock the nearby grid.</p>
+        <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '20px' }}>Please complete your details to unlock the nearby grid.</p>
         
-        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '400px', width: '100%', margin: '0 auto' }}>
+        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto' }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>I am a:</label>
-            <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
-              <option value="man">Man</option>
-              <option value="woman">Woman</option>
-            </select>
+          {/* I'm and seeking on ONE line */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
+              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+                <option value="man">Man</option>
+                <option value="woman">Woman</option>
+              </select>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
+              <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+                <option value="men">Men</option>
+                <option value="women">Women</option>
+                <option value="man & women">Men & Women</option>
+              </select>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Seeking:</label>
-            <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
-              <option value="men">Men</option>
-              <option value="women">Women</option>
-              <option value="man & women">Men & Women</option>
-            </select>
+          {/* Height and Weight on SAME line */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
+              <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+                {heightOptions.map((h, idx) => (
+                  <option key={idx} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
+              <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px' }}>
+                {weightOptions.map((w, idx) => (
+                  <option key={idx} value={w}>{w}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Date of Birth:</label>
-            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px', colorScheme: 'dark' }} required />
+          {/* Date of Birth */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Height:</label>
-            <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
-              {heightOptions.map((h, idx) => (
-                <option key={idx} value={h}>{h}</option>
-              ))}
-            </select>
-          </div>
+          {/* --- DIVIDING LINE --- */}
+          {gender === 'man' && seeking === 'men' && (
+            <>
+              <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
+              
+              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 4px 0' }}>Preferences (Man seeking Men):</p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Weight:</label>
-            <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '16px' }}>
-              {weightOptions.map((w, idx) => (
-                <option key={idx} value={w}>{w}</option>
-              ))}
-            </select>
-          </div>
+              {/* Top / Versatile / Bottom */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>Role:</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['Top', 'Versatile', 'Bottom'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setRolePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: rolePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {/* Raw / Safe */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>Safety:</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['Raw', 'Safe'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setSafetyPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: safetyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Clean / Party */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>Lifestyle:</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['Clean', 'Party'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setLifestylePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: lifestylePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Host / Travel */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>Hosting:</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['Host', 'Travel'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setHostingPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: hostingPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          <button type="submit" style={{ marginTop: '10px', padding: '12px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
             Save & Enter Grid
           </button>
         </form>
@@ -375,6 +462,7 @@ export default function App() {
     );
   }
 
+  // --- MUTUAL GENDER FILTERING ---
   const filteredUsers = users.filter((u) => {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
