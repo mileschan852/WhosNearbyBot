@@ -48,6 +48,7 @@ interface UserProfile {
   safety_pref?: string | null;
   playstyle_pref?: string | null;
   where_pref?: string | null;
+  how_many_pref?: string | null;
   non_man_mode?: string | null;
   is_underage?: boolean;
   distance?: number;
@@ -125,6 +126,7 @@ export default function App() {
   const [safetyPref, setSafetyPref] = useState<string>('Safe');
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');
   const [wherePref, setWherePref] = useState<string>('Host');
+  const [howManyPref, setHowManyPref] = useState<string>('1on1');
 
   // Non-man seeking men preferences (Radio option state)
   const [nonManMode, setNonManMode] = useState<string>('Meetup');
@@ -224,6 +226,7 @@ export default function App() {
           safety_pref: existingProfile?.safety_pref || 'Safe',
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
           where_pref: existingProfile?.where_pref || 'Host',
+          how_many_pref: existingProfile?.how_many_pref || '1on1',
           non_man_mode: existingProfile?.non_man_mode || 'Meetup',
           is_underage: false,
         };
@@ -252,6 +255,7 @@ export default function App() {
               safety_pref: u.safety_pref || '',
               playstyle_pref: u.playstyle_pref || '',
               where_pref: u.where_pref || '',
+              how_many_pref: u.how_many_pref || '',
               non_man_mode: u.non_man_mode || '',
               is_underage: u.is_underage || false,
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
@@ -325,6 +329,7 @@ export default function App() {
       safety_pref: isManSeekingMen ? safetyPref : null,
       playstyle_pref: isManSeekingMen ? playstylePref : null,
       where_pref: isManSeekingMen ? wherePref : null,
+      how_many_pref: isManSeekingMen ? howManyPref : null,
       non_man_mode: !isManSeekingMen ? nonManMode : null,
       is_underage: false,
       last_seen: new Date().toISOString(),
@@ -363,6 +368,7 @@ export default function App() {
           safety_pref: u.safety_pref || '',
           playstyle_pref: u.playstyle_pref || '',
           where_pref: u.where_pref || '',
+          how_many_pref: u.how_many_pref || '',
           non_man_mode: u.non_man_mode || '',
           is_underage: u.is_underage || false,
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
@@ -391,7 +397,14 @@ export default function App() {
     const safetyMatch = me.safety_pref === target.safety_pref;
     const playstyleMatch = me.playstyle_pref === target.playstyle_pref;
 
-    return roleMatch && safetyMatch && playstyleMatch;
+    const myHowMany = me.how_many_pref;
+    const targetHowMany = target.how_many_pref;
+    let howManyMatch = false;
+    if (myHowMany === '1on1' && targetHowMany === '1on1') howManyMatch = true;
+    else if (myHowMany === 'Group' && (targetHowMany === 'Group' || targetHowMany === '1on1')) howManyMatch = true;
+    else if (targetHowMany === 'Group' && myHowMany === '1on1') howManyMatch = true;
+
+    return roleMatch && safetyMatch && playstyleMatch && howManyMatch;
   };
 
   const handleStartChat = (targetUser: UserProfile, isEnabled: boolean) => {
@@ -548,8 +561,19 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Where?</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  {['1on1', 'Group'].map((opt) => (
+                  {['Host', 'Travel'].map((opt) => (
                     <button type="button" key={opt} onClick={() => setWherePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: wherePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: '#aaa' }}>How many?</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['1on1', 'Group'].map((opt) => (
+                    <button type="button" key={opt} onClick={() => setHowManyPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: howManyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                       {opt}
                     </button>
                   ))}
