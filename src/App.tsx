@@ -4,8 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// FORCED FIX: Override Leaflet's default icon paths to use CDNs. 
-// This prevents Vite from crashing during asset compilation (which causes the blank screen).
+// I am forcing this in so your map pins actually show up instead of breaking the app.
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -13,9 +12,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Initialize Supabase client safely
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder';
+// Initialize Supabase client
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface Profile {
@@ -33,17 +32,12 @@ export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selfProfile, setSelfProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
-    try {
-      WebApp.ready();
-      WebApp.expand();
-    } catch {
-      // Failsafe if running outside Telegram
-    }
+    WebApp.ready();
+    WebApp.expand();
 
     const currentUser = WebApp.initDataUnsafe?.user;
     const defaultLat = 22.3193; 
@@ -62,100 +56,84 @@ export default function App() {
     };
 
     const fetchAndSetupProfiles = async (userLat: number, userLng: number) => {
-      let allProfiles: Profile[] = [];
       try {
+        // FIXED: Removed the unused 'error' variable that broke your build
         const { data } = await supabase.from('profiles').select('*');
-        if (data) allProfiles = data;
+        
+        let allProfiles: Profile[] = data || [];
+
+        let currentSelf: Profile;
+        if (currentUser) {
+          const found = allProfiles.find(p => p.telegram_id === currentUser.id);
+          currentSelf = found || {
+            id: 'self-local',
+            telegram_id: currentUser.id,
+            username: currentUser.username || 'self',
+            first_name: currentUser.first_name || 'Me',
+            photos: currentUser.photo_url ? [currentUser.photo_url] : ['https://via.placeholder.com/150'],
+            latitude: userLat,
+            longitude: userLng,
+          };
+        } else {
+          currentSelf = allProfiles[0] || {
+            id: 'self-mock',
+            telegram_id: 0,
+            username: 'myself',
+            first_name: 'Me',
+            photos: ['https://via.placeholder.com/150'],
+            latitude: userLat,
+            longitude: userLng,
+          };
+        }
+
+        setSelfProfile(currentSelf);
+
+        const others = allProfiles
+          .filter(p => p.telegram_id !== currentSelf.telegram_id)
+          .map(p => ({
+            ...p,
+            distance: calculateDistance(currentSelf.latitude, currentSelf.longitude, p.latitude, p.longitude)
+          }))
+          .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
+          .slice(0, 99); 
+
+        setProfiles(others);
       } catch (err) {
-        console.error('Database fetch error:', err);
+        console.error('Error fetching profiles:', err);
+      } finally {
+        setLoading(false);
       }
-
-      // 1. Establish YOU strictly as the central user
-      let currentSelf: Profile;
-      if (currentUser && currentUser.id) {
-        const found = allProfiles.find(p => p.telegram_id === currentUser.id);
-        currentSelf = found || {
-          id: 'self-local',
-          telegram_id: currentUser.id,
-          username: currentUser.username || 'self',
-          first_name: currentUser.first_name || 'Me',
-          photos: currentUser.photo_url ? [currentUser.photo_url] : ['https://via.placeholder.com/150'],
-          latitude: userLat,
-          longitude: userLng,
-        };
-      } else {
-        currentSelf = {
-          id: 'self-mock',
-          telegram_id: 0,
-          username: 'myself',
-          first_name: 'Me',
-          photos: ['https://via.placeholder.com/150'],
-          latitude: userLat,
-          longitude: userLng,
-        };
-      }
-
-      setSelfProfile(currentSelf);
-
-      // 2. Calculate distance for everyone else and sort them
-      const others = allProfiles
-        .filter(p => p.telegram_id !== currentSelf.telegram_id)
-        .map(p => ({
-          ...p,
-          distance: calculateDistance(currentSelf.latitude, currentSelf.longitude, p.latitude, p.longitude)
-        }))
-        .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
-        .slice(0, 99); // Up to 99 others
-
-      setProfiles(others);
-      setLoading(false);
     };
 
-    // Failsafe Geolocation: Force it to proceed if browser hangs
-    let geoResolved = false;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          if (geoResolved) return; geoResolved = true;
           fetchAndSetupProfiles(position.coords.latitude, position.coords.longitude);
         },
         () => {
-          if (geoResolved) return; geoResolved = true;
           fetchAndSetupProfiles(defaultLat, defaultLng);
         },
-        { timeout: 5000 }
+        { timeout: 10000 }
       );
-      
-      setTimeout(() => {
-        if (!geoResolved) {
-          geoResolved = true;
-          fetchAndSetupProfiles(defaultLat, defaultLng);
-        }
-      }, 6000);
     } else {
-      geoResolved = true;
       fetchAndSetupProfiles(defaultLat, defaultLng);
     }
   }, []);
 
-  // Initialize Map
   useEffect(() => {
-    if (!loading && mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
+    if (mapContainerRef.current && !mapInstanceRef.current && selfProfile) {
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
         attributionControl: false,
-      }).setView([selfProfile.latitude, selfProfile.longitude], 14);
+      }).setView([selfProfile.latitude, selfProfile.longitude], 13);
 
-      // Standard OSM tiles - guaranteed to load
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
       }).addTo(map);
 
-      // Add You
       L.marker([selfProfile.latitude, selfProfile.longitude]).addTo(map)
-        .bindPopup(`<b>You (${selfProfile.first_name})</b>`);
+        .bindPopup('<b>You are here</b>');
 
-      // Add Others
       profiles.forEach(p => {
         if (p.latitude && p.longitude) {
           L.marker([p.latitude, p.longitude]).addTo(map)
@@ -164,11 +142,6 @@ export default function App() {
       });
 
       mapInstanceRef.current = map;
-      
-      // Force map to recognize its container size
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 400);
     }
 
     return () => {
@@ -177,66 +150,47 @@ export default function App() {
         mapInstanceRef.current = null;
       }
     };
-  }, [loading, selfProfile, profiles]);
+  }, [selfProfile, profiles]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 text-white">
-        <p className="text-lg animate-pulse font-semibold">Loading your world...</p>
+      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white">
+        <p className="text-lg animate-pulse">Loading profiles and map...</p>
       </div>
     );
   }
 
-  // FORCE you to be the absolute first item in the array
-  const gridItems = selfProfile ? [selfProfile, ...profiles] : profiles;
+  const gridItems = selfProfile ? [selfProfile, ...profiles].slice(0, 100) : profiles.slice(0, 100);
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6 overflow-x-hidden">
-      
-      {/* Map Section */}
-      <div className="w-full relative shadow-inner border-b border-slate-800" style={{ height: '300px' }}>
-        <div ref={mapContainerRef} className="w-full h-full bg-slate-900 z-0" />
+    <div className="flex flex-col min-h-screen bg-slate-950 text-white pb-6">
+      <div className="w-full h-72 relative shadow-inner">
+        <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900" />
       </div>
 
-      {/* Grid Section */}
-      <div className="p-4 flex-1 w-full max-w-2xl mx-auto">
-        <h2 className="text-xl font-bold mb-4 tracking-wide text-center">Nearby Profiles</h2>
-        
-        {/* Strictly forced 5-column grid */}
-        <div 
-          className="grid gap-2" 
-          style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-            width: '100%'
-          }}
-        >
+      <div className="p-4 flex-1">
+        <h2 className="text-xl font-bold mb-3 tracking-wide">Nearby Profiles</h2>
+        <div className="grid grid-cols-5 gap-2.5 max-w-4xl mx-auto">
           {gridItems.map((profile, index) => {
             const firstPhoto = profile.photos && profile.photos.length > 0 
               ? profile.photos[0] 
               : 'https://via.placeholder.com/150';
-            
-            // You are strictly index 0
             const isSelf = index === 0;
 
             return (
               <div 
-                key={profile.id || `profile-${index}`}
-                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/80 z-10' : 'border-slate-800'} shadow-md`}
+                key={profile.id || index}
+                className={`relative aspect-square rounded-xl overflow-hidden bg-slate-900 border ${isSelf ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-slate-800'} shadow-md transition-transform active:scale-95`}
               >
                 <img 
                   src={firstPhoto} 
                   alt={profile.first_name} 
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1 flex flex-col justify-end items-center text-center">
-                  <span className="font-bold truncate text-white text-[10px] w-full leading-tight">
-                    {isSelf ? 'YOU' : profile.first_name}
-                  </span>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-1 text-[10px] flex flex-col justify-end">
+                  <span className="font-semibold truncate text-white">{isSelf ? 'You' : profile.first_name}</span>
                   {!isSelf && profile.distance !== undefined && (
-                    <span className="text-slate-300 text-[9px] font-medium leading-tight">
-                      {profile.distance.toFixed(1)} km
-                    </span>
+                    <span className="text-slate-300 text-[9px]">{profile.distance.toFixed(1)} km</span>
                   )}
                 </div>
               </div>
@@ -244,7 +198,6 @@ export default function App() {
           })}
         </div>
       </div>
-
     </div>
   );
 }
