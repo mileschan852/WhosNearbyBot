@@ -36,7 +36,7 @@ function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
     if (map) {
-      map.setView(center, 15, { animate: true });
+      map.setView(center, 15, { animate: false });
     }
   }, [center, map]);
   return null;
@@ -57,91 +57,109 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
-  const [hasError, setHasError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   useEffect(() => {
-    try {
-      let userId = localStorage.getItem('app_user_id');
+    const initializeApp = async () => {
+      // 1. Get or create persistent user identity
+      let userId = localStorage.getItem('whos_nearby_user_id');
       if (!userId) {
         userId = 'user_' + Math.random().toString(36).substring(2, 9);
-        localStorage.setItem('app_user_id', userId);
+        localStorage.setItem('whos_nearby_user_id', userId);
       }
 
-      const defaultAvatar = `https://i.pravatar.cc/150?u=${userId}`;
-      const initialUser: UserProfile = {
-        id: userId,
-        name: 'You',
-        avatar: defaultAvatar,
-        lat: 22.3193,
-        lng: 114.1694,
-        last_seen: new Date().toISOString(),
-      };
+      let userAvatar = localStorage.getItem('whos_nearby_avatar');
+      if (!userAvatar) {
+        userAvatar = `https://i.pravatar.cc/150?u=${userId}`;
+        localStorage.setItem('whos_nearby_avatar', userAvatar);
+      }
 
-      setCurrentUser(initialUser);
-      setUsers([initialUser]);
+      // 2. Get Geolocation first before rendering interface
+      let lat = 22.3193;
+      let lng = 114.1694;
 
-      // Attempt Geolocation safely
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            setLocation({ lat, lng });
-            updateDatabaseAndFetch(userId, lat, lng, defaultAvatar);
-          },
-          () => {
-            // Fallback if permission denied
-            updateDatabaseAndFetch(userId, 22.3193, 114.1694, defaultAvatar);
-          },
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-      } else {
-        updateDatabaseAndFetch(userId, 22.3193, 114.1694, defaultAvatar);
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              lat = position.coords.latitude;
+              lng = position.coords.longitude;
+              resolve();
+            },
+            () => resolve(),
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        });
       }
-    } catch (err: any) {
-      setHasError(err?.message || 'Initialization failed');
-    }
-  }, []);
 
-  const updateDatabaseAndFetch = async (userId: string, lat: number, lng: number, avatar: string) => {
-    try {
-      const updatedUser: UserProfile = {
+      setLocation({ lat, lng });
+
+      const myProfile: UserProfile = {
         id: userId,
         name: 'You',
-        avatar,
+        avatar: userAvatar,
         lat,
         lng,
         last_seen: new Date().toISOString(),
       };
 
-      setCurrentUser(updatedUser);
+      setCurrentUser(myProfile);
 
+      // 3. Save/Upsert into Supabase database first before showing interface
       if (supabase) {
-        await supabase.from('profiles').upsert([updatedUser], { onConflict: 'id' });
-        const { data } = await supabase.from('profiles').select('*');
-        if (data && data.length > 0) {
-          const processedUsers = data.map((u: UserProfile) => ({
-            ...u,
-            distance: calculateDistance(lat, lng, u.lat, u.lng),
-          })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-          setUsers(processedUsers);
+        try {
+          await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
+          const { data, error } = await supabase.from('profiles').select('*');
+          if (!error && data) {
+            const processedUsers = data.map((u: UserProfile) => ({
+              ...u,
+              distance: calculateDistance(lat, lng, u.lat, u.lng),
+            })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+            setUsers(processedUsers);
+          } else {
+            setUsers([myProfile]);
+          }
+        } catch (err) {
+          console.error('Database sync error:', err);
+          setUsers([myProfile]);
         }
+      } else {
+        setUsers([myProfile]);
       }
-    } catch (dbErr) {
-      console.error('Supabase operation failed, running locally:', dbErr);
+
+      // 4. Unlock UI render
+      setIsInitialized(true);
+    };
+
+    initializeApp();
+  }, []);
+
+  const handleRefresh = async () => {
+    if (!currentUser) return;
+    if (supabase) {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (!error && data) {
+        const processedUsers = data.map((u: UserProfile) => ({
+          ...u,
+          distance: calculateDistance(location.lat, location.lng, u.lat, u.lng),
+        })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+        setUsers(processedUsers);
+      }
     }
   };
 
-  const handleRefresh = () => {
-    if (currentUser) {
-      updateDatabaseAndFetch(currentUser.id, location.lat, location.lng, currentUser.avatar);
-    }
+  const handleStartChat = (targetUserId: string) => {
+    if (currentUser && targetUserId === currentUser.id) return;
+    alert(`Starting private chat with user ${targetUserId}`);
   };
 
-  const handleStartChat = (userId: string) => {
-    if (currentUser && userId === currentUser.id) return;
-    alert(`Starting private chat with user ${userId}`);
-  };
+  if (!isInitialized) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
+        <p>Loading your profile and nearby users...</p>
+      </div>
+    );
+  }
 
   const sortedGridUsers = currentUser 
     ? [
@@ -149,15 +167,6 @@ export default function App() {
         ...users.filter(u => u.id !== currentUser.id)
       ]
     : users;
-
-  if (hasError) {
-    return (
-      <div style={{ padding: '20px', color: '#ff4d4d', backgroundColor: '#121212', height: '100vh', fontFamily: 'sans-serif' }}>
-        <h2>Runtime Error</h2>
-        <p>{hasError}</p>
-      </div>
-    );
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
