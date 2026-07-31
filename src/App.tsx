@@ -204,11 +204,12 @@ export default function App() {
     
     if (targetUserId.startsWith('tg_')) {
       const rawTgId = targetUserId.replace('tg_', '');
-      const chatUrl = `https://t.me/${rawTgId}`;
+      // Use Telegram's direct user scheme tg://user?id= which opens chats directly without phone number errors
+      const chatUrl = `tg://user?id=${rawTgId}`;
       if (window.Telegram?.WebApp?.openTelegramLink) {
         window.Telegram.WebApp.openTelegramLink(chatUrl);
       } else {
-        window.open(chatUrl, '_blank');
+        window.location.href = chatUrl;
       }
     } else {
       alert(`Cannot open chat with test user ID: ${targetUserId}`);
