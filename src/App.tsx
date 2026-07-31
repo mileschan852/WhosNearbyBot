@@ -106,8 +106,11 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        // CRITICAL FIX: If Telegram user exists, use their ID. Otherwise, use a persistent prompt or storage key
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : 'user_test_' + Math.abs(navigator.userAgent.hashCode || 12345);
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
+        if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
+          localStorage.setItem('whos_nearby_user_id', userId);
+        }
+
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
         const userAvatar = tgUser?.photo_url || '';
 
@@ -142,10 +145,8 @@ export default function App() {
         setCurrentUser(myProfile);
 
         if (supabase) {
-          // Upsert current user profile
           await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
 
-          // Fetch all profiles
           const { data, error } = await supabase.from('profiles').select('*');
           if (!error && data && Array.isArray(data)) {
             const processed = data.map((u: any) => ({
