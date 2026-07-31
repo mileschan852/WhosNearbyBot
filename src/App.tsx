@@ -651,42 +651,32 @@ export default function App() {
           )}
 
           {isNonManSeekingMenForm && (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
-                
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Just browsing' ? '1px solid #007bff' : '1px solid #333' }}>
-                  <input type="radio" name="nonManMode" value="Just browsing" checked={nonManMode === 'Just browsing'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
-                  <div>
-                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Just browsing</strong>
-                    <span style={{ fontSize: '12px', color: '#aaa' }}>Only able to see other users; unable to initiate nor receive messages from others.</span>
-                  </div>
-                </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
+              
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Just browsing' ? '1px solid #007bff' : '1px solid #333' }}>
+                <input type="radio" name="nonManMode" value="Just browsing" checked={nonManMode === 'Just browsing'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <div>
+                  <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Just browsing</strong>
+                  <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You will not be able to interact with other users but view when on grid and map</span>
+                </div>
+              </label>
 
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Online interactions' ? '1px solid #007bff' : '1px solid #333' }}>
-                  <input type="radio" name="nonManMode" value="Online interactions" checked={nonManMode === 'Online interactions'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
-                  <div>
-                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Online interactions</strong>
-                    <span style={{ fontSize: '12px', color: '#aaa' }}>Able to chat and receive messages from strangers, but not shown on map (map disabled).</span>
-                  </div>
-                </label>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Online interactions' ? '1px solid #007bff' : '1px solid #333' }}>
+                <input type="radio" name="nonManMode" value="Online interactions" checked={nonManMode === 'Online interactions'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <div>
+                  <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Online interactions</strong>
+                  <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You are only visible on Grid not on map, your map will be disabled.</span>
+                </div>
+              </label>
 
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meet up' ? '1px solid #007bff' : '1px solid #333' }}>
-                  <input type="radio" name="nonManMode" value="Meet up" checked={nonManMode === 'Meet up'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
-                  <div>
-                    <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meet up</strong>
-                    <span style={{ fontSize: '12px', color: '#aaa' }}>Shown on both grid and map for in-person meetings.</span>
-                  </div>
-                </label>
-              </div>
-            </>
-          )}
-
-          {isNonManSeekingMenForm && (
-            <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.15)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '12px', borderRadius: '6px', fontSize: '13px', lineHeight: '1.4' }}>
-              {nonManMode === 'Just browsing' && 'Warning: You will not be able to interact with other users but view when on grid and map.'}
-              {nonManMode === 'Online interactions' && 'Warning: You are only visible on Grid not on map, your map will be disabled.'}
-              {nonManMode === 'Meet up' && 'Warning: You have full function of grid and map but others will be able to see your location too.'}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meet up' ? '1px solid #007bff' : '1px solid #333' }}>
+                <input type="radio" name="nonManMode" value="Meet up" checked={nonManMode === 'Meet up'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <div>
+                  <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meet up</strong>
+                  <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You have full function of grid and map but others will be able to see your location too.</span>
+                </div>
+              </label>
             </div>
           )}
 
