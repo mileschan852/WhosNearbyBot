@@ -44,10 +44,10 @@ interface UserProfile {
   dob?: string;
   height?: string;
   weight?: string;
-  role_pref?: string;
-  safety_pref?: string;
-  lifestyle_pref?: string;
-  hosting_pref?: string;
+  role_pref?: string | null;
+  safety_pref?: string | null;
+  lifestyle_pref?: string | null;
+  hosting_pref?: string | null;
   distance?: number;
 }
 
@@ -341,7 +341,6 @@ export default function App() {
     );
   }
 
-  // --- PROFILE SETUP SCREEN WITH YOUR EXACT LAYOUT ---
   if (showProfileSetup) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
@@ -350,7 +349,6 @@ export default function App() {
         
         <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto' }}>
           
-          {/* I'm and seeking on ONE line */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
@@ -370,7 +368,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Height and Weight on SAME line */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
@@ -391,20 +388,17 @@ export default function App() {
             </div>
           </div>
 
-          {/* Date of Birth */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
             <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
           </div>
 
-          {/* --- DIVIDING LINE --- */}
           {gender === 'man' && seeking === 'men' && (
             <>
               <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
               
               <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 4px 0' }}>Preferences (Man seeking Men):</p>
 
-              {/* Top / Versatile / Bottom */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Role:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -416,7 +410,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Raw / Safe */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Safety:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -428,7 +421,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Clean / Party */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Lifestyle:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -440,7 +432,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Host / Travel */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: '#aaa' }}>Hosting:</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -462,7 +453,6 @@ export default function App() {
     );
   }
 
-  // --- MUTUAL GENDER FILTERING ---
   const filteredUsers = users.filter((u) => {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
