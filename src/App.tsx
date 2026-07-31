@@ -3,6 +3,27 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { createClient } from '@supabase/supabase-js';
 
+// --- TELEGRAM WEB APP DECLARATION ---
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: {
+        initDataUnsafe?: {
+          user?: {
+            id: number;
+            first_name: string;
+            last_name?: string;
+            username?: string;
+            photo_url?: string;
+          };
+        };
+        ready?: () => void;
+        expand?: () => void;
+      };
+    };
+  }
+}
+
 // --- SUPABASE CLIENT SETUP ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -20,22 +41,26 @@ interface UserProfile {
 
 // --- HELPER: CALCULATE DISTANCE (Haversine formula) ---
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3; // Earth radius in meters
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
+  try {
+    const R = 6371e3;
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+  } catch {
+    return 0;
+  }
 };
 
-// --- MAP CONTROLLER TO LOCK & CENTER LOCATION ---
+// --- MAP CONTROLLER ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    if (map) {
+    if (map && center) {
       map.setView(center, 15, { animate: false });
     }
   }, [center, map]);
@@ -43,10 +68,18 @@ function MapController({ center }: { center: [number, number] }) {
 }
 
 // --- CUSTOM LEAFLET ICON ---
-const createProfileIcon = (avatarUrl: string) => {
+const createProfileIcon = (user: UserProfile) => {
+  let innerHtml = '';
+  if (user.avatar) {
+    innerHtml = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+  } else {
+    const initial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
+    innerHtml = `<div style="width: 100%; height: 100%; background-color: #0088cc; color: #fff; display: flex; align-items: center; justifyContent: center; font-weight: bold; font-size: 14px;">${initial}</div>`;
+  }
+
   return L.divIcon({
     className: 'custom-map-pin',
-    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.4);"><img src="${avatarUrl}" style="width: 100%; height: 100%; object-fit: cover;" /></div>`,
+    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background-color: #222;">${innerHtml}</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
   });
@@ -57,94 +90,110 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
-  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [isReady, setIsReady] = useState<boolean>(false);
 
   useEffect(() => {
-    const initializeApp = async () => {
-      // 1. Get or create persistent user identity
-      let userId = localStorage.getItem('whos_nearby_user_id');
-      if (!userId) {
-        userId = 'user_' + Math.random().toString(36).substring(2, 9);
-        localStorage.setItem('whos_nearby_user_id', userId);
-      }
+    const initApp = async () => {
+      try {
+        // Initialize Telegram WebApp API
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.ready?.();
+          window.Telegram.WebApp.expand?.();
+        }
 
-      let userAvatar = localStorage.getItem('whos_nearby_avatar');
-      if (!userAvatar) {
-        userAvatar = `https://i.pravatar.cc/150?u=${userId}`;
-        localStorage.setItem('whos_nearby_avatar', userAvatar);
-      }
+        // Give Telegram client container a brief moment to inject user payload if needed
+        let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        if (!tgUser) {
+          await new Promise((res) => setTimeout(res, 200));
+          tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        }
 
-      // 2. Get Geolocation first before rendering interface
-      let lat = 22.3193;
-      let lng = 114.1694;
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
+        if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
+          localStorage.setItem('whos_nearby_user_id', userId);
+        }
 
-      if (navigator.geolocation) {
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              lat = position.coords.latitude;
-              lng = position.coords.longitude;
-              resolve();
-            },
-            () => resolve(),
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
-        });
-      }
+        const userName = tgUser?.first_name || 'You';
+        const userAvatar = tgUser?.photo_url || '';
 
-      setLocation({ lat, lng });
+        let lat = 22.3193;
+        let lng = 114.1694;
 
-      const myProfile: UserProfile = {
-        id: userId,
-        name: 'You',
-        avatar: userAvatar,
-        lat,
-        lng,
-        last_seen: new Date().toISOString(),
-      };
+        if (navigator.geolocation) {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                lat = pos.coords.latitude;
+                lng = pos.coords.longitude;
+                resolve();
+              },
+              () => resolve(),
+              { enableHighAccuracy: true, timeout: 4000 }
+            );
+          });
+        }
 
-      setCurrentUser(myProfile);
+        setLocation({ lat, lng });
 
-      // 3. Save/Upsert into Supabase database first before showing interface
-      if (supabase) {
-        try {
+        const myProfile: UserProfile = {
+          id: userId,
+          name: userName,
+          avatar: userAvatar,
+          lat,
+          lng,
+          last_seen: new Date().toISOString(),
+        };
+
+        setCurrentUser(myProfile);
+
+        if (supabase) {
           await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
           const { data, error } = await supabase.from('profiles').select('*');
-          if (!error && data) {
-            const processedUsers = data.map((u: UserProfile) => ({
-              ...u,
-              distance: calculateDistance(lat, lng, u.lat, u.lng),
+          if (!error && data && Array.isArray(data)) {
+            const processed = data.map((u: any) => ({
+              id: u.id || 'unknown',
+              name: u.name || 'User',
+              avatar: u.avatar || '',
+              lat: typeof u.lat === 'number' ? u.lat : lat,
+              lng: typeof u.lng === 'number' ? u.lng : lng,
+              last_seen: u.last_seen || new Date().toISOString(),
+              distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-            setUsers(processedUsers);
+            setUsers(processed);
           } else {
             setUsers([myProfile]);
           }
-        } catch (err) {
-          console.error('Database sync error:', err);
+        } else {
           setUsers([myProfile]);
         }
-      } else {
-        setUsers([myProfile]);
+      } catch (err) {
+        console.error('Initialization error caught safely:', err);
+      } finally {
+        setIsReady(true);
       }
-
-      // 4. Unlock UI render
-      setIsInitialized(true);
     };
 
-    initializeApp();
+    initApp();
   }, []);
 
   const handleRefresh = async () => {
-    if (!currentUser) return;
-    if (supabase) {
+    if (!currentUser || !supabase) return;
+    try {
       const { data, error } = await supabase.from('profiles').select('*');
-      if (!error && data) {
-        const processedUsers = data.map((u: UserProfile) => ({
-          ...u,
-          distance: calculateDistance(location.lat, location.lng, u.lat, u.lng),
+      if (!error && data && Array.isArray(data)) {
+        const processed = data.map((u: any) => ({
+          id: u.id || 'unknown',
+          name: u.name || 'User',
+          avatar: u.avatar || '',
+          lat: typeof u.lat === 'number' ? u.lat : location.lat,
+          lng: typeof u.lng === 'number' ? u.lng : location.lng,
+          last_seen: u.last_seen || new Date().toISOString(),
+          distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-        setUsers(processedUsers);
+        setUsers(processed);
       }
+    } catch (e) {
+      console.error('Refresh failed:', e);
     }
   };
 
@@ -153,10 +202,10 @@ export default function App() {
     alert(`Starting private chat with user ${targetUserId}`);
   };
 
-  if (!isInitialized) {
+  if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
-        <p>Loading your profile and nearby users...</p>
+        <p>Syncing Telegram profile and loading nearby users...</p>
       </div>
     );
   }
@@ -203,9 +252,19 @@ export default function App() {
                 <div 
                   key={user.id || index} 
                   onClick={() => handleStartChat(user.id)}
-                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#333', overflow: 'hidden', borderRadius: '4px' }}
+                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
-                  <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {user.avatar ? (
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>
+                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                  )}
                   
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
                     {isSelf ? 'You' : `${user.distance ?? 0}m`}
@@ -237,7 +296,7 @@ export default function App() {
               <Marker 
                 key={user.id} 
                 position={[user.lat, user.lng]} 
-                icon={createProfileIcon(user.avatar)}
+                icon={createProfileIcon(user)}
                 eventHandlers={{
                   click: () => handleStartChat(user.id),
                 }}
