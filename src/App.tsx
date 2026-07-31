@@ -331,6 +331,9 @@ export default function App() {
     if (me.id === target.id) return true;
     if (me.gender !== 'man' || me.seeking !== 'men') return true;
 
+    // If target is seeking Men & Women, they are always lit up
+    if (target.seeking === 'man & women') return true;
+
     // Role matching matrix
     const myRole = me.role_pref;
     const targetRole = target.role_pref;
@@ -346,21 +349,12 @@ export default function App() {
     // Playstyle matching (must be exact)
     const playstyleMatch = me.playstyle_pref === target.playstyle_pref;
 
-    // Where matching
-    let whereMatch = false;
-    const myWhere = me.where_pref;
-    const targetWhere = target.where_pref;
-    if (myWhere === '1on1' && targetWhere === '1on1') whereMatch = true;
-    else if (myWhere === 'Group' && (targetWhere === 'Group' || targetWhere === '1on1')) whereMatch = true;
-    else if (targetWhere === 'Group' && myWhere === '1on1') whereMatch = true;
-
-    return roleMatch && safetyMatch && playstyleMatch && whereMatch;
+    return roleMatch && safetyMatch && playstyleMatch;
   };
 
   const handleStartChat = (targetUser: UserProfile, isEnabled: boolean) => {
     if (currentUser && targetUser.id === currentUser.id) return;
     
-    // Check if non-man seeking men mode restricts messaging
     if (currentUser?.gender !== 'man' || currentUser?.seeking !== 'men') {
       if (currentUser?.non_man_mode === 'Just browsing') {
         alert('You are in Just browsing mode and cannot initiate messages.');
@@ -534,15 +528,13 @@ export default function App() {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
 
-    // Check non-man mode visibility restrictions
     if (u.non_man_mode === 'Just browsing' || u.non_man_mode === 'Online interactions') {
-      return false; // Hidden from map and grid
+      return false;
     }
 
     const mySeeking = currentUser.seeking.toLowerCase();
     const theirGender = u.gender.toLowerCase();
 
-    // The grid will only show the gender user selected
     if (mySeeking === 'men' && theirGender !== 'man') return false;
     if (mySeeking === 'women' && theirGender !== 'woman') return false;
     if (mySeeking === 'man & women' && theirGender !== 'man' && theirGender !== 'woman') return false;
@@ -617,7 +609,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* MAP VIEW - Disabled if currentUser is in 'Online interactions' mode */}
         {currentUser?.non_man_mode === 'Online interactions' ? (
           <div style={{ display: view === 'map' ? 'flex' : 'none', height: '100%', justifyContent: 'center', alignItems: 'center', color: '#888', textAlign: 'center', padding: '20px' }}>
             <p>Map is disabled in Online interactions mode.</p>
