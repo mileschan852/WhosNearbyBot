@@ -56,12 +56,12 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
-// --- MAP CONTROLLER ---
+// --- MAP CONTROLLER TO PERMANENTLY CENTER & LOCK ONTO USER ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
     if (map && center) {
-      map.setView(center, 15, { animate: false });
+      map.setView(center, 15, { animate: true });
     }
   }, [center, map]);
   return null;
@@ -74,7 +74,7 @@ const createProfileIcon = (user: UserProfile) => {
     innerHtml = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;" />`;
   } else {
     const initial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
-    innerHtml = `<div style="width: 100%; height: 100%; background-color: #0088cc; color: #fff; display: flex; align-items: center; justifyContent: center; font-weight: bold; font-size: 14px;">${initial}</div>`;
+    innerHtml = `<div style="width: 100%; height: 100%; background-color: #0088cc; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">${initial}</div>`;
   }
 
   return L.divIcon({
@@ -95,13 +95,11 @@ export default function App() {
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Initialize Telegram WebApp API
         if (window.Telegram?.WebApp) {
           window.Telegram.WebApp.ready?.();
           window.Telegram.WebApp.expand?.();
         }
 
-        // Give Telegram client container a brief moment to inject user payload if needed
         let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         if (!tgUser) {
           await new Promise((res) => setTimeout(res, 200));
@@ -128,7 +126,7 @@ export default function App() {
                 resolve();
               },
               () => resolve(),
-              { enableHighAccuracy: true, timeout: 4000 }
+              { enableHighAccuracy: true, timeout: 5000 }
             );
           });
         }
@@ -147,7 +145,10 @@ export default function App() {
         setCurrentUser(myProfile);
 
         if (supabase) {
+          // Upsert current user location & profile
           await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
+          
+          // Fetch all active profiles from database
           const { data, error } = await supabase.from('profiles').select('*');
           if (!error && data && Array.isArray(data)) {
             const processed = data.map((u: any) => ({
@@ -179,6 +180,21 @@ export default function App() {
   const handleRefresh = async () => {
     if (!currentUser || !supabase) return;
     try {
+      // Re-sync current user position on refresh
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            setLocation({ lat, lng });
+            const updatedProfile = { ...currentUser, lat, lng, last_seen: new Date().toISOString() };
+            await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
+          },
+          () => {},
+          { enableHighAccuracy: true }
+        );
+      }
+
       const { data, error } = await supabase.from('profiles').select('*');
       if (!error && data && Array.isArray(data)) {
         const processed = data.map((u: any) => ({
