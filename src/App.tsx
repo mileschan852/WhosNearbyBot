@@ -545,21 +545,6 @@ export default function App() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button 
-            onClick={() => {
-              setSelectedProfile(null);
-              setShowProfileSetup(true);
-            }} 
-            style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
-            title="My Profile"
-          >
-            {currentUser?.avatar ? (
-              <img src={currentUser.avatar} alt="Me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}</span>
-            )}
-          </button>
-
           <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -610,11 +595,11 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1 }}>
+        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
           <MapContainer 
             center={[location.lat, location.lng]} 
             zoom={15} 
-            style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
+            style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}
             zoomControl={false}
           >
             <MapController center={[location.lat, location.lng]} />
@@ -643,7 +628,7 @@ export default function App() {
 
       {/* PROFILE MODAL / SETUP */}
       {(showProfileSetup || selectedProfile) && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => { setShowProfileSetup(false); setSelectedProfile(null); }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => { setShowProfileSetup(false); setSelectedProfile(null); }}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
