@@ -94,18 +94,18 @@ const getZodiacSignEmoji = (dobString?: string) => {
     const month = date.getMonth() + 1;
     const day = date.getDate();
 
-    if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return '♈'; // Aries
-    if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return '♉'; // Taurus
-    if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return '♊'; // Gemini
-    if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return '♋'; // Cancer
-    if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return '♌'; // Leo
-    if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return '♍'; // Virgo
-    if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return '♎'; // Libra
-    if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return '♏'; // Scorpio
-    if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return '♐'; // Sagittarius
-    if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return '♑'; // Capricorn
-    if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return '♒'; // Aquarius
-    return '♓'; // Pisces
+    if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return '♈';
+    if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return '♉';
+    if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return '♊';
+    if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return '♋';
+    if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return '♌';
+    if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return '♍';
+    if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return '♎';
+    if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return '♏';
+    if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return '♐';
+    if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return '♑';
+    if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return '♒';
+    return '♓';
   } catch {
     return '';
   }
@@ -156,7 +156,7 @@ export default function App() {
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
 
   const [gender, setGender] = useState<string>('man');
-  const [seeking, setSeeking] = useState<string>('women');
+  const [seeking, setSeeking] = useState<string>('men');
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
@@ -206,8 +206,8 @@ export default function App() {
         lat: typeof u.lat === 'number' ? u.lat : lat,
         lng: typeof u.lng === 'number' ? u.lng : lng,
         last_seen: u.last_seen || new Date().toISOString(),
-        gender: u.gender || '',
-        seeking: u.seeking || 'women',
+        gender: u.gender || 'man',
+        seeking: u.seeking || 'men',
         dob: u.dob || '',
         height: u.height || '',
         weight: u.weight || '',
@@ -216,7 +216,7 @@ export default function App() {
         playstyle_pref: u.playstyle_pref || '',
         where_pref: u.where_pref || '',
         how_many_pref: u.how_many_pref || '',
-        non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || 'Meet up'),
+        non_man_mode: u.non_man_mode || 'Meet up',
         is_underage: u.is_underage || false,
         hide_age: u.hide_age || false,
         grid_visible: u.grid_visible ?? true,
@@ -305,8 +305,6 @@ export default function App() {
           setShowProfileSetup(true);
         }
 
-        const isManSeekingMenProfile = (existingProfile?.gender === 'man' && existingProfile?.seeking === 'men');
-
         const myProfile: UserProfile = {
           id: userId,
           name: userName,
@@ -325,7 +323,7 @@ export default function App() {
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
           where_pref: existingProfile?.where_pref || 'Host',
           how_many_pref: existingProfile?.how_many_pref || '1on1',
-          non_man_mode: isManSeekingMenProfile ? 'Meet up' : (existingProfile?.non_man_mode || 'Meet up'),
+          non_man_mode: existingProfile?.non_man_mode || 'Meet up',
           is_underage: false,
           hide_age: existingProfile?.hide_age || false,
           grid_visible: existingProfile?.grid_visible ?? true,
@@ -350,7 +348,6 @@ export default function App() {
     initApp();
   }, []);
 
-  // Refresh limit implementation (once every 5 minutes)
   const handleRefresh = async () => {
     if (!currentUser || !supabase) return;
     const lastRefreshKey = `last_refresh_${currentUser.id}`;
@@ -358,7 +355,7 @@ export default function App() {
     const now = Date.now();
 
     if (now - lastRefreshTime < 5 * 60 * 1000) {
-      return; // Silently block if under 5 minutes
+      return;
     }
 
     localStorage.setItem(lastRefreshKey, now.toString());
@@ -449,7 +446,7 @@ export default function App() {
     await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
-  const handleQuickPreferenceUpdate = async (field: 'where_pref', val: string) => {
+  const handleQuickWhereUpdate = async (val: string) => {
     if (!currentUser || !supabase) return;
     setWherePref(val);
     const updated = { ...currentUser, where_pref: val };
@@ -754,7 +751,7 @@ export default function App() {
                 <button type="button" onClick={() => isViewingSelf && cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
                   {isViewingSelf ? playstylePref : targetPlaystyle}
                 </button>
-                <button type="button" onClick={() => isViewingSelf && cycleOption(wherePref, whereOptions, (val) => isViewingSelf ? setWherePref(val) : handleQuickPreferenceUpdate('where_pref', val))} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                <button type="button" onClick={() => cycleOption(isViewingSelf ? wherePref : targetWhere, whereOptions, (val) => isViewingSelf ? setWherePref(val) : handleQuickWhereUpdate(val))} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                   {isViewingSelf ? wherePref : targetWhere}
                 </button>
                 <button type="button" onClick={() => isViewingSelf && cycleOption(howManyPref, howManyOptions, setHowManyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
@@ -808,7 +805,6 @@ export default function App() {
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
           <span style={{ fontSize: '12px', marginTop: '4px' }}>Grid</span>
-          {/* Bottom left red line indicator */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
         
@@ -831,7 +827,6 @@ export default function App() {
             </svg>
             <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
           </div>
-          {/* Bottom right indicator */}
           <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
 
