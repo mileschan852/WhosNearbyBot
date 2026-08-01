@@ -1,4 +1,4 @@
-Here is Part 1 of 3 (Setup, imports, state variables, and helpers):
+// Complete unified App.tsx file with all 3 parts fixed and unified cleanly
 import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -116,6 +116,7 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
     iconAnchor: [18, 18],
   });
 };
+
 export default function App() {
   const [view, setView] = useState<'grid' | 'map'>('grid');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -497,6 +498,212 @@ export default function App() {
     const nextIdx = (idx + 1) % options.length;
     setter(options[nextIdx]);
   };
+
+  if (!isReady) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
+        <p>Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (isUnderageLocked) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>Access Denied</h2>
+        <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
+          The app is for adults only. Access has been locked for this account due to age restrictions.
+        </p>
+      </div>
+    );
+  }
+
+  if (showProfileSetup) {
+    const isNonManSeekingMenForm = gender !== 'man' && seeking === 'men';
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <h2 style={{ fontSize: '22px', marginBottom: '4px', color: '#007bff' }}>Complete Your Profile</h2>
+        <p style={{ fontSize: '13px', color: '#ff4d4d', marginBottom: '16px', fontWeight: 'bold' }}>This cannot be modified later.</p>
+        
+        {errorMessage && (
+          <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}>
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto', paddingBottom: '40px' }}>
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
+              <select 
+                value={gender} 
+                onChange={(e) => !savedGender && setGender(e.target.value)} 
+                disabled={Boolean(savedGender)}
+                style={{ padding: '12px', backgroundColor: savedGender ? '#1a1a1a' : '#222', color: savedGender ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedGender ? 'not-allowed' : 'pointer' }}
+              >
+                <option value="man">Man</option>
+                <option value="woman">Woman</option>
+              </select>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
+              <select 
+                value={seeking} 
+                onChange={(e) => !savedSeeking && setSeeking(e.target.value)} 
+                disabled={Boolean(savedSeeking)}
+                style={{ padding: '12px', backgroundColor: savedSeeking ? '#1a1a1a' : '#222', color: savedSeeking ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedSeeking ? 'not-allowed' : 'pointer' }}
+              >
+                <option value="women">Women</option>
+                <option value="men">Men</option>
+                <option value="man & women">Men & Women</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
+              <select 
+                value={height} 
+                onChange={(e) => !savedHeight && setHeight(e.target.value)} 
+                disabled={Boolean(savedHeight)}
+                style={{ padding: '12px', backgroundColor: savedHeight ? '#1a1a1a' : '#222', color: savedHeight ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedHeight ? 'not-allowed' : 'pointer' }}
+              >
+                {heightOptions.map((h, idx) => (
+                  <option key={idx} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
+              <select 
+                value={weight} 
+                onChange={(e) => !savedWeight && setWeight(e.target.value)} 
+                disabled={Boolean(savedWeight)}
+                style={{ padding: '12px', backgroundColor: savedWeight ? '#1a1a1a' : '#222', color: savedWeight ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: savedWeight ? 'not-allowed' : 'pointer' }}
+              >
+                {weightOptions.map((w, idx) => (
+                  <option key={idx} value={w}>{w}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+            <input 
+              type="date" 
+              value={dob} 
+              onChange={(e) => !savedDob && setDob(e.target.value)} 
+              disabled={Boolean(savedDob)}
+              style={{ padding: '12px', backgroundColor: savedDob ? '#1a1a1a' : '#222', color: savedDob ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: savedDob ? 'not-allowed' : 'pointer' }} 
+              required 
+            />
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
+
+          {gender === 'man' && seeking === 'men' && (
+            <>
+              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 2px 0' }}>Preferences (Man seeking Men):</p>
+              <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 6px 0' }}>Click to change</p>
+
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <button type="button" onClick={() => cycleOption(rolePref, roleOptions, setRolePref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {rolePref}
+                </button>
+                <button type="button" onClick={() => cycleOption(safetyPref, safetyOptions, setSafetyPref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {safetyPref}
+                </button>
+                <button type="button" onClick={() => cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {playstylePref}
+                </button>
+                <button type="button" onClick={() => cycleOption(wherePref, whereOptions, setWherePref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {wherePref}
+                </button>
+                <button type="button" onClick={() => cycleOption(howManyPref, howManyOptions, setHowManyPref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {howManyPref}
+                </button>
+              </div>
+            </>
+          )}
+
+          {isNonManSeekingMenForm && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
+              
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Just browsing' ? '1px solid #007bff' : '1px solid #333' }}>
+                <input type="radio" name="nonManMode" value="Just browsing" checked={nonManMode === 'Just browsing'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <div>
+                  <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Just browsing</strong>
+                  <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You will not be able to interact with other users but view when on grid and map</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Online interactions' ? '1px solid #007bff' : '1px solid #333' }}>
+                <input type="radio" name="nonManMode" value="Online interactions" checked={nonManMode === 'Online interactions'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <div>
+                  <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Online interactions</strong>
+                  <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You are only visible on Grid not on map, your map will be disabled.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meet up' ? '1px solid #007bff' : '1px solid #333' }}>
+                <input type="radio" name="nonManMode" value="Meet up" checked={nonManMode === 'Meet up'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
+                <div>
+                  <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meet up</strong>
+                  <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You have full function of grid and map but others will be able to see your location too.</span>
+                </div>
+              </label>
+            </div>
+          )}
+
+          <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+            Save & Enter Grid
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  const filteredUsers = users.filter((u) => {
+    if (currentUser && u.id === currentUser.id) return true;
+    if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
+
+    const mySeeking = currentUser.seeking.toLowerCase();
+    const theirGender = u.gender.toLowerCase();
+
+    if (mySeeking === 'men' && theirGender !== 'man') return false;
+    if (mySeeking === 'women' && theirGender !== 'woman') return false;
+    if (mySeeking === 'man & women' && theirGender !== 'man' && theirGender !== 'woman') return false;
+
+    return true;
+  });
+
+  const mapFilteredUsers = filteredUsers.filter((u) => {
+    if (currentUser && u.id === currentUser.id) return true;
+    if (u.non_man_mode === 'Online interactions') return false;
+    return true;
+  });
+
+  const sortedGridUsers = currentUser 
+    ? [
+        { ...currentUser, distance: 0 }, 
+        ...filteredUsers.filter(u => u.id !== currentUser.id)
+      ]
+    : filteredUsers;
+
+  const isCurrentUserOnlineInteractions = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Online interactions';
+
+  const isSelectedSelf = selectedProfile && currentUser && selectedProfile.id === currentUser.id;
+  const isSelectedEnabled = selectedProfile ? (isSelectedSelf || checkMatchStatus(currentUser!, selectedProfile)) : false;
+  const isSelectedJustBrowsing = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Just browsing';
+  const showSendMessageButton = selectedProfile && !isSelectedSelf && !isSelectedJustBrowsing && isSelectedEnabled;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
