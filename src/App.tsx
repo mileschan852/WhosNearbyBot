@@ -425,7 +425,8 @@ export default function App() {
     const updated = { ...currentUser, grid_visible: nextVal };
     setCurrentUser(updated);
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-    await fetchUsersData(location.lat, location.lng, currentUser.id);
+    setView('grid');
+    await handleRefresh();
   };
 
   const handleToggleMap = async () => {
@@ -438,7 +439,7 @@ export default function App() {
     
     if (nextVal) {
       setView('map');
-    } else if (view === 'map') {
+    } else {
       setView('grid');
     }
     
@@ -578,7 +579,7 @@ export default function App() {
             {gridFilteredUsers.map((user, index) => {
               const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
               const isSelf = currentUser && user.id === currentUser.id;
-              const isEnabled = isSelf || checkMatchStatus(currentUser!, user);
+              const isEnabled = isSelf ? gridVisible : checkMatchStatus(currentUser!, user);
 
               return (
                 <div 
@@ -625,7 +626,7 @@ export default function App() {
             />
             {mapFilteredUsers.map((user) => {
               const isSelf = currentUser && user.id === currentUser.id;
-              const isEnabled = isSelf || checkMatchStatus(currentUser!, user);
+              const isEnabled = isSelf ? (mapVisible && gridVisible) : checkMatchStatus(currentUser!, user);
               return (
                 <Marker 
                   key={user.id} 
@@ -711,14 +712,13 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
-                    <select
-                      value={hideAge ? 'hide' : 'show'}
-                      onChange={(e) => setHideAge(e.target.value === 'hide')}
-                      style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }}
+                    <button
+                      type="button"
+                      onClick={() => setHideAge(!hideAge)}
+                      style={{ padding: '12px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
                     >
-                      <option value="show">Show Age</option>
-                      <option value="hide">Hide Age</option>
-                    </select>
+                      {hideAge ? 'Hide Age' : 'Show Age'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -778,10 +778,7 @@ export default function App() {
         
         {/* GRID TAB */}
         <button 
-          onClick={() => {
-            setView('grid');
-            handleToggleGrid();
-          }}
+          onClick={handleToggleGrid}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -796,13 +793,7 @@ export default function App() {
         
         {/* MAP TAB */}
         <button 
-          onClick={() => {
-            if (!mapVisible) {
-              handleToggleMap();
-            } else {
-              setView(view === 'map' ? 'grid' : 'map');
-            }
-          }}
+          onClick={handleToggleMap}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
