@@ -435,9 +435,13 @@ export default function App() {
     const updated = { ...currentUser, map_visible: nextVal };
     setCurrentUser(updated);
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-    if (!nextVal && view === 'map') {
+    
+    if (nextVal) {
+      setView('map');
+    } else if (view === 'map') {
       setView('grid');
     }
+    
     await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
@@ -809,19 +813,17 @@ export default function App() {
             if (!mapVisible) {
               handleToggleMap();
             } else {
-              setView('map');
+              setView(view === 'map' ? 'grid' : 'map');
             }
           }}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
         >
-          <div onClick={(e) => { e.stopPropagation(); handleToggleMap(); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
-              <line x1="15" y1="3" x2="15" y2="21"></line>
-            </svg>
-            <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
-          </div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <line x1="15" y1="3" x2="15" y2="21"></line>
+          </svg>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
           <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
 
