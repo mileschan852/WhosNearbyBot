@@ -84,7 +84,7 @@ function MapController({ center }: { center: [number, number] }) {
 }
 
 // --- CUSTOM LEAFLET ICON ---
-const createProfileIcon = (user: UserProfile, isEnabled: boolean) => {
+const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolean) => {
   let innerHtml = '';
   if (user.avatar) {
     innerHtml = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;" />`;
@@ -95,10 +95,11 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean) => {
 
   const opacity = isEnabled ? '1' : '0.3';
   const filter = isEnabled ? 'none' : 'grayscale(100%)';
+  const borderColor = isSelf ? '#00ffff' : (isEnabled ? '#007bff' : '#555');
 
   return L.divIcon({
     className: 'custom-map-pin',
-    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid ${isEnabled ? '#007bff' : '#555'}; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background-color: #222; opacity: ${opacity}; filter: ${filter}; display: flex; align-items: center; justify-content: center;">${innerHtml}</div>`,
+    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.6); background-color: #222; opacity: ${opacity}; filter: ${filter}; display: flex; align-items: center; justify-content: center;">${innerHtml}</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
   });
@@ -358,7 +359,13 @@ export default function App() {
     const isManSeekingMen = gender === 'man' && seeking === 'men';
 
     const updatedProfile = {
-      ...currentUser,
+      id: currentUser.id,
+      name: currentUser.name,
+      username: currentUser.username || '',
+      avatar: currentUser.avatar || '',
+      lat: currentUser.lat,
+      lng: currentUser.lng,
+      last_seen: new Date().toISOString(),
       gender,
       seeking,
       dob,
@@ -371,12 +378,12 @@ export default function App() {
       how_many_pref: isManSeekingMen ? howManyPref : null,
       non_man_mode: isManSeekingMen ? 'Meet up' : nonManMode,
       is_underage: false,
-      last_seen: new Date().toISOString(),
     };
 
     const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
     if (error) {
-      setErrorMessage('Error saving profile. Please try again.');
+      console.error('Supabase save error:', error);
+      setErrorMessage(`Error saving profile: ${error.message}`);
       return;
     }
 
@@ -795,12 +802,13 @@ export default function App() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
               {mapFilteredUsers.map((user) => {
-                const isEnabled = checkMatchStatus(currentUser!, user);
+                const isSelf = currentUser && user.id === currentUser.id;
+                const isEnabled = isSelf || checkMatchStatus(currentUser!, user);
                 return (
                   <Marker 
                     key={user.id} 
                     position={[user.lat, user.lng]} 
-                    icon={createProfileIcon(user, isEnabled)}
+                    icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
                     eventHandlers={{
                       click: () => handleStartChat(user, isEnabled),
                     }}
