@@ -71,6 +71,23 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
+// --- HELPER: CALCULATE AGE FROM DOB ---
+const calculateAge = (dobString?: string) => {
+  if (!dobString) return null;
+  try {
+    const birthDate = new Date(dobString);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  } catch {
+    return null;
+  }
+};
+
 // --- MAP CONTROLLER & RESIZE FIXER ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
@@ -114,6 +131,9 @@ export default function App() {
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Profile Drawer State
+  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
 
   // Setup Form State
   const [gender, setGender] = useState<string>('man');
@@ -453,21 +473,11 @@ export default function App() {
     return roleMatch && safetyMatch && playstyleMatch && howManyMatch;
   };
 
-  const handleStartChat = (targetUser: UserProfile, isEnabled: boolean) => {
-    if (currentUser && targetUser.id === currentUser.id) return;
-    
-    if (currentUser?.gender !== 'man' || currentUser?.seeking !== 'men') {
-      if (currentUser?.non_man_mode === 'Just browsing') {
-        alert('You are in Just browsing mode and cannot initiate messages.');
-        return;
-      }
-    }
+  const handleCardClick = (targetUser: UserProfile) => {
+    setSelectedProfile(targetUser);
+  };
 
-    if (!isEnabled) {
-      alert('This user does not match your preferences.');
-      return;
-    }
-    
+  const handleStartChat = (targetUser: UserProfile) => {
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
       if (window.Telegram?.WebApp?.openTelegramLink) {
@@ -486,6 +496,7 @@ export default function App() {
     } else {
       alert(`Selected user: ${targetUser.name}`);
     }
+    setSelectedProfile(null);
   };
 
   if (!isReady) {
@@ -724,6 +735,12 @@ export default function App() {
 
   const isCurrentUserOnlineInteractions = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Online interactions';
 
+  // Selected Profile Drawer logic checks
+  const isSelectedSelf = selectedProfile && currentUser && selectedProfile.id === currentUser.id;
+  const isSelectedEnabled = selectedProfile ? (isSelectedSelf || checkMatchStatus(currentUser!, selectedProfile)) : false;
+  const isSelectedJustBrowsing = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Just browsing';
+  const showSendMessageButton = selectedProfile && !isSelectedSelf && !isSelectedJustBrowsing && isSelectedEnabled;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
@@ -756,7 +773,7 @@ export default function App() {
               return (
                 <div 
                   key={user.id || index} 
-                  onClick={() => handleStartChat(user, isEnabled)}
+                  onClick={() => handleCardClick(user)}
                   style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isEnabled ? 1 : 0.4, filter: isEnabled ? 'none' : 'grayscale(100%)' }}
                 >
                   {user.avatar ? (
@@ -810,7 +827,7 @@ export default function App() {
                     position={[user.lat, user.lng]} 
                     icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
                     eventHandlers={{
-                      click: () => handleStartChat(user, isEnabled),
+                      click: () => handleCardClick(user),
                     }}
                   />
                 );
@@ -820,6 +837,57 @@ export default function App() {
         )}
 
       </main>
+
+      {/* --- TELEGRAM BOTTOM SHEET PROFILE DRAWER --- */}
+      {selectedProfile && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
+          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%', boxSizing: 'border-box', animation: 'slideUp 0.3s ease-out' }} onClick={(e) => e.stopPropagation()}>
+            
+            <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '4px' }} />
+
+            <div style={{ width: '90px', height: '90px', borderRadius: '50%</i>', overflow: 'hidden', backgroundColor: '#333', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {selectedProfile.avatar ? (
+                <img src={selectedProfile.avatar} alt={selectedProfile.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{selectedProfile.name ? selectedProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+              )}
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <h3 style={{ fontSize: '20px', margin: '0 0 4px 0', fontWeight: 'bold' }}>
+                {selectedProfile.name} {calculateAge(selectedProfile.dob) ? `, ${calculateAge(selectedProfile.dob)}` : ''}
+              </h3>
+              <p style={{ fontSize: '13px', color: '#aaa', margin: 0 }}>
+                {selectedProfile.id === currentUser?.id ? 'Your Profile' : `${selectedProfile.distance ?? 0}m away`}
+              </p>
+            </div>
+
+            {currentUser?.gender === 'man' && currentUser?.seeking === 'men' && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', backgroundColor: '#262626', padding: '10px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
+                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Role: {selectedProfile.role_pref || 'N/A'}</span>
+                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Safety: {selectedProfile.safety_pref || 'N/A'}</span>
+                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Play: {selectedProfile.playstyle_pref || 'N/A'}</span>
+                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Where: {selectedProfile.where_pref || 'N/A'}</span>
+                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Qty: {selectedProfile.how_many_pref || 'N/A'}</span>
+              </div>
+            )}
+
+            {showSendMessageButton && (
+              <button 
+                onClick={() => handleStartChat(selectedProfile)}
+                style={{ width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '6px' }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                Send Message
+              </button>
+            )}
+
+          </div>
+        </div>
+      )}
 
       <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
         <button 
