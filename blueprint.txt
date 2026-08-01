@@ -1,0 +1,80 @@
+Project Blueprint: "Who's Nearby" (Telegram Web App)
+
+This blueprint provides a comprehensive architectural and functional specification to completely recreate the Who's Nearby application from scratch.
+
+1. System Architecture & Tech Stack
+ * Frontend Framework: React (Vite template with TypeScript).
+ * Styling & UI Elements: Inline styles with a clean dark-mode design system optimized for mobile viewports (specifically tailored for Telegram Mini Apps).
+ * Mapping Engine: react-leaflet and Leaflet.js with CartoDB Dark Matter tiles.
+ * Backend & Database: Supabase (PostgreSQL) handling real-time profiles, spatial coordinates, preferences, and state synchronization.
+ * Platform Integration: Telegram Web App SDK (window.Telegram.WebApp) for automatic user authentication and deep-linking into Telegram chats.
+
+2. Database Schema (Supabase PostgreSQL)
+Run the following SQL migration script in your Supabase SQL Editor to establish the data structure:
+create table public.profiles (
+  id text not null primary key,
+  name text,
+  username text,
+  avatar text,
+  lat double precision,
+  lng double precision,
+  last_seen text,
+  gender text,
+  seeking text,
+  dob text,
+  height text,
+  weight text,
+  role_pref text,
+  safety_pref text,
+  playstyle_pref text,
+  where_pref text,
+  how_many_pref text,
+  non_man_mode text,
+  is_underage boolean default false,
+  hide_age boolean default false,
+  grid_visible boolean default true,
+  map_visible boolean default false
+);
+
+alter table public.profiles disable row level security;
+NOTIFY pgrst, 'reload schema';
+
+3. Core Features & Functional Specification
+A. Authentication & Onboarding
+ * Telegram User Detection: Automatically checks window.Telegram.WebApp.initDataUnsafe.user. If present, uses the Telegram id (prefixed with tg_), first name, username, and profile picture URL. If run outside Telegram, generates/retrieves a persistent local UUID fallback.
+
+ * Age Enforcement (18+ Lock): New users must complete their Date of Birth (dob), height, and weight via an initial setup sheet. If the calculated age is under 18, the profile is flagged as is_underage = true and the app locks out access permanently.
+
+B. Profile View & Preferences Management
+ * Own Profile vs. Other Users:
+   * Others' Profiles: Displays their profile picture, calculated age (unless hidden), zodiac sign emoji (automatically computed from DOB), height, weight, distance, last active timestamp, and preference tags (Role, Safety, Playstyle, How Many, Where).
+
+   * Own Profile: Includes controls to toggle age visibility (hide_age) and toggle host/travel preference (where_pref), which instantly sync and save changes to Supabase.
+
+ * Zodiac Sign Calculation: Dynamically determines astrological signs (Aries through Pisces) based on the month and day of the stored DOB.
+
+C. Matching Engine
+ * Evaluates compatibility between the current user and target users based on active preference tags:
+   * Role Matrix: Matches Top/Bottom opposites, Versatile with anyone, and Side with Side.
+   * Safety & Playstyle: Must be identical (e.g., Safe matches Safe, Clean matches Clean).
+   * Group / 1on1: Accommodates flexible group-size criteria.
+ * Profiles that match are fully opaque on the grid/map, while non-matching profiles appear dimmed and desaturated (grayscale).
+D. Visibility Controls & Status Indicators
+ * Grid Button & Light:
+
+   * Features a bottom status bar indicator (Green = visible to others, Red = invisible/hidden).
+
+   * Clicking when red makes the user visible, refreshes the grid data, and turns the indicator green.
+   * Clicking when green makes the user invisible to others, dims their own profile card on the grid, and turns the indicator red.
+
+ * Map Button & Light:
+   * Features a bottom status bar indicator (Green = sharing location on map, Red = hidden from map).
+   * Clicking when red enables map sharing (map_visible = true), switches the active view to the map, and turns the indicator green.
+   * Clicking when green removes the user's pin from the map (map_visible = false), switches back to the grid view, and turns the indicator red.
+
+E. Refresh Rate Limiter
+ * The manual refresh button fetches the latest database records and coordinates.
+ * Enforces a strict 5-minute cooldown timer stored in localStorage per user session without displaying intrusive countdown timers or indicators.
+
+F. Communication
+ * When viewing a matched user's profile, a Send Message button opens their direct Telegram profile link ([https://t.me/username](https://t.me/username) or user ID link) natively using the Telegram WebApp SDK.
