@@ -98,7 +98,7 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean) => {
 
   return L.divIcon({
     className: 'custom-map-pin',
-    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid ${isEnabled ? '#007bff' : '#555'}; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background-color: #222; opacity: ${opacity}; filter: ${filter};">${innerHtml}</div>`,
+    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2px solid ${isEnabled ? '#007bff' : '#555'}; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background-color: #222; opacity: ${opacity}; filter: ${filter}; display: flex; align-items: center; justify-content: center;">${innerHtml}</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
   });
@@ -295,7 +295,7 @@ export default function App() {
               playstyle_pref: u.playstyle_pref || '',
               where_pref: u.where_pref || '',
               how_many_pref: u.how_many_pref || '',
-              non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || ''),
+              non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || 'Meet up'),
               is_underage: u.is_underage || false,
               distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
             })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -408,7 +408,7 @@ export default function App() {
           playstyle_pref: u.playstyle_pref || '',
           where_pref: u.where_pref || '',
           how_many_pref: u.how_many_pref || '',
-          non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || ''),
+          non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || 'Meet up'),
           is_underage: u.is_underage || false,
           distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
         })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -692,14 +692,6 @@ export default function App() {
     if (currentUser && u.id === currentUser.id) return true;
     if (!currentUser?.gender || !currentUser?.seeking || !u.gender || !u.seeking) return false;
 
-    if (u.gender === 'man' && u.seeking === 'men') {
-      // Man seeking men are always Meet up mode equivalent
-    } else {
-      if (u.non_man_mode === 'Just browsing' || u.non_man_mode === 'Online interactions') {
-        return false;
-      }
-    }
-
     const mySeeking = currentUser.seeking.toLowerCase();
     const theirGender = u.gender.toLowerCase();
 
@@ -707,6 +699,12 @@ export default function App() {
     if (mySeeking === 'women' && theirGender !== 'woman') return false;
     if (mySeeking === 'man & women' && theirGender !== 'man' && theirGender !== 'woman') return false;
 
+    return true;
+  });
+
+  const mapFilteredUsers = filteredUsers.filter((u) => {
+    if (currentUser && u.id === currentUser.id) return true;
+    if (u.non_man_mode === 'Online interactions') return false;
     return true;
   });
 
@@ -796,7 +794,7 @@ export default function App() {
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
-              {filteredUsers.map((user) => {
+              {mapFilteredUsers.map((user) => {
                 const isEnabled = checkMatchStatus(currentUser!, user);
                 return (
                   <Marker 
