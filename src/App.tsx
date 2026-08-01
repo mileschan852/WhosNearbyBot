@@ -111,6 +111,23 @@ const getZodiacSignEmoji = (dobString?: string) => {
   }
 };
 
+const formatLastSeen = (isoString?: string) => {
+  if (!isoString) return 'Offline';
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Online just now';
+    if (diffMins < 60) return `Active ${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Active ${diffHours}h ago`;
+    return `Active ${Math.floor(diffHours / 24)}d ago`;
+  } catch {
+    return 'Offline';
+  }
+};
+
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -160,17 +177,8 @@ export default function App() {
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
   const [hideAge, setHideAge] = useState<boolean>(false);
 
-  const roleOptions = ['Top', 'Versatile', 'Bottom', 'Side'];
-  const safetyOptions = ['Safe', 'Raw'];
-  const playstyleOptions = ['Clean', 'Party'];
   const whereOptions = ['Host', 'Travel'];
-  const howManyOptions = ['1on1', 'Group'];
-
-  const [rolePref, setRolePref] = useState<string>('Versatile');
-  const [safetyPref, setSafetyPref] = useState<string>('Safe');
-  const [playstylePref, setPlaystylePref] = useState<string>('Clean');
   const [wherePref, setWherePref] = useState<string>('Host');
-  const [howManyPref, setHowManyPref] = useState<string>('1on1');
 
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
@@ -240,7 +248,7 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id') || 'user_' + Math.random().toString(36).substring(2, 9));
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id'] || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
           localStorage.setItem('whos_nearby_user_id', userId);
         }
@@ -311,9 +319,9 @@ export default function App() {
           last_seen: new Date().toISOString(),
           gender: 'man',
           seeking: 'men',
-          dob: existingProfile?.dob || '',
-          height: existingProfile?.height || '',
-          weight: existingProfile?.weight || '',
+          dob: existingProfile?.dob || '1995-01-01',
+          height: existingProfile?.height || '1.7m (5ft 7in)',
+          weight: existingProfile?.weight || '70kg (154lbs)',
           role_pref: existingProfile?.role_pref || 'Versatile',
           safety_pref: existingProfile?.safety_pref || 'Safe',
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
@@ -357,7 +365,7 @@ export default function App() {
     await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleSaveInitialProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -376,11 +384,7 @@ export default function App() {
 
     if (age < 18) {
       if (currentUser && supabase) {
-        const underageProfile = {
-          ...currentUser,
-          dob,
-          is_underage: true,
-        };
+        const underageProfile = { ...currentUser, dob, is_underage: true };
         await supabase.from('profiles').upsert([underageProfile], { onConflict: 'id' });
       }
       setIsUnderageLocked(true);
@@ -395,20 +399,12 @@ export default function App() {
       dob,
       height,
       weight,
-      role_pref: rolePref,
-      safety_pref: safetyPref,
-      playstyle_pref: playstylePref,
-      where_pref: wherePref,
-      how_many_pref: howManyPref,
       hide_age: hideAge,
-      grid_visible: gridVisible,
-      map_visible: mapVisible,
       is_underage: false,
     };
 
     const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
     if (error) {
-      console.error('Supabase save error:', error);
       setErrorMessage(`Error saving profile: ${error.message}`);
       return;
     }
@@ -446,10 +442,9 @@ export default function App() {
     await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
-  const handleQuickWhereUpdate = async (val: string) => {
+  const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
     if (!currentUser || !supabase) return;
-    setWherePref(val);
-    const updated = { ...currentUser, where_pref: val };
+    const updated = { ...currentUser, ...fields };
     setCurrentUser(updated);
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
   };
@@ -503,12 +498,6 @@ export default function App() {
     setSelectedProfile(null);
   };
 
-  const cycleOption = (current: string, options: string[], setter: (val: string) => void) => {
-    const idx = options.indexOf(current);
-    const nextIdx = (idx + 1) % options.length;
-    setter(options[nextIdx]);
-  };
-
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
@@ -530,17 +519,15 @@ export default function App() {
 
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : showProfileSetup;
   const activeProfile = isViewingSelf ? currentUser : selectedProfile;
-  
-  const targetDob = activeProfile?.dob || dob;
-  const targetHeight = activeProfile?.height || height;
-  const targetWeight = activeProfile?.weight || weight;
-  const targetHideAge = activeProfile?.hide_age ?? hideAge;
-  
-  const targetRole = activeProfile?.role_pref || rolePref;
-  const targetSafety = activeProfile?.safety_pref || safetyPref;
-  const targetPlaystyle = activeProfile?.playstyle_pref || playstylePref;
-  const targetWhere = activeProfile?.where_pref || wherePref;
-  const targetHowMany = activeProfile?.how_many_pref || howManyPref;
+
+  const targetDob = activeProfile?.dob || '';
+  const targetAge = calculateAge(targetDob);
+  const targetHideAge = activeProfile?.hide_age ?? false;
+  const targetZodiac = getZodiacSignEmoji(targetDob);
+  const targetHeight = activeProfile?.height || '';
+  const targetWeight = activeProfile?.weight || '';
+  const targetDistance = activeProfile?.distance ?? 0;
+  const targetLastSeen = formatLastSeen(activeProfile?.last_seen);
 
   const isOtherMatched = selectedProfile && currentUser ? checkMatchStatus(currentUser, selectedProfile) : false;
   const showSendMessage = selectedProfile && !isViewingSelf && isOtherMatched;
@@ -562,6 +549,21 @@ export default function App() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button 
+            onClick={() => {
+              setSelectedProfile(null);
+              setShowProfileSetup(true);
+            }} 
+            style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+            title="My Profile"
+          >
+            {currentUser?.avatar ? (
+              <img src={currentUser.avatar} alt="Me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}</span>
+            )}
+          </button>
+
           <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -643,132 +645,161 @@ export default function App() {
 
       </main>
 
-      {/* PROFILE SETUP / VIEW MODAL */}
+      {/* PROFILE MODAL / SETUP */}
       {(showProfileSetup || selectedProfile) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => { setShowProfileSetup(false); setSelectedProfile(null); }}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
 
-            <h2 style={{ fontSize: '20px', marginBottom: '4px', color: '#007bff', textAlign: 'center' }}>
-              {isViewingSelf ? 'Complete Your Profile' : `${activeProfile?.name || 'User'}'s Profile`}
-            </h2>
-            <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px', fontWeight: 'bold', textAlign: 'center' }}>
-              {isViewingSelf 
-                ? 'Update your personal details below' 
-                : `${!targetHideAge && calculateAge(targetDob) ? `${calculateAge(targetDob)}yo ` : ''}${getZodiacSignEmoji(targetDob)} • ${selectedProfile?.distance ?? 0}m away`
-              }
-            </p>
-            
-            {errorMessage && (
-              <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box' }}>
-                {errorMessage}
+            {/* INITIAL SETUP FORM IF NOT FULLY SETUP */}
+            {showProfileSetup && (!currentUser?.dob || !currentUser?.height || !currentUser?.weight) ? (
+              <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h2 style={{ fontSize: '20px', marginBottom: '16px', color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
+                {errorMessage && (
+                  <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px', width: '100%', boxSizing: 'border-box' }}>
+                    {errorMessage}
+                  </div>
+                )}
+                <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
+                      <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px' }}>
+                        {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
+                      <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px' }}>
+                        {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+                      <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
+                      <button type="button" onClick={() => setHideAge(!hideAge)} style={{ padding: '12px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
+                        {hideAge ? 'Hide Age' : 'Show Age'}
+                      </button>
+                    </div>
+                  </div>
+                  <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Save Profile
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* VIEW PROFILE CARD */
+              <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                
+                {/* Avatar Image */}
+                <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                  {activeProfile?.avatar ? (
+                    <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile?.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
+                </div>
+
+                <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile?.name}</h2>
+
+                {/* Sub info: Age / Zodiac, Height, Weight, Distance, Last Online */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
+                  {!targetHideAge && targetAge && <span>{targetAge}yo</span>}
+                  {targetZodiac && <span>{targetZodiac}</span>}
+                  <span>•</span>
+                  <span>{targetHeight}</span>
+                  <span>•</span>
+                  <span>{targetWeight}</span>
+                  <span>•</span>
+                  <span>{isViewingSelf ? 'You' : `${targetDistance}m away`}</span>
+                  <span>•</span>
+                  <span style={{ color: '#4ade80' }}>{targetLastSeen}</span>
+                </div>
+
+                {/* Own profile extra controls: Hide Age toggle */}
+                {isViewingSelf && (
+                  <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px' }}>
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const nextHide = !hideAge;
+                        setHideAge(nextHide);
+                        await handleUpdateSelfField({ hide_age: nextHide });
+                      }}
+                      style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      {hideAge ? 'Age Hidden (Click to Show)' : 'Age Shown (Click to Hide)'}
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
+
+                {/* Preference Tags */}
+                <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {activeProfile?.role_pref || 'Versatile'}
+                  </div>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {activeProfile?.safety_pref || 'Safe'}
+                  </div>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {activeProfile?.playstyle_pref || 'Clean'}
+                  </div>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {activeProfile?.how_many_pref || '1on1'}
+                  </div>
+                  
+                  {/* Where Tag - Toggable and colored if self */}
+                  {isViewingSelf ? (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
+                        setWherePref(nextWhere);
+                        await handleUpdateSelfField({ where_pref: nextWhere });
+                      }}
+                      style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      {wherePref}
+                    </button>
+                  ) : (
+                    <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile?.where_pref || 'Host'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Send Message Button for others if matched */}
+                {!isViewingSelf && (
+                  showSendMessage ? (
+                    <button 
+                      type="button" 
+                      onClick={() => handleStartChat(selectedProfile!)}
+                      style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                      </svg>
+                      Send Message
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#2a2a2a', color: '#888', border: '1px solid #444', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', textAlign: 'center' }}>
+                      Not Preference Matched
+                    </div>
+                  )
+                )}
+
               </div>
             )}
 
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px', width: '100%', margin: '0 auto' }}>
-              
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-                  <select 
-                    value={isViewingSelf ? height : targetHeight} 
-                    onChange={(e) => isViewingSelf && setHeight(e.target.value)} 
-                    disabled={!isViewingSelf}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }}
-                  >
-                    {heightOptions.map((h, idx) => (
-                      <option key={idx} value={h}>{h}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-                  <select 
-                    value={isViewingSelf ? weight : targetWeight} 
-                    onChange={(e) => isViewingSelf && setWeight(e.target.value)} 
-                    disabled={!isViewingSelf}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }}
-                  >
-                    {weightOptions.map((w, idx) => (
-                      <option key={idx} value={w}>{w}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {isViewingSelf && (
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-                    <input 
-                      type="date" 
-                      value={dob} 
-                      onChange={(e) => setDob(e.target.value)} 
-                      style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: 'pointer' }} 
-                      required 
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
-                    <button
-                      type="button"
-                      onClick={() => setHideAge(!hideAge)}
-                      style={{ padding: '12px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
-                    >
-                      {hideAge ? 'Hide Age' : 'Show Age'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
-
-              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 6px 0' }}>Preference:</p>
-
-              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                <button type="button" onClick={() => isViewingSelf && cycleOption(rolePref, roleOptions, setRolePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                  {isViewingSelf ? rolePref : targetRole}
-                </button>
-                <button type="button" onClick={() => isViewingSelf && cycleOption(safetyPref, safetyOptions, setSafetyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                  {isViewingSelf ? safetyPref : targetSafety}
-                </button>
-                <button type="button" onClick={() => isViewingSelf && cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                  {isViewingSelf ? playstylePref : targetPlaystyle}
-                </button>
-                <button type="button" onClick={() => isViewingSelf && cycleOption(howManyPref, howManyOptions, setHowManyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                  {isViewingSelf ? howManyPref : targetHowMany}
-                </button>
-                <button type="button" onClick={() => cycleOption(isViewingSelf ? wherePref : targetWhere, whereOptions, (val) => isViewingSelf ? setWherePref(val) : handleQuickWhereUpdate(val))} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {isViewingSelf ? wherePref : targetWhere}
-                </button>
-              </div>
-
-              {isViewingSelf ? (
-                <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Save Profile
-                </button>
-              ) : (
-                showSendMessage ? (
-                  <button 
-                    type="button" 
-                    onClick={() => handleStartChat(selectedProfile!)}
-                    style={{ marginTop: '10px', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="22" y1="2" x2="11" y2="13"></line>
-                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
-                    Send Message
-                  </button>
-                ) : (
-                  <div style={{ marginTop: '10px', padding: '14px', backgroundColor: '#2a2a2a', color: '#888', border: '1px solid #444', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', textAlign: 'center' }}>
-                    Not Preference Matched
-                  </div>
-                )
-              )}
-            </form>
           </div>
         </div>
       )}
