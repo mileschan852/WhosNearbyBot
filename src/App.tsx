@@ -527,8 +527,8 @@ export default function App() {
     );
   }
 
-  const activeProfile = selectedProfile || (showProfileSetup ? currentUser : null);
-  const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : true;
+  const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : showProfileSetup;
+  const activeProfile = isViewingSelf ? currentUser : selectedProfile;
   
   const targetDob = activeProfile?.dob || dob;
   const targetHeight = activeProfile?.height || height;
