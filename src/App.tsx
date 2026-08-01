@@ -155,8 +155,6 @@ export default function App() {
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
 
-  const [gender, setGender] = useState<string>('man');
-  const [seeking, setSeeking] = useState<string>('men');
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
@@ -174,7 +172,6 @@ export default function App() {
   const [wherePref, setWherePref] = useState<string>('Host');
   const [howManyPref, setHowManyPref] = useState<string>('1on1');
 
-  const [nonManMode, setNonManMode] = useState<string>('Meet up');
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
@@ -294,7 +291,6 @@ export default function App() {
           if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
           if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
-          if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
@@ -323,7 +319,6 @@ export default function App() {
           playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
           where_pref: existingProfile?.where_pref || 'Host',
           how_many_pref: existingProfile?.how_many_pref || '1on1',
-          non_man_mode: existingProfile?.non_man_mode || 'Meet up',
           is_underage: false,
           hide_age: existingProfile?.hide_age || false,
           grid_visible: existingProfile?.grid_visible ?? true,
