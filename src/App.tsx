@@ -49,6 +49,9 @@ interface UserProfile {
   how_many_pref?: string | null;
   non_man_mode?: string | null;
   is_underage?: boolean;
+  hide_age?: boolean;
+  grid_visible?: boolean;
+  map_visible?: boolean;
   distance?: number;
 }
 
@@ -81,6 +84,30 @@ const calculateAge = (dobString?: string) => {
     return age;
   } catch {
     return null;
+  }
+};
+
+const getZodiacSignEmoji = (dobString?: string) => {
+  if (!dobString) return '';
+  try {
+    const date = new Date(dobString);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+
+    if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return '♈'; // Aries
+    if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return '♉'; // Taurus
+    if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return '♊'; // Gemini
+    if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return '♋'; // Cancer
+    if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return '♌'; // Leo
+    if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return '♍'; // Virgo
+    if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return '♎'; // Libra
+    if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return '♏'; // Scorpio
+    if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return '♐'; // Sagittarius
+    if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return '♑'; // Capricorn
+    if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return '♒'; // Aquarius
+    return '♓'; // Pisces
+  } catch {
+    return '';
   }
 };
 
@@ -133,6 +160,7 @@ export default function App() {
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
+  const [hideAge, setHideAge] = useState<boolean>(false);
 
   const roleOptions = ['Top', 'Versatile', 'Bottom', 'Side'];
   const safetyOptions = ['Safe', 'Raw'];
@@ -147,12 +175,8 @@ export default function App() {
   const [howManyPref, setHowManyPref] = useState<string>('1on1');
 
   const [nonManMode, setNonManMode] = useState<string>('Meet up');
-
-  const [savedGender, setSavedGender] = useState<string>('');
-  const [savedSeeking, setSavedSeeking] = useState<string>('');
-  const [savedDob, setSavedDob] = useState<string>('');
-  const [savedHeight, setSavedHeight] = useState<string>('');
-  const [savedWeight, setSavedWeight] = useState<string>('');
+  const [gridVisible, setGridVisible] = useState<boolean>(true);
+  const [mapVisible, setMapVisible] = useState<boolean>(false);
 
   const heightOptions = [];
   for (let i = 10; i <= 30; i++) {
@@ -169,6 +193,41 @@ export default function App() {
     const lbs = Math.round(kg * 2.20462);
     weightOptions.push(`${kg}kg (${lbs}lbs)`);
   }
+
+  const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (!error && data && Array.isArray(data)) {
+      const processed = data.map((u: any) => ({
+        id: u.id || 'unknown',
+        name: u.name || 'User',
+        username: u.username || '',
+        avatar: u.avatar || '',
+        lat: typeof u.lat === 'number' ? u.lat : lat,
+        lng: typeof u.lng === 'number' ? u.lng : lng,
+        last_seen: u.last_seen || new Date().toISOString(),
+        gender: u.gender || '',
+        seeking: u.seeking || 'women',
+        dob: u.dob || '',
+        height: u.height || '',
+        weight: u.weight || '',
+        role_pref: u.role_pref || '',
+        safety_pref: u.safety_pref || '',
+        playstyle_pref: u.playstyle_pref || '',
+        where_pref: u.where_pref || '',
+        how_many_pref: u.how_many_pref || '',
+        non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || 'Meet up'),
+        is_underage: u.is_underage || false,
+        hide_age: u.hide_age || false,
+        grid_visible: u.grid_visible ?? true,
+        map_visible: u.map_visible ?? false,
+        distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
+      })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
+        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      
+      setUsers(processed);
+    }
+  };
 
   useEffect(() => {
     const initApp = async () => {
@@ -227,35 +286,21 @@ export default function App() {
         }
 
         if (existingProfile) {
-          if (existingProfile.gender) {
-            setGender(existingProfile.gender);
-            setSavedGender(existingProfile.gender);
-          }
-          if (existingProfile.seeking) {
-            setSeeking(existingProfile.seeking);
-            setSavedSeeking(existingProfile.seeking);
-          }
-          if (existingProfile.dob) {
-            setDob(existingProfile.dob);
-            setSavedDob(existingProfile.dob);
-          }
-          if (existingProfile.height) {
-            setHeight(existingProfile.height);
-            setSavedHeight(existingProfile.height);
-          }
-          if (existingProfile.weight) {
-            setWeight(existingProfile.weight);
-            setSavedWeight(existingProfile.weight);
-          }
+          if (existingProfile.dob) setDob(existingProfile.dob);
+          if (existingProfile.height) setHeight(existingProfile.height);
+          if (existingProfile.weight) setWeight(existingProfile.weight);
           if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
           if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
           if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
           if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
           if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
+          if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
+          if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
+          if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
         }
 
-        const isFullySetup = existingProfile && existingProfile.gender && existingProfile.seeking && existingProfile.dob && existingProfile.height && existingProfile.weight;
+        const isFullySetup = existingProfile && existingProfile.dob && existingProfile.height && existingProfile.weight;
         if (!isFullySetup) {
           setShowProfileSetup(true);
         }
@@ -270,8 +315,8 @@ export default function App() {
           lat,
           lng,
           last_seen: new Date().toISOString(),
-          gender: existingProfile?.gender || '',
-          seeking: existingProfile?.seeking || 'women',
+          gender: 'man',
+          seeking: 'men',
           dob: existingProfile?.dob || '',
           height: existingProfile?.height || '',
           weight: existingProfile?.weight || '',
@@ -282,42 +327,16 @@ export default function App() {
           how_many_pref: existingProfile?.how_many_pref || '1on1',
           non_man_mode: isManSeekingMenProfile ? 'Meet up' : (existingProfile?.non_man_mode || 'Meet up'),
           is_underage: false,
+          hide_age: existingProfile?.hide_age || false,
+          grid_visible: existingProfile?.grid_visible ?? true,
+          map_visible: existingProfile?.map_visible ?? false,
         };
 
         setCurrentUser(myProfile);
 
         if (supabase) {
           await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
-
-          const { data, error } = await supabase.from('profiles').select('*');
-          if (!error && data && Array.isArray(data)) {
-            const processed = data.map((u: any) => ({
-              id: u.id || 'unknown',
-              name: u.name || 'User',
-              username: u.username || '',
-              avatar: u.avatar || '',
-              lat: typeof u.lat === 'number' ? u.lat : lat,
-              lng: typeof u.lng === 'number' ? u.lng : lng,
-              last_seen: u.last_seen || new Date().toISOString(),
-              gender: u.gender || '',
-              seeking: u.seeking || 'women',
-              dob: u.dob || '',
-              height: u.height || '',
-              weight: u.weight || '',
-              role_pref: u.role_pref || '',
-              safety_pref: u.safety_pref || '',
-              playstyle_pref: u.playstyle_pref || '',
-              where_pref: u.where_pref || '',
-              how_many_pref: u.how_many_pref || '',
-              non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || 'Meet up'),
-              is_underage: u.is_underage || false,
-              distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
-            })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-            
-            setUsers(processed);
-          } else {
-            setUsers([myProfile]);
-          }
+          await fetchUsersData(lat, lng, userId);
         } else {
           setUsers([myProfile]);
         }
@@ -331,18 +350,27 @@ export default function App() {
     initApp();
   }, []);
 
+  // Refresh limit implementation (once every 5 minutes)
+  const handleRefresh = async () => {
+    if (!currentUser || !supabase) return;
+    const lastRefreshKey = `last_refresh_${currentUser.id}`;
+    const lastRefreshTime = Number(localStorage.getItem(lastRefreshKey) || 0);
+    const now = Date.now();
+
+    if (now - lastRefreshTime < 5 * 60 * 1000) {
+      return; // Silently block if under 5 minutes
+    }
+
+    localStorage.setItem(lastRefreshKey, now.toString());
+    await fetchUsersData(location.lat, location.lng, currentUser.id);
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (!gender || !seeking || !dob || !height || !weight) {
-      setErrorMessage('Please fill out all required fields above the dividing line.');
-      return;
-    }
-
-    const isNonManSeekingMen = gender !== 'man' && seeking === 'men';
-    if (isNonManSeekingMen && !nonManMode) {
-      setErrorMessage('Please select a valid account mode preference.');
+    if (!dob || !height || !weight) {
+      setErrorMessage('Please fill out all required fields.');
       return;
     }
 
@@ -369,27 +397,20 @@ export default function App() {
 
     if (!currentUser || !supabase) return;
 
-    const isManSeekingMen = gender === 'man' && seeking === 'men';
-
     const updatedProfile = {
-      id: currentUser.id,
-      name: currentUser.name,
-      username: currentUser.username || '',
-      avatar: currentUser.avatar || '',
-      lat: currentUser.lat,
-      lng: currentUser.lng,
+      ...currentUser,
       last_seen: new Date().toISOString(),
-      gender,
-      seeking,
       dob,
       height,
       weight,
-      role_pref: isManSeekingMen ? rolePref : null,
-      safety_pref: isManSeekingMen ? safetyPref : null,
-      playstyle_pref: isManSeekingMen ? playstylePref : null,
-      where_pref: isManSeekingMen ? wherePref : null,
-      how_many_pref: isManSeekingMen ? howManyPref : null,
-      non_man_mode: isManSeekingMen ? 'Meet up' : nonManMode,
+      role_pref: rolePref,
+      safety_pref: safetyPref,
+      playstyle_pref: playstylePref,
+      where_pref: wherePref,
+      how_many_pref: howManyPref,
+      hide_age: hideAge,
+      grid_visible: gridVisible,
+      map_visible: mapVisible,
       is_underage: false,
     };
 
@@ -405,46 +426,39 @@ export default function App() {
     window.location.reload();
   };
 
-  const handleRefresh = async () => {
+  const handleToggleGrid = async () => {
     if (!currentUser || !supabase) return;
-    try {
-      const { data, error } = await supabase.from('profiles').select('*');
-      if (!error && data && Array.isArray(data)) {
-        const processed = data.map((u: any) => ({
-          id: u.id || 'unknown',
-          name: u.name || 'User',
-          username: u.username || '',
-          avatar: u.avatar || '',
-          lat: typeof u.lat === 'number' ? u.lat : location.lat,
-          lng: typeof u.lng === 'number' ? u.lng : location.lng,
-          last_seen: u.last_seen || new Date().toISOString(),
-          gender: u.gender || '',
-          seeking: u.seeking || 'women',
-          dob: u.dob || '',
-          height: u.height || '',
-          weight: u.weight || '',
-          role_pref: u.role_pref || '',
-          safety_pref: u.safety_pref || '',
-          playstyle_pref: u.playstyle_pref || '',
-          where_pref: u.where_pref || '',
-          how_many_pref: u.how_many_pref || '',
-          non_man_mode: (u.gender === 'man' && u.seeking === 'men') ? 'Meet up' : (u.non_man_mode || 'Meet up'),
-          is_underage: u.is_underage || false,
-          distance: calculateDistance(location.lat, location.lng, u.lat || location.lat, u.lng || location.lng),
-        })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-        setUsers(processed);
-      }
-    } catch (e) {
-      console.error('Refresh failed:', e);
+    const nextVal = !gridVisible;
+    setGridVisible(nextVal);
+    const updated = { ...currentUser, grid_visible: nextVal };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+    await fetchUsersData(location.lat, location.lng, currentUser.id);
+  };
+
+  const handleToggleMap = async () => {
+    if (!currentUser || !supabase) return;
+    const nextVal = !mapVisible;
+    setMapVisible(nextVal);
+    const updated = { ...currentUser, map_visible: nextVal };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+    if (!nextVal && view === 'map') {
+      setView('grid');
     }
+    await fetchUsersData(location.lat, location.lng, currentUser.id);
+  };
+
+  const handleQuickPreferenceUpdate = async (field: 'where_pref', val: string) => {
+    if (!currentUser || !supabase) return;
+    setWherePref(val);
+    const updated = { ...currentUser, where_pref: val };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
   };
 
   const checkMatchStatus = (me: UserProfile, target: UserProfile) => {
     if (me.id === target.id) return true;
-    if (me.gender !== 'man' || me.seeking !== 'men') return true;
-
-    if (target.seeking === 'man & women') return true;
-
     const myRole = me.role_pref;
     const targetRole = target.role_pref;
     let roleMatch = false;
@@ -517,26 +531,25 @@ export default function App() {
     );
   }
 
-  // Active view: either editing your own profile setup or viewing another user's profile sheet
   const activeProfile = selectedProfile || (showProfileSetup ? currentUser : null);
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : true;
   
-  const targetGender = activeProfile?.gender || gender;
-  const targetSeeking = activeProfile?.seeking || seeking;
   const targetDob = activeProfile?.dob || dob;
   const targetHeight = activeProfile?.height || height;
   const targetWeight = activeProfile?.weight || weight;
+  const targetHideAge = activeProfile?.hide_age ?? hideAge;
   
   const targetRole = activeProfile?.role_pref || rolePref;
   const targetSafety = activeProfile?.safety_pref || safetyPref;
   const targetPlaystyle = activeProfile?.playstyle_pref || playstylePref;
   const targetWhere = activeProfile?.where_pref || wherePref;
   const targetHowMany = activeProfile?.how_many_pref || howManyPref;
-  const targetNonManMode = activeProfile?.non_man_mode || nonManMode;
 
   const isOtherMatched = selectedProfile && currentUser ? checkMatchStatus(currentUser, selectedProfile) : false;
-  const isSelectedJustBrowsing = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Just browsing';
-  const showSendMessage = selectedProfile && !isViewingSelf && !isSelectedJustBrowsing && isOtherMatched;
+  const showSendMessage = selectedProfile && !isViewingSelf && isOtherMatched;
+
+  const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
+  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -548,7 +561,7 @@ export default function App() {
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({users.length})</h1>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({gridFilteredUsers.length})</h1>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -581,7 +594,7 @@ export default function App() {
         
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
-            {users.map((user, index) => {
+            {gridFilteredUsers.map((user, index) => {
               const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
               const isSelf = currentUser && user.id === currentUser.id;
               const isEnabled = isSelf || checkMatchStatus(currentUser!, user);
@@ -629,7 +642,7 @@ export default function App() {
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            {users.map((user) => {
+            {mapFilteredUsers.map((user) => {
               const isSelf = currentUser && user.id === currentUser.id;
               const isEnabled = isSelf || checkMatchStatus(currentUser!, user);
               return (
@@ -648,7 +661,7 @@ export default function App() {
 
       </main>
 
-      {/* COMPLETE YOUR PROFILE MODAL / DRAWER (Self or Other User) */}
+      {/* PROFILE SETUP / VIEW MODAL */}
       {(showProfileSetup || selectedProfile) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => { setShowProfileSetup(false); setSelectedProfile(null); }}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
@@ -658,8 +671,8 @@ export default function App() {
             <h2 style={{ fontSize: '20px', marginBottom: '4px', color: '#007bff', textAlign: 'center' }}>
               {isViewingSelf ? 'Complete Your Profile' : `${activeProfile?.name || 'User'}'s Profile`}
             </h2>
-            <p style={{ fontSize: '13px', color: isViewingSelf ? '#ff4d4d' : '#888', marginBottom: '16px', fontWeight: 'bold', textAlign: 'center' }}>
-              {isViewingSelf ? 'This cannot be modified later.' : `${calculateAge(targetDob) ? `${calculateAge(targetDob)}yo • ` : ''}${selectedProfile?.distance ?? 0}m away`}
+            <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px', fontWeight: 'bold', textAlign: 'center' }}>
+              {isViewingSelf ? 'Update your personal details below' : `${!targetHideAge && calculateAge(targetDob) ? `${calculateAge(targetDob)}yo ` : ''}${getZodiacSignEmoji(targetDob)} • ${selectedProfile?.distance ?? 0}m away`}
             </p>
             
             {errorMessage && (
@@ -672,41 +685,12 @@ export default function App() {
               
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>I'm a:</label>
-                  <select 
-                    value={isViewingSelf ? gender : targetGender} 
-                    onChange={(e) => isViewingSelf && !savedGender && setGender(e.target.value)} 
-                    disabled={!isViewingSelf || Boolean(savedGender)}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf || savedGender ? '#1a1a1a' : '#222', color: !isViewingSelf || savedGender ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf || savedGender ? 'not-allowed' : 'pointer' }}
-                  >
-                    <option value="man">Man</option>
-                    <option value="woman">Woman</option>
-                  </select>
-                </div>
-
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
-                  <select 
-                    value={isViewingSelf ? seeking : targetSeeking} 
-                    onChange={(e) => isViewingSelf && !savedSeeking && setSeeking(e.target.value)} 
-                    disabled={!isViewingSelf || Boolean(savedSeeking)}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf || savedSeeking ? '#1a1a1a' : '#222', color: !isViewingSelf || savedSeeking ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf || savedSeeking ? 'not-allowed' : 'pointer' }}
-                  >
-                    <option value="women">Women</option>
-                    <option value="men">Men</option>
-                    <option value="man & women">Men & Women</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
                   <select 
                     value={isViewingSelf ? height : targetHeight} 
-                    onChange={(e) => isViewingSelf && !savedHeight && setHeight(e.target.value)} 
-                    disabled={!isViewingSelf || Boolean(savedHeight)}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf || savedHeight ? '#1a1a1a' : '#222', color: !isViewingSelf || savedHeight ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf || savedHeight ? 'not-allowed' : 'pointer' }}
+                    onChange={(e) => isViewingSelf && setHeight(e.target.value)} 
+                    disabled={!isViewingSelf}
+                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }}
                   >
                     {heightOptions.map((h, idx) => (
                       <option key={idx} value={h}>{h}</option>
@@ -718,9 +702,9 @@ export default function App() {
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
                   <select 
                     value={isViewingSelf ? weight : targetWeight} 
-                    onChange={(e) => isViewingSelf && !savedWeight && setWeight(e.target.value)} 
-                    disabled={!isViewingSelf || Boolean(savedWeight)}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf || savedWeight ? '#1a1a1a' : '#222', color: !isViewingSelf || savedWeight ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf || savedWeight ? 'not-allowed' : 'pointer' }}
+                    onChange={(e) => isViewingSelf && setWeight(e.target.value)} 
+                    disabled={!isViewingSelf}
+                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', WebkitAppearance: 'menulist', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }}
                   >
                     {weightOptions.map((w, idx) => (
                       <option key={idx} value={w}>{w}</option>
@@ -729,74 +713,54 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-                <input 
-                  type="date" 
-                  value={isViewingSelf ? dob : targetDob} 
-                  onChange={(e) => isViewingSelf && !savedDob && setDob(e.target.value)} 
-                  disabled={!isViewingSelf || Boolean(savedDob)}
-                  style={{ padding: '12px', backgroundColor: !isViewingSelf || savedDob ? '#1a1a1a' : '#222', color: !isViewingSelf || savedDob ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: !isViewingSelf || savedDob ? 'not-allowed' : 'pointer' }} 
-                  required 
-                />
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+                  <input 
+                    type="date" 
+                    value={isViewingSelf ? dob : targetDob} 
+                    onChange={(e) => isViewingSelf && setDob(e.target.value)} 
+                    disabled={!isViewingSelf}
+                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }} 
+                    required 
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
+                  <select
+                    value={isViewingSelf ? (hideAge ? 'hide' : 'show') : (targetHideAge ? 'hide' : 'show')}
+                    onChange={(e) => isViewingSelf && setHideAge(e.target.value === 'hide')}
+                    disabled={!isViewingSelf}
+                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }}
+                  >
+                    <option value="show">Show Age</option>
+                    <option value="hide">Hide Age</option>
+                  </select>
+                </div>
               </div>
 
               <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
 
-              {((isViewingSelf && gender === 'man' && seeking === 'men') || (!isViewingSelf && targetGender === 'man' && targetSeeking === 'men')) && (
-                <>
-                  <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 2px 0' }}>Preferences (Man seeking Men):</p>
-                  <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 6px 0' }}>{isViewingSelf ? 'Click to change' : 'User Preferences'}</p>
+              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 2px 0' }}>Preferences (Man seeking Men):</p>
+              <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 6px 0' }}>{isViewingSelf ? 'Click to change' : 'User Preferences'}</p>
 
-                  <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                    <button type="button" onClick={() => isViewingSelf && cycleOption(rolePref, roleOptions, setRolePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                      {isViewingSelf ? rolePref : targetRole}
-                    </button>
-                    <button type="button" onClick={() => isViewingSelf && cycleOption(safetyPref, safetyOptions, setSafetyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                      {isViewingSelf ? safetyPref : targetSafety}
-                    </button>
-                    <button type="button" onClick={() => isViewingSelf && cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                      {isViewingSelf ? playstylePref : targetPlaystyle}
-                    </button>
-                    <button type="button" onClick={() => isViewingSelf && cycleOption(wherePref, whereOptions, setWherePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                      {isViewingSelf ? wherePref : targetWhere}
-                    </button>
-                    <button type="button" onClick={() => isViewingSelf && cycleOption(howManyPref, howManyOptions, setHowManyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
-                      {isViewingSelf ? howManyPref : targetHowMany}
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {isViewingSelf && gender !== 'man' && seeking === 'men' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Account Mode:</label>
-                  
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Just browsing' ? '1px solid #007bff' : '1px solid #333' }}>
-                    <input type="radio" name="nonManMode" value="Just browsing" checked={nonManMode === 'Just browsing'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
-                    <div>
-                      <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Just browsing</strong>
-                      <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You will not be able to interact with other users but view when on grid and map</span>
-                    </div>
-                  </label>
-
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Online interactions' ? '1px solid #007bff' : '1px solid #333' }}>
-                    <input type="radio" name="nonManMode" value="Online interactions" checked={nonManMode === 'Online interactions'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
-                    <div>
-                      <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Online interactions</strong>
-                      <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You are only visible on Grid not on map, your map will be disabled.</span>
-                    </div>
-                  </label>
-
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', backgroundColor: '#1a1a1a', padding: '10px', borderRadius: '6px', border: nonManMode === 'Meet up' ? '1px solid #007bff' : '1px solid #333' }}>
-                    <input type="radio" name="nonManMode" value="Meet up" checked={nonManMode === 'Meet up'} onChange={(e) => setNonManMode(e.target.value)} style={{ marginTop: '2px' }} />
-                    <div>
-                      <strong style={{ fontSize: '14px', display: 'block', color: '#fff' }}>Meet up</strong>
-                      <span style={{ fontSize: '12px', color: '#ff4d4d', display: 'block', marginTop: '2px' }}>You have full function of grid and map but others will be able to see your location too.</span>
-                    </div>
-                  </label>
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <button type="button" onClick={() => isViewingSelf && cycleOption(rolePref, roleOptions, setRolePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
+                  {isViewingSelf ? rolePref : targetRole}
+                </button>
+                <button type="button" onClick={() => isViewingSelf && cycleOption(safetyPref, safetyOptions, setSafetyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
+                  {isViewingSelf ? safetyPref : targetSafety}
+                </button>
+                <button type="button" onClick={() => isViewingSelf && cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
+                  {isViewingSelf ? playstylePref : targetPlaystyle}
+                </button>
+                <button type="button" onClick={() => isViewingSelf && cycleOption(wherePref, whereOptions, (val) => isViewingSelf ? setWherePref(val) : handleQuickPreferenceUpdate('where_pref', val))} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {isViewingSelf ? wherePref : targetWhere}
+                </button>
+                <button type="button" onClick={() => isViewingSelf && cycleOption(howManyPref, howManyOptions, setHowManyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
+                  {isViewingSelf ? howManyPref : targetHowMany}
+                </button>
+              </div>
 
               {isViewingSelf ? (
                 <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -826,11 +790,16 @@ export default function App() {
         </div>
       )}
 
-      {/* FOOTER NAVIGATION */}
+      {/* FOOTER NAVIGATION WITH ON/OFF STATUS LIGHTS */}
       <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
+        
+        {/* GRID TAB */}
         <button 
-          onClick={() => setView('grid')}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer' }}
+          onClick={() => {
+            setView('grid');
+            handleToggleGrid();
+          }}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="7"></rect>
@@ -839,21 +808,33 @@ export default function App() {
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
           <span style={{ fontSize: '12px', marginTop: '4px' }}>Grid</span>
+          {/* Bottom left red line indicator */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
         
-        {currentUser?.non_man_mode !== 'Online interactions' && (
-          <button 
-            onClick={() => setView('map')}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer' }}
-          >
+        {/* MAP TAB */}
+        <button 
+          onClick={() => {
+            if (!mapVisible) {
+              handleToggleMap();
+            } else {
+              setView('map');
+            }
+          }}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+        >
+          <div onClick={(e) => { e.stopPropagation(); handleToggleMap(); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
               <line x1="9" y1="3" x2="9" y2="21"></line>
               <line x1="15" y1="3" x2="15" y2="21"></line>
             </svg>
             <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
-          </button>
-        )}
+          </div>
+          {/* Bottom right indicator */}
+          <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
+        </button>
+
       </footer>
     </div>
   );
