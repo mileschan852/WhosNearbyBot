@@ -179,6 +179,10 @@ export default function App() {
 
   const whereOptions = ['Host', 'Travel'];
   const [wherePref, setWherePref] = useState<string>('Host');
+  const [rolePref] = useState<string>('Versatile');
+  const [safetyPref] = useState<string>('Safe');
+  const [playstylePref] = useState<string>('Clean');
+  const [howManyPref] = useState<string>('1on1');
 
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
@@ -248,8 +252,9 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (localStorage.getItem('whos_nearby_user_id'] || 'user_' + Math.random().toString(36).substring(2, 9));
-        if (!tgUser?.id && !localStorage.getItem('whos_nearby_user_id')) {
+        const savedUserId = localStorage.getItem('whos_nearby_user_id');
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
+        if (!tgUser?.id && !savedUserId) {
           localStorage.setItem('whos_nearby_user_id', userId);
         }
 
