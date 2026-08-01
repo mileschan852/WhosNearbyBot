@@ -561,21 +561,6 @@ export default function App() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button 
-            onClick={() => {
-              setSelectedProfile(null);
-              setShowProfileSetup(true);
-            }} 
-            style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
-            title="My Profile"
-          >
-            {currentUser?.avatar ? (
-              <img src={currentUser.avatar} alt="Me" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}</span>
-            )}
-          </button>
-
           <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -668,7 +653,10 @@ export default function App() {
               {isViewingSelf ? 'Complete Your Profile' : `${activeProfile?.name || 'User'}'s Profile`}
             </h2>
             <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px', fontWeight: 'bold', textAlign: 'center' }}>
-              {isViewingSelf ? 'Update your personal details below' : `${!targetHideAge && calculateAge(targetDob) ? `${calculateAge(targetDob)}yo ` : ''}${getZodiacSignEmoji(targetDob)} • ${selectedProfile?.distance ?? 0}m away`}
+              {isViewingSelf 
+                ? 'Update your personal details below' 
+                : `${!targetHideAge && calculateAge(targetDob) ? `${calculateAge(targetDob)}yo ` : ''}${getZodiacSignEmoji(targetDob)} • ${selectedProfile?.distance ?? 0}m away`
+              }
             </p>
             
             {errorMessage && (
@@ -709,36 +697,35 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-                  <input 
-                    type="date" 
-                    value={isViewingSelf ? dob : targetDob} 
-                    onChange={(e) => isViewingSelf && setDob(e.target.value)} 
-                    disabled={!isViewingSelf}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }} 
-                    required 
-                  />
+              {isViewingSelf && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+                    <input 
+                      type="date" 
+                      value={dob} 
+                      onChange={(e) => setDob(e.target.value)} 
+                      style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark', cursor: 'pointer' }} 
+                      required 
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
+                    <select
+                      value={hideAge ? 'hide' : 'show'}
+                      onChange={(e) => setHideAge(e.target.value === 'hide')}
+                      style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }}
+                    >
+                      <option value="show">Show Age</option>
+                      <option value="hide">Hide Age</option>
+                    </select>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
-                  <select
-                    value={isViewingSelf ? (hideAge ? 'hide' : 'show') : (targetHideAge ? 'hide' : 'show')}
-                    onChange={(e) => isViewingSelf && setHideAge(e.target.value === 'hide')}
-                    disabled={!isViewingSelf}
-                    style={{ padding: '12px', backgroundColor: !isViewingSelf ? '#1a1a1a' : '#222', color: !isViewingSelf ? '#888' : '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', cursor: !isViewingSelf ? 'not-allowed' : 'pointer' }}
-                  >
-                    <option value="show">Show Age</option>
-                    <option value="hide">Hide Age</option>
-                  </select>
-                </div>
-              </div>
+              )}
 
               <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '10px 0' }} />
 
-              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 2px 0' }}>Preferences (Man seeking Men):</p>
-              <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 6px 0' }}>{isViewingSelf ? 'Click to change' : 'User Preferences'}</p>
+              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 6px 0' }}>Preference:</p>
 
               <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
                 <button type="button" onClick={() => isViewingSelf && cycleOption(rolePref, roleOptions, setRolePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
@@ -750,11 +737,11 @@ export default function App() {
                 <button type="button" onClick={() => isViewingSelf && cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
                   {isViewingSelf ? playstylePref : targetPlaystyle}
                 </button>
-                <button type="button" onClick={() => cycleOption(isViewingSelf ? wherePref : targetWhere, whereOptions, (val) => isViewingSelf ? setWherePref(val) : handleQuickWhereUpdate(val))} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {isViewingSelf ? wherePref : targetWhere}
-                </button>
                 <button type="button" onClick={() => isViewingSelf && cycleOption(howManyPref, howManyOptions, setHowManyPref)} disabled={!isViewingSelf} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: isViewingSelf ? 1 : 0.7 }}>
                   {isViewingSelf ? howManyPref : targetHowMany}
+                </button>
+                <button type="button" onClick={() => cycleOption(isViewingSelf ? wherePref : targetWhere, whereOptions, (val) => isViewingSelf ? setWherePref(val) : handleQuickWhereUpdate(val))} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {isViewingSelf ? wherePref : targetWhere}
                 </button>
               </div>
 
