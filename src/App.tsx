@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { createClient } from '@supabase/supabase-js';
 
-// --- TELEGRAM WEB APP DECLARATION ---
 declare global {
   interface Window {
     Telegram?: {
@@ -26,7 +25,6 @@ declare global {
   }
 }
 
-// --- SUPABASE CLIENT SETUP ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -54,7 +52,6 @@ interface UserProfile {
   distance?: number;
 }
 
-// --- HELPER: CALCULATE DISTANCE (Haversine formula) ---
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   try {
     const R = 6371e3;
@@ -71,7 +68,6 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
-// --- HELPER: CALCULATE AGE FROM DOB ---
 const calculateAge = (dobString?: string) => {
   if (!dobString) return null;
   try {
@@ -88,7 +84,6 @@ const calculateAge = (dobString?: string) => {
   }
 };
 
-// --- MAP CONTROLLER & RESIZE FIXER ---
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -100,7 +95,6 @@ function MapController({ center }: { center: [number, number] }) {
   return null;
 }
 
-// --- CUSTOM LEAFLET ICON ---
 const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolean) => {
   let innerHtml = '';
   if (user.avatar) {
@@ -121,7 +115,6 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
     iconAnchor: [18, 18],
   });
 };
-
 export default function App() {
   const [view, setView] = useState<'grid' | 'map'>('grid');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -132,34 +125,34 @@ export default function App() {
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Profile Drawer State
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
 
-  // Setup Form State
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('women');
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
 
-  // Man seeking Men preferences
+  const roleOptions = ['Top', 'Versatile', 'Bottom', 'Side'];
+  const safetyOptions = ['Safe', 'Raw'];
+  const playstyleOptions = ['Clean', 'Party'];
+  const whereOptions = ['Host', 'Travel'];
+  const howManyOptions = ['1on1', 'Group'];
+
   const [rolePref, setRolePref] = useState<string>('Versatile');
   const [safetyPref, setSafetyPref] = useState<string>('Safe');
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');
   const [wherePref, setWherePref] = useState<string>('Host');
   const [howManyPref, setHowManyPref] = useState<string>('1on1');
 
-  // Non-man seeking men preferences (Radio option state)
   const [nonManMode, setNonManMode] = useState<string>('Meet up');
 
-  // Tracking existing saved fields to lock them if they were already filled
   const [savedGender, setSavedGender] = useState<string>('');
   const [savedSeeking, setSavedSeeking] = useState<string>('');
   const [savedDob, setSavedDob] = useState<string>('');
   const [savedHeight, setSavedHeight] = useState<string>('');
   const [savedWeight, setSavedWeight] = useState<string>('');
 
-  // Generate Height Options (1.0m to 3.0m by 0.1m)
   const heightOptions = [];
   for (let i = 10; i <= 30; i++) {
     const m = (i / 10).toFixed(1);
@@ -170,7 +163,6 @@ export default function App() {
     heightOptions.push(`${m}m (${ft}ft ${inch}in)`);
   }
 
-  // Generate Weight Options (35kg to 160kg)
   const weightOptions = [];
   for (let kg = 35; kg <= 160; kg += 1) {
     const lbs = Math.round(kg * 2.20462);
@@ -499,6 +491,11 @@ export default function App() {
     setSelectedProfile(null);
   };
 
+  const cycleOption = (current: string, options: string[], setter: (val: string) => void) => {
+    const idx = options.indexOf(current);
+    const nextIdx = (idx + 1) % options.length;
+    setter(options[nextIdx]);
+  };
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
@@ -609,61 +606,25 @@ export default function App() {
 
           {gender === 'man' && seeking === 'men' && (
             <>
-              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 4px 0' }}>Preferences (Man seeking Men):</p>
+              <p style={{ fontSize: '13px', color: '#007bff', fontWeight: 'bold', margin: '0 0 2px 0' }}>Preferences (Man seeking Men):</p>
+              <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 6px 0' }}>Click to change</p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>Role:</label>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {['Top', 'Versatile', 'Bottom', 'Side'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setRolePref(opt)} style={{ flex: 1, minWidth: '70px', padding: '8px', backgroundColor: rolePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>Safety:</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {['Raw', 'Safe'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setSafetyPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: safetyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>Playstyle:</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {['Clean', 'Party'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setPlaystylePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: playstylePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>Where?</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {['Host', 'Travel'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setWherePref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: wherePref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#aaa' }}>How many?</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {['1on1', 'Group'].map((opt) => (
-                    <button type="button" key={opt} onClick={() => setHowManyPref(opt)} style={{ flex: 1, padding: '8px', backgroundColor: howManyPref === opt ? '#007bff' : '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <button type="button" onClick={() => cycleOption(rolePref, roleOptions, setRolePref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {rolePref}
+                </button>
+                <button type="button" onClick={() => cycleOption(safetyPref, safetyOptions, setSafetyPref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {safetyPref}
+                </button>
+                <button type="button" onClick={() => cycleOption(playstylePref, playstyleOptions, setPlaystylePref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {playstylePref}
+                </button>
+                <button type="button" onClick={() => cycleOption(wherePref, whereOptions, setWherePref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {wherePref}
+                </button>
+                <button type="button" onClick={() => cycleOption(howManyPref, howManyOptions, setHowManyPref)} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {howManyPref}
+                </button>
               </div>
             </>
           )}
@@ -735,7 +696,6 @@ export default function App() {
 
   const isCurrentUserOnlineInteractions = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Online interactions';
 
-  // Selected Profile Drawer logic checks
   const isSelectedSelf = selectedProfile && currentUser && selectedProfile.id === currentUser.id;
   const isSelectedEnabled = selectedProfile ? (isSelectedSelf || checkMatchStatus(currentUser!, selectedProfile)) : false;
   const isSelectedJustBrowsing = currentUser?.gender !== 'man' && currentUser?.seeking === 'men' && currentUser?.non_man_mode === 'Just browsing';
@@ -838,85 +798,14 @@ export default function App() {
 
       </main>
 
-      {/* --- TELEGRAM BOTTOM SHEET PROFILE DRAWER --- */}
       {selectedProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
-          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%', boxSizing: 'border-box', animation: 'slideUp 0.3s ease-out' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%', boxSizing: 'border-box' }} onClick={(e) => e.stopPropagation()}>
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '4px' }} />
 
-            <div style={{ width: '90px', height: '90px', borderRadius: '50%</i>', overflow: 'hidden', backgroundColor: '#333', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#333', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {selectedProfile.avatar ? (
                 <img src={selectedProfile.avatar} alt={selectedProfile.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{selectedProfile.name ? selectedProfile.name.charAt(0).toUpperCase() : 'U'}</span>
-              )}
-            </div>
-
-            <div style={{ textAlign: 'center' }}>
-              <h3 style={{ fontSize: '20px', margin: '0 0 4px 0', fontWeight: 'bold' }}>
-                {selectedProfile.name} {calculateAge(selectedProfile.dob) ? `, ${calculateAge(selectedProfile.dob)}` : ''}
-              </h3>
-              <p style={{ fontSize: '13px', color: '#aaa', margin: 0 }}>
-                {selectedProfile.id === currentUser?.id ? 'Your Profile' : `${selectedProfile.distance ?? 0}m away`}
-              </p>
-            </div>
-
-            {currentUser?.gender === 'man' && currentUser?.seeking === 'men' && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', backgroundColor: '#262626', padding: '10px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
-                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Role: {selectedProfile.role_pref || 'N/A'}</span>
-                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Safety: {selectedProfile.safety_pref || 'N/A'}</span>
-                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Play: {selectedProfile.playstyle_pref || 'N/A'}</span>
-                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Where: {selectedProfile.where_pref || 'N/A'}</span>
-                <span style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#333', borderRadius: '4px' }}>Qty: {selectedProfile.how_many_pref || 'N/A'}</span>
-              </div>
-            )}
-
-            {showSendMessageButton && (
-              <button 
-                onClick={() => handleStartChat(selectedProfile)}
-                style={{ width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '6px' }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                Send Message
-              </button>
-            )}
-
-          </div>
-        </div>
-      )}
-
-      <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
-        <button 
-          onClick={() => setView('grid')}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>Grid</span>
-        </button>
-        
-        {!isCurrentUserOnlineInteractions && (
-          <button 
-            onClick={() => setView('map')}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer' }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
-              <line x1="15" y1="3" x2="15" y2="21"></line>
-            </svg>
-            <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
-          </button>
-        )}
-      </footer>
-    </div>
-  );
-}
+                <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{selectedProfile.name ? selectedProfile.name.charAt(0).toUp
