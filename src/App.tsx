@@ -177,12 +177,7 @@ export default function App() {
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
   const [hideAge, setHideAge] = useState<boolean>(false);
 
-  const whereOptions = ['Host', 'Travel'];
   const [wherePref, setWherePref] = useState<string>('Host');
-  const [rolePref] = useState<string>('Versatile');
-  const [safetyPref] = useState<string>('Safe');
-  const [playstylePref] = useState<string>('Clean');
-  const [howManyPref] = useState<string>('1on1');
 
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
@@ -299,11 +294,7 @@ export default function App() {
           if (existingProfile.dob) setDob(existingProfile.dob);
           if (existingProfile.height) setHeight(existingProfile.height);
           if (existingProfile.weight) setWeight(existingProfile.weight);
-          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
-          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
-          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
-          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
