@@ -436,7 +436,6 @@ export default function App() {
         if (!confirmed) return;
 
         if (window.Telegram?.WebApp?.openInvoice) {
-          // Placeholder or actual integration for Telegram invoice link if configured
           window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
             if (status === 'paid') {
               const expiryDate = new Date();
@@ -456,7 +455,6 @@ export default function App() {
           });
           return;
         } else {
-          // Simulation for development/testing outside Telegram
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 30);
           newInvisibleExpiry = expiryDate.toISOString();
@@ -907,7 +905,7 @@ export default function App() {
             <line x1="9" y1="3" x2="9" y2="21"></line>
             <line x1="15" y1="3" x2="15" y2="21"></line>
           </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
+          <span style={{ fontSize: '12px', marginTop: '4px' }, background: 'none'}>Map</span>
           <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
 
