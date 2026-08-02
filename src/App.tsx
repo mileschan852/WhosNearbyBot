@@ -20,6 +20,7 @@ declare global {
         expand?: () => void;
         openTelegramLink?: (url: string) => void;
         showAlert?: (message: string) => void;
+        openInvoice?: (url: string, callback?: (status: string) => void) => void;
       };
     };
   }
@@ -53,6 +54,8 @@ interface UserProfile {
   grid_visible?: boolean;
   map_visible?: boolean;
   distance?: number;
+  hide_age_expiry?: string | null;
+  invisible_expiry?: string | null;
 }
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -176,6 +179,8 @@ export default function App() {
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
   const [hideAge, setHideAge] = useState<boolean>(false);
+  const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
+  const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
 
   const [wherePref, setWherePref] = useState<string>('Host');
 
@@ -226,6 +231,8 @@ export default function App() {
         grid_visible: u.grid_visible ?? true,
         map_visible: u.map_visible ?? false,
         distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
+        hide_age_expiry: u.hide_age_expiry || null,
+        invisible_expiry: u.invisible_expiry || null,
       })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
         .sort((a, b) => (a.distance || 0) - (b.distance || 0));
       
@@ -296,6 +303,8 @@ export default function App() {
           if (existingProfile.weight) setWeight(existingProfile.weight);
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
+          if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
+          if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
         }
@@ -327,6 +336,8 @@ export default function App() {
           hide_age: existingProfile?.hide_age || false,
           grid_visible: existingProfile?.grid_visible ?? true,
           map_visible: existingProfile?.map_visible ?? false,
+          hide_age_expiry: existingProfile?.hide_age_expiry || null,
+          invisible_expiry: existingProfile?.invisible_expiry || null,
         };
 
         setCurrentUser(myProfile);
@@ -412,9 +423,50 @@ export default function App() {
 
   const handleToggleGrid = async () => {
     if (!currentUser || !supabase) return;
-    const nextVal = !gridVisible;
+    
+    let nextVal = !gridVisible;
+    let newInvisibleExpiry = invisibleExpiry;
+
+    if (!nextVal) {
+      const now = new Date();
+      const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();
+      
+      if (isExpired) {
+        const confirmed = window.confirm("Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?");
+        if (!confirmed) return;
+
+        if (window.Telegram?.WebApp?.openInvoice) {
+          // Placeholder or actual integration for Telegram invoice link if configured
+          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+            if (status === 'paid') {
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30);
+              newInvisibleExpiry = expiryDate.toISOString();
+              setInvisibleExpiry(newInvisibleExpiry);
+              
+              setGridVisible(false);
+              const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
+              setCurrentUser(updated);
+              await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+              setView('grid');
+              await handleRefresh();
+            } else {
+              alert("Payment cancelled or failed.");
+            }
+          });
+          return;
+        } else {
+          // Simulation for development/testing outside Telegram
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          newInvisibleExpiry = expiryDate.toISOString();
+          setInvisibleExpiry(newInvisibleExpiry);
+        }
+      }
+    }
+
     setGridVisible(nextVal);
-    const updated = { ...currentUser, grid_visible: nextVal };
+    const updated = { ...currentUser, grid_visible: nextVal, invisible_expiry: newInvisibleExpiry };
     setCurrentUser(updated);
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
     setView('grid');
@@ -443,6 +495,47 @@ export default function App() {
     const updated = { ...currentUser, ...fields };
     setCurrentUser(updated);
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+  };
+
+  const handleHideAgeToggle = async () => {
+    if (!currentUser || !supabase) return;
+    const now = new Date();
+    const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
+
+    let nextHide = !hideAge;
+    let newExpiry = hideAgeExpiry;
+
+    if (nextHide && isExpired) {
+      const confirmed = window.confirm("Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?");
+      if (!confirmed) return;
+
+      if (window.Telegram?.WebApp?.openInvoice) {
+        window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+          if (status === 'paid') {
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 30);
+            newExpiry = expiryDate.toISOString();
+            setHideAgeExpiry(newExpiry);
+            setHideAge(true);
+            await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
+          } else {
+            alert("Payment cancelled or failed.");
+          }
+        });
+        return;
+      } else {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        newExpiry = expiryDate.toISOString();
+        setHideAgeExpiry(newExpiry);
+      }
+    } else if (!nextHide) {
+      newExpiry = null;
+      setHideAgeExpiry(null);
+    }
+
+    setHideAge(nextHide);
+    await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
 
   const checkMatchStatus = (me: UserProfile, target: UserProfile) => {
@@ -705,18 +798,19 @@ export default function App() {
 
                 {/* Own profile extra controls: Hide Age toggle */}
                 {isViewingSelf && (
-                  <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                     <button 
                       type="button" 
-                      onClick={async () => {
-                        const nextHide = !hideAge;
-                        setHideAge(nextHide);
-                        await handleUpdateSelfField({ hide_age: nextHide });
-                      }}
+                      onClick={handleHideAgeToggle}
                       style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
                     >
                       {hideAge ? 'Age Hidden (Click to Show)' : 'Age Shown (Click to Hide)'}
                     </button>
+                    {hideAgeExpiry && (
+                      <span style={{ fontSize: '10px', color: '#888' }}>
+                        Expires: {new Date(hideAgeExpiry).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 )}
 
