@@ -74,6 +74,14 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
+const formatDistanceBigUnit = (meters?: number) => {
+  if (meters === undefined || meters === null) return '0m';
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)}km`;
+  }
+  return `${meters}m`;
+};
+
 const calculateAge = (dobString?: string | null) => {
   if (!dobString) return null;
   try {
@@ -114,18 +122,18 @@ const getZodiacSignEmoji = (dobString?: string | null) => {
   }
 };
 
-const formatLastSeen = (isoString?: string | null) => {
+const formatLastSeenBigUnit = (isoString?: string | null) => {
   if (!isoString) return 'Offline';
   try {
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'Online just now';
-    if (diffMins < 60) return `Active ${diffMins}m ago`;
+    if (diffMins < 1) return 'Online';
+    if (diffMins < 60) return `${diffMins}m ago`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `Active ${diffHours}h ago`;
-    return `Active ${Math.floor(diffHours / 24)}d ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
   } catch {
     return 'Offline';
   }
@@ -177,18 +185,21 @@ export default function App() {
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
-  // Form input states (initially empty to enforce user filling out)
+  // Form input states
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('men');
   const [height, setHeight] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
-  const [rolePref, setRolePref] = useState<string>('');
-  const [safetyPref, setSafetyPref] = useState<string>('');
-  const [playstylePref, setPlaystylePref] = useState<string>('');
-  const [howManyPref, setHowManyPref] = useState<string>('');
-  const [wherePref, setWherePref] = useState<string>('');
-  const [nonManMode, setNonManMode] = useState<string>('');
+  
+  // 5 Preferences Tags
+  const [rolePref, setRolePref] = useState<string>('Versatile');
+  const [safetyPref, setSafetyPref] = useState<string>('Safe');
+  const [playstylePref, setPlaystylePref] = useState<string>('Clean');
+  const [howManyPref, setHowManyPref] = useState<string>('1on1');
+  const [wherePref, setWherePref] = useState<string>('Host');
+
+  const [nonManMode, setNonManMode] = useState<string>('Meet up - You are visible on grid and map');
 
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
@@ -302,7 +313,6 @@ export default function App() {
         const userUsername = tgUser?.username || '';
         const userAvatar = tgUser?.photo_url || '';
 
-        // 1. Mandatory Location Access Check
         if (!navigator.geolocation) {
           setIsLocationDenied(true);
           setIsReady(true);
@@ -352,7 +362,7 @@ export default function App() {
           existingProfile.playstyle_pref && 
           existingProfile.how_many_pref && 
           existingProfile.where_pref &&
-          (!isManSeekingMan || existingProfile.non_man_mode);
+          (isManSeekingMan || existingProfile.non_man_mode);
 
         if (existingProfile) {
           if (existingProfile.dob) setDob(existingProfile.dob);
@@ -385,7 +395,6 @@ export default function App() {
 
         if (!isFullySetup) {
           setShowProfileSetup(true);
-          // If brand new user, initialize object with null/empty values until they explicitly press save
           const blankProfile: UserProfile = {
             id: userId,
             name: userName,
@@ -432,7 +441,7 @@ export default function App() {
             playstyle_pref: existingProfile.playstyle_pref,
             where_pref: existingProfile.where_pref,
             how_many_pref: existingProfile.how_many_pref,
-            non_man_mode: existingProfile.non_man_mode,
+            non_man_mode: isManSeekingMan ? 'Meet up' : existingProfile.non_man_mode,
             is_underage: false,
             hide_age: existingProfile.hide_age || false,
             grid_visible: existingProfile.grid_visible ?? true,
@@ -475,8 +484,7 @@ export default function App() {
 
     const isManSeekingMan = gender === 'man' && seeking === 'men';
 
-    // Validate all questions answered
-    if (!dob || !gender || !seeking || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref || (isManSeekingMan && !nonManMode)) {
+    if (!dob || !gender || !seeking || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref || (!isManSeekingMan && !nonManMode)) {
       setErrorMessage('Please fill out all required questions to continue.');
       return;
     }
@@ -500,7 +508,6 @@ export default function App() {
 
     if (!currentUser || !supabase) return;
 
-    // Only now save and update database and add entry upon pressing save
     const updatedProfile = {
       ...currentUser,
       lat: location.lat,
@@ -516,7 +523,7 @@ export default function App() {
       playstyle_pref: playstylePref,
       how_many_pref: howManyPref,
       where_pref: wherePref,
-      non_man_mode: isManSeekingMan ? nonManMode : null,
+      non_man_mode: isManSeekingMan ? 'Meet up' : nonManMode,
       hide_age: false,
       is_underage: false,
     };
@@ -744,121 +751,106 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
-      {/* INITIAL SETUP FULLSCREEN OVERLAY IF MISSING INFO OR BRAND NEW */}
+      {/* INITIAL SETUP FULLSCREEN OVERLAY (FITS ENTIRE SCREEN WITHOUT SCROLLING) */}
       {showProfileSetup && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px', overflowY: 'auto' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '440px', boxSizing: 'border-box', border: '1px solid #333' }}>
-            <h2 style={{ fontSize: '22px', marginBottom: '8px', color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
-            <p style={{ fontSize: '15px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', marginBottom: '20px', lineHeight: '1.4' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '12px', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            
+            <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
+            <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0 }}>
               Warning: This cannot be changed in the future.
             </p>
 
             {errorMessage && (
-              <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px', textAlign: 'center' }}>
+              <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '6px', borderRadius: '4px', fontSize: '11px', textAlign: 'center' }}>
                 {errorMessage}
               </div>
             )}
 
-            <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+            <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Date of Birth:</label>
+                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '6px 8px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', colorScheme: 'dark' }} required />
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Gender:</label>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
-                    <option value="man">Man</option>
-                    <option value="woman">Woman</option>
-                    <option value="non-binary">Non-binary</option>
+              {/* "I'm a [gender] seeking [gender seeking]" */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Orientation:</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                  <span>I'm a</span>
+                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
+                    <option value="man">man</option>
+                    <option value="woman">woman</option>
+                    <option value="non-binary">non-binary</option>
                   </select>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
-                  <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
-                    <option value="men">Men</option>
-                    <option value="women">Women</option>
-                    <option value="everyone">Everyone</option>
+                  <span>seeking</span>
+                  <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
+                    <option value="men">men</option>
+                    <option value="women">women</option>
+                    <option value="everyone">everyone</option>
                   </select>
                 </div>
               </div>
 
-              <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0' }} />
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+              {/* Height and weight above dividing line */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Height:</label>
+                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
                     <option value="" disabled>Select height</option>
                     {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
                   </select>
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Weight:</label>
+                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
                     <option value="" disabled>Select weight</option>
                     {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
                   </select>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Role:</label>
-                  <select value={rolePref} onChange={(e) => setRolePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
-                    <option value="" disabled>Select role</option>
-                    {roleCycleOptions.map((r, idx) => (<option key={idx} value={r}>{r}</option>))}
-                  </select>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Safety:</label>
-                  <select value={safetyPref} onChange={(e) => setSafetyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
-                    <option value="" disabled>Select safety</option>
-                    {safetyCycleOptions.map((s, idx) => (<option key={idx} value={s}>{s}</option>))}
-                  </select>
-                </div>
+              {/* DIVIDING LINE */}
+              <div style={{ width: '100%', borderTop: '1px solid #444', margin: '4px 0' }} />
+
+              {/* Below the dividing line: Preferences tag instructions */}
+              <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>
+                tap to change your preference:
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Playstyle:</label>
-                  <select value={playstylePref} onChange={(e) => setPlaystylePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
-                    <option value="" disabled>Select playstyle</option>
-                    {playstyleCycleOptions.map((p, idx) => (<option key={idx} value={p}>{p}</option>))}
-                  </select>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Group Size:</label>
-                  <select value={howManyPref} onChange={(e) => setHowManyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
-                    <option value="" disabled>Select group size</option>
-                    {howManyCycleOptions.map((hm, idx) => (<option key={idx} value={hm}>{hm}</option>))}
-                  </select>
-                </div>
+              {/* 5 preferences tag on same row */}
+              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {rolePref}
+                </button>
+                <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {safetyPref}
+                </button>
+                <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, playstyleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {playstylePref}
+                </button>
+                <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {howManyPref}
+                </button>
+                <button type="button" onClick={() => setWherePref(wherePref === 'Host' ? 'Travel' : 'Host')} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                  {wherePref}
+                </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Host / Travel:</label>
-                <select value={wherePref} onChange={(e) => setWherePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
-                  <option value="" disabled>Select host/travel</option>
-                  {['Host', 'Travel'].map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
-                </select>
-              </div>
-
-              {/* Extra mandatory question specifically when Man seeking Man */}
-              {isManSeekingManInput && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#ff4d4d' }}>Additional Preference (Man seeking Man):</label>
-                  <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
-                    <option value="" disabled>Select additional option</option>
-                    <option value="Meet up">Meet up</option>
-                    <option value="Chat only">Chat only</option>
+              {/* Non-man seeking man mode selection */}
+              {!isManSeekingManInput && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>Mode:</label>
+                  <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '11px' }} required>
+                    <option value="Browsing only - You cannot send not receive private message from others">Browsing only - You cannot send not receive private message from others</option>
+                    <option value="Online only - You are visible on grid but not on map, map is inaccessible">Online only - You are visible on grid but not on map, map is inaccessible</option>
+                    <option value="Meet up - You are visible on grid and map">Meet up - You are visible on grid and map</option>
                   </select>
                 </div>
               )}
 
-              <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+              <button type="submit" style={{ marginTop: '4px', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
                 Save Profile & Continue
               </button>
             </form>
@@ -902,11 +894,11 @@ export default function App() {
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
             {gridFilteredUsers.map((user, index) => {
-              const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
               const isSelf = currentUser && user.id === currentUser.id;
               const passesFilter = checkFilterPass(user);
               const opacity = passesFilter ? 1 : 0.3;
               const filterStyle = passesFilter ? 'none' : 'grayscale(100%)';
+              const bigDistanceText = formatDistanceBigUnit(user.distance);
 
               return (
                 <div 
@@ -927,12 +919,8 @@ export default function App() {
                   )}
                   
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
-                    {isSelf ? 'You' : `${user.distance ?? 0}m`}
+                    {isSelf ? 'You' : bigDistanceText}
                   </div>
-
-                  {isOnline && passesFilter && (
-                    <div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212' }} />
-                  )}
                 </div>
               );
             })}
@@ -981,7 +969,6 @@ export default function App() {
 
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
-              {/* 1. Age Range Filter */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
                 <input 
                   type="checkbox" 
@@ -1017,7 +1004,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 2. Role Preference Filter */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input 
@@ -1037,7 +1023,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 3. Safety Preference Filter */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input 
@@ -1057,7 +1042,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 4. Playstyle Preference Filter */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input 
@@ -1077,7 +1061,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 5. How Many Preference Filter */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input 
@@ -1137,9 +1120,9 @@ export default function App() {
                 <span>•</span>
                 <span>{activeProfile.weight}</span>
                 <span>•</span>
-                <span>{isViewingSelf ? 'You' : `${activeProfile.distance}m away`}</span>
+                <span>{isViewingSelf ? 'You' : `${formatDistanceBigUnit(activeProfile.distance)} away`}</span>
                 <span>•</span>
-                <span style={{ color: '#4ade80' }}>{formatLastSeen(activeProfile.last_seen)}</span>
+                <span style={{ color: '#4ade80' }}>{formatLastSeenBigUnit(activeProfile.last_seen)}</span>
               </div>
 
               {/* Hide Age Toggle Button only when viewing self */}
