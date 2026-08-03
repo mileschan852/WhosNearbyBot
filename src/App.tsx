@@ -905,8 +905,8 @@ export default function App() {
                     <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {safetyPref}
                     </button>
-                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, playstyleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                      {playstylePref}
+                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Party', 'Party✓']))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {playstylePref === 'Clean' ? 'Party' : playstylePref}
                     </button>
                     <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {howManyPref}
@@ -1233,13 +1233,13 @@ export default function App() {
                     {activeProfile.safety_pref || 'Safe'}
                   </div>
 
-                  {/* Playstyle Tag: Interactive if self (Cycles Clean -> Party -> Party✓) */}
+                  {/* Playstyle Tag: Interactive if self (Cycles Party <-> Party✓, excluding Clean) */}
                   {isViewingSelf ? (
                     <div style={{ position: 'relative' }}>
                       <button 
                         type="button" 
                         onClick={async () => {
-                          const nextPlaystyle = cycleNext(playstylePref, playstyleCycleOptions);
+                          const nextPlaystyle = playstylePref === 'Party✓' ? 'Party' : 'Party✓';
                           setPlaystylePref(nextPlaystyle);
                           const updated = { ...activeProfile, playstyle_pref: nextPlaystyle };
                           setSelectedProfile(updated);
@@ -1254,7 +1254,7 @@ export default function App() {
                         }}
                         style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
                       >
-                        {playstylePref}
+                        {playstylePref === 'Clean' ? 'Party' : playstylePref}
                       </button>
 
                       {showStuffBubble && (
