@@ -174,6 +174,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
+  const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
@@ -183,9 +184,40 @@ export default function App() {
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
 
   const [wherePref, setWherePref] = useState<string>('Host');
-
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
+
+  // Filter States
+  const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
+  const [filterAgeMin, setFilterAgeMin] = useState<number>(0);
+  const [filterAgeMax, setFilterAgeMax] = useState<number>(99);
+
+  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(true);
+  const [filterRoleVal, setFilterRoleVal] = useState<string>('Bottom');
+
+  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(true);
+  const [filterSafetyVal, setFilterSafetyVal] = useState<string>('Safe');
+
+  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
+  const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string>('Clean');
+
+  const [filterWhereEnabled, setFilterWhereEnabled] = useState<boolean>(false);
+  const [filterWhereVal, setFilterWhereVal] = useState<string>('Host');
+
+  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
+  const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
+
+  const roleCycleOptions = ['Top', 'Versatile', 'Bottom', 'Side'];
+  const safetyCycleOptions = ['Safe', 'Raw', 'Party'];
+  const playstyleCycleOptions = ['Clean', 'Raw']; // standard mappings or general cycle
+  const whereCycleOptions = ['Host', 'Travel'];
+  const howManyCycleOptions = ['1on1', 'Group'];
+
+  const cycleNext = (current: string, options: string[]) => {
+    const idx = options.indexOf(current);
+    if (idx === -1 || idx === options.length - 1) return options[0];
+    return options[idx + 1];
+  };
 
   const heightOptions = [];
   for (let i = 10; i <= 30; i++) {
@@ -307,6 +339,16 @@ export default function App() {
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
+
+          // Set default filter preference based on user profile
+          if (existingProfile.role_pref) {
+            if (existingProfile.role_pref === 'Top') setFilterRoleVal('Bottom');
+            else if (existingProfile.role_pref === 'Bottom') setFilterRoleVal('Top');
+            else setFilterRoleVal(existingProfile.role_pref);
+          }
+          if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
+          if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
+          if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
         }
 
         const isFullySetup = existingProfile && existingProfile.dob && existingProfile.height && existingProfile.weight;
@@ -536,29 +578,6 @@ export default function App() {
     await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
 
-  const checkMatchStatus = (me: UserProfile, target: UserProfile) => {
-    if (me.id === target.id) return true;
-    const myRole = me.role_pref;
-    const targetRole = target.role_pref;
-    let roleMatch = false;
-    if (myRole === 'Versatile' || targetRole === 'Versatile') roleMatch = true;
-    else if (myRole === 'Bottom' && targetRole === 'Top') roleMatch = true;
-    else if (myRole === 'Top' && targetRole === 'Bottom') roleMatch = true;
-    else if (myRole === 'Side' && targetRole === 'Side') roleMatch = true;
-
-    const safetyMatch = me.safety_pref === target.safety_pref;
-    const playstyleMatch = me.playstyle_pref === target.playstyle_pref;
-
-    const myHowMany = me.how_many_pref;
-    const targetHowMany = target.how_many_pref;
-    let howManyMatch = false;
-    if (myHowMany === '1on1' && targetHowMany === '1on1') howManyMatch = true;
-    else if (myHowMany === 'Group' && (targetHowMany === 'Group' || targetHowMany === '1on1')) howManyMatch = true;
-    else if (targetHowMany === 'Group' && myHowMany === '1on1') howManyMatch = true;
-
-    return roleMatch && safetyMatch && playstyleMatch && howManyMatch;
-  };
-
   const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
@@ -583,6 +602,40 @@ export default function App() {
       alert(`Selected user: ${targetUser.name}`);
     }
     setSelectedProfile(null);
+  };
+
+  const checkFilterPass = (user: UserProfile) => {
+    if (currentUser && user.id === currentUser.id) return true;
+
+    // Age filter check
+    if (filterAgeEnabled) {
+      const uAge = calculateAge(user.dob);
+      if (uAge !== null) {
+        if (uAge < filterAgeMin || uAge > filterAgeMax) return false;
+      }
+    }
+
+    // Role pref filter check
+    if (filterRoleEnabled && filterRoleVal) {
+      if (user.role_pref !== filterRoleVal) return false;
+    }
+
+    // Safety pref filter check
+    if (filterSafetyEnabled && filterSafetyVal) {
+      if (user.safety_pref !== filterSafetyVal) return false;
+    }
+
+    // Playstyle pref filter check
+    if (filterPlaystyleEnabled && filterPlaystyleVal) {
+      if (user.playstyle_pref !== filterPlaystyleVal) return false;
+    }
+
+    // How many pref filter check
+    if (filterHowManyEnabled && filterHowManyVal) {
+      if (user.how_many_pref !== filterHowManyVal) return false;
+    }
+
+    return true;
   };
 
   if (!isReady) {
@@ -616,9 +669,6 @@ export default function App() {
   const targetDistance = activeProfile?.distance ?? 0;
   const targetLastSeen = formatLastSeen(activeProfile?.last_seen);
 
-  const isOtherMatched = selectedProfile && currentUser ? checkMatchStatus(currentUser, selectedProfile) : false;
-  const showSendMessage = selectedProfile && !isViewingSelf && isOtherMatched;
-
   const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
 
@@ -636,7 +686,17 @@ export default function App() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button 
+            onClick={() => setShowFilterMenu(true)} 
+            style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Filter"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+          </button>
+
+          <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Refresh">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
@@ -653,13 +713,15 @@ export default function App() {
             {gridFilteredUsers.map((user, index) => {
               const isOnline = user.last_seen ? (new Date().getTime() - new Date(user.last_seen).getTime() < 15 * 60 * 1000) : false;
               const isSelf = currentUser && user.id === currentUser.id;
-              const isEnabled = isSelf ? gridVisible : checkMatchStatus(currentUser!, user);
+              const passesFilter = checkFilterPass(user);
+              const opacity = passesFilter ? 1 : 0.3;
+              const filterStyle = passesFilter ? 'none' : 'grayscale(100%)';
 
               return (
                 <div 
                   key={user.id || index} 
                   onClick={() => handleCardClick(user)}
-                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isEnabled ? 1 : 0.4, filter: isEnabled ? 'none' : 'grayscale(100%)' }}
+                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity, filter: filterStyle }}
                 >
                   {user.avatar ? (
                     <img 
@@ -677,7 +739,7 @@ export default function App() {
                     {isSelf ? 'You' : `${user.distance ?? 0}m`}
                   </div>
 
-                  {isOnline && isEnabled && (
+                  {isOnline && passesFilter && (
                     <div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212' }} />
                   )}
                 </div>
@@ -700,7 +762,8 @@ export default function App() {
             />
             {mapFilteredUsers.map((user) => {
               const isSelf = currentUser && user.id === currentUser.id;
-              const isEnabled = isSelf ? (mapVisible && gridVisible) : checkMatchStatus(currentUser!, user);
+              const passesFilter = checkFilterPass(user);
+              const isEnabled = isSelf ? (mapVisible && gridVisible) : passesFilter;
               return (
                 <Marker 
                   key={user.id} 
@@ -716,6 +779,145 @@ export default function App() {
         </div>
 
       </main>
+
+      {/* FILTER SUB-MENU MODAL */}
+      {showFilterMenu && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setShowFilterMenu(false)}>
+          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            
+            <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
+            <h2 style={{ fontSize: '18px', marginBottom: '20px', color: '#ffffff', fontWeight: 'bold' }}>Filter Users</h2>
+
+            <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {/* 1. Age Range Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={filterAgeEnabled} 
+                  onChange={(e) => setFilterAgeEnabled(e.target.checked)} 
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', opacity: filterAgeEnabled ? 1 : 0.4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span>Age Range</span>
+                    <span style={{ fontWeight: 'bold' }}>{filterAgeMin} - {filterAgeMax}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="99" 
+                      disabled={!filterAgeEnabled}
+                      value={filterAgeMin} 
+                      onChange={(e) => setFilterAgeMin(Math.min(Number(e.target.value), filterAgeMax))}
+                      style={{ flex: 1 }} 
+                    />
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="99" 
+                      disabled={!filterAgeEnabled}
+                      value={filterAgeMax} 
+                      onChange={(e) => setFilterAgeMax(Math.max(Number(e.target.value), filterAgeMin))}
+                      style={{ flex: 1 }} 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Role Preference Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={filterRoleEnabled} 
+                    onChange={(e) => setFilterRoleEnabled(e.target.checked)} 
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterRoleEnabled ? 1 : 0.4 }}>Role Preference</span>
+                </div>
+                <button 
+                  disabled={!filterRoleEnabled}
+                  onClick={() => setFilterRoleVal(cycleNext(filterRoleVal, roleCycleOptions))}
+                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterRoleEnabled ? 1 : 0.4 }}
+                >
+                  {filterRoleVal}
+                </button>
+              </div>
+
+              {/* 3. Safety Preference Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={filterSafetyEnabled} 
+                    onChange={(e) => setFilterSafetyEnabled(e.target.checked)} 
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterSafetyEnabled ? 1 : 0.4 }}>Safety Preference</span>
+                </div>
+                <button 
+                  disabled={!filterSafetyEnabled}
+                  onClick={() => setFilterSafetyVal(cycleNext(filterSafetyVal, safetyCycleOptions))}
+                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterSafetyEnabled ? 1 : 0.4 }}
+                >
+                  {filterSafetyVal}
+                </button>
+              </div>
+
+              {/* 4. Playstyle Preference Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={filterPlaystyleEnabled} 
+                    onChange={(e) => setFilterPlaystyleEnabled(e.target.checked)} 
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterPlaystyleEnabled ? 1 : 0.4 }}>Playstyle Preference</span>
+                </div>
+                <button 
+                  disabled={!filterPlaystyleEnabled}
+                  onClick={() => setFilterPlaystyleVal(cycleNext(filterPlaystyleVal, playstyleCycleOptions))}
+                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterPlaystyleEnabled ? 1 : 0.4 }}
+                >
+                  {filterPlaystyleVal}
+                </button>
+              </div>
+
+              {/* 5. How Many Preference Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={filterHowManyEnabled} 
+                    onChange={(e) => setFilterHowManyEnabled(e.target.checked)} 
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterHowManyEnabled ? 1 : 0.4 }}>Group Size</span>
+                </div>
+                <button 
+                  disabled={!filterHowManyEnabled}
+                  onClick={() => setFilterHowManyVal(cycleNext(filterHowManyVal, howManyCycleOptions))}
+                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterHowManyEnabled ? 1 : 0.4 }}
+                >
+                  {filterHowManyVal}
+                </button>
+              </div>
+
+              <button 
+                onClick={() => setShowFilterMenu(false)}
+                style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Apply Filters
+              </button>
+
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* PROFILE MODAL / SETUP */}
       {(showProfileSetup || selectedProfile) && (
@@ -851,23 +1053,17 @@ export default function App() {
 
                 {/* Send Message Button for others if matched */}
                 {!isViewingSelf && (
-                  showSendMessage ? (
-                    <button 
-                      type="button" 
-                      onClick={() => handleStartChat(selectedProfile!)}
-                      style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                      </svg>
-                      Send Message
-                    </button>
-                  ) : (
-                    <div style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#2a2a2a', color: '#888', border: '1px solid #444', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', textAlign: 'center' }}>
-                      Not Preference Matched
-                    </div>
-                  )
+                  <button 
+                    type="button" 
+                    onClick={() => handleStartChat(selectedProfile!)}
+                    style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    Send Message
+                  </button>
                 )}
 
               </div>
