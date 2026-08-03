@@ -201,16 +201,12 @@ export default function App() {
   const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
   const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string>('Clean');
 
-  const [filterWhereEnabled, setFilterWhereEnabled] = useState<boolean>(false);
-  const [filterWhereVal, setFilterWhereVal] = useState<string>('Host');
-
   const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
   const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
 
   const roleCycleOptions = ['Top', 'Versatile', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw', 'Party'];
-  const playstyleCycleOptions = ['Clean', 'Raw']; // standard mappings or general cycle
-  const whereCycleOptions = ['Host', 'Travel'];
+  const playstyleCycleOptions = ['Clean', 'Raw'];
   const howManyCycleOptions = ['1on1', 'Group'];
 
   const cycleNext = (current: string, options: string[]) => {
@@ -340,7 +336,6 @@ export default function App() {
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
 
-          // Set default filter preference based on user profile
           if (existingProfile.role_pref) {
             if (existingProfile.role_pref === 'Top') setFilterRoleVal('Bottom');
             else if (existingProfile.role_pref === 'Bottom') setFilterRoleVal('Top');
@@ -607,7 +602,6 @@ export default function App() {
   const checkFilterPass = (user: UserProfile) => {
     if (currentUser && user.id === currentUser.id) return true;
 
-    // Age filter check
     if (filterAgeEnabled) {
       const uAge = calculateAge(user.dob);
       if (uAge !== null) {
@@ -615,22 +609,18 @@ export default function App() {
       }
     }
 
-    // Role pref filter check
     if (filterRoleEnabled && filterRoleVal) {
       if (user.role_pref !== filterRoleVal) return false;
     }
 
-    // Safety pref filter check
     if (filterSafetyEnabled && filterSafetyVal) {
       if (user.safety_pref !== filterSafetyVal) return false;
     }
 
-    // Playstyle pref filter check
     if (filterPlaystyleEnabled && filterPlaystyleVal) {
       if (user.playstyle_pref !== filterPlaystyleVal) return false;
     }
 
-    // How many pref filter check
     if (filterHowManyEnabled && filterHowManyVal) {
       if (user.how_many_pref !== filterHowManyVal) return false;
     }
