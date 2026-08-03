@@ -56,6 +56,7 @@ interface UserProfile {
   distance?: number;
   hide_age_expiry?: string | null;
   invisible_expiry?: string | null;
+  filter_sub_expiry?: string | null;
 }
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -204,6 +205,7 @@ export default function App() {
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
+  const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
 
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
@@ -283,6 +285,7 @@ export default function App() {
         distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
         hide_age_expiry: u.hide_age_expiry || null,
         invisible_expiry: u.invisible_expiry || null,
+        filter_sub_expiry: u.filter_sub_expiry || null,
       })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
         .sort((a, b) => (a.distance || 0) - (b.distance || 0));
       
@@ -377,6 +380,7 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
+          if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
 
@@ -415,6 +419,7 @@ export default function App() {
             map_visible: false,
             hide_age_expiry: null,
             invisible_expiry: null,
+            filter_sub_expiry: null,
           };
           setCurrentUser(blankProfile);
         } else {
@@ -443,6 +448,7 @@ export default function App() {
             map_visible: existingProfile.map_visible ?? false,
             hide_age_expiry: existingProfile.hide_age_expiry || null,
             invisible_expiry: existingProfile.invisible_expiry || null,
+            filter_sub_expiry: existingProfile.filter_sub_expiry || null,
           };
           setCurrentUser(myProfile);
           if (supabase) {
@@ -551,6 +557,48 @@ export default function App() {
     setCurrentUser(updatedProfile);
     setShowProfileSetup(false);
     await fetchUsersData(location.lat, location.lng, currentUser.id);
+  };
+
+  const handleOpenFilterMenu = async () => {
+    if (!currentUser || !supabase) return;
+
+    const now = new Date();
+    const isExpired = !filterSubExpiry || new Date(filterSubExpiry).getTime() < now.getTime();
+
+    if (isExpired) {
+      const confirmed = window.confirm("Using filters requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?");
+      if (!confirmed) return;
+
+      if (window.Telegram?.WebApp?.openInvoice) {
+        window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+          if (status === 'paid') {
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 30);
+            const newExpiryIso = expiryDate.toISOString();
+            setFilterSubExpiry(newExpiryIso);
+
+            const updated = { ...currentUser, filter_sub_expiry: newExpiryIso };
+            setCurrentUser(updated);
+            await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+            setShowFilterMenu(true);
+          } else {
+            alert("Payment cancelled or failed.");
+          }
+        });
+        return;
+      } else {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        const newExpiryIso = expiryDate.toISOString();
+        setFilterSubExpiry(newExpiryIso);
+
+        const updated = { ...currentUser, filter_sub_expiry: newExpiryIso };
+        setCurrentUser(updated);
+        await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+      }
+    }
+
+    setShowFilterMenu(true);
   };
 
   const handleToggleGrid = async () => {
@@ -886,7 +934,7 @@ export default function App() {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button 
-            onClick={() => setShowFilterMenu(true)} 
+            onClick={handleOpenFilterMenu} 
             style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             title="Filter"
           >
