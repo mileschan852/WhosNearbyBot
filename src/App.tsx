@@ -35,14 +35,14 @@ interface UserProfile {
   name: string;
   username?: string;
   avatar: string;
-  lat: number;
-  lng: number;
-  last_seen: string;
-  gender?: string;
-  seeking?: string;
-  dob?: string;
-  height?: string;
-  weight?: string;
+  lat: number | null;
+  lng: number | null;
+  last_seen: string | null;
+  gender?: string | null;
+  seeking?: string | null;
+  dob?: string | null;
+  height?: string | null;
+  weight?: string | null;
   role_pref?: string | null;
   safety_pref?: string | null;
   playstyle_pref?: string | null;
@@ -74,7 +74,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   }
 };
 
-const calculateAge = (dobString?: string) => {
+const calculateAge = (dobString?: string | null) => {
   if (!dobString) return null;
   try {
     const birthDate = new Date(dobString);
@@ -90,7 +90,7 @@ const calculateAge = (dobString?: string) => {
   }
 };
 
-const getZodiacSignEmoji = (dobString?: string) => {
+const getZodiacSignEmoji = (dobString?: string | null) => {
   if (!dobString) return '';
   try {
     const date = new Date(dobString);
@@ -114,7 +114,7 @@ const getZodiacSignEmoji = (dobString?: string) => {
   }
 };
 
-const formatLastSeen = (isoString?: string) => {
+const formatLastSeen = (isoString?: string | null) => {
   if (!isoString) return 'Offline';
   try {
     const date = new Date(isoString);
@@ -171,21 +171,24 @@ export default function App() {
   const [isReady, setIsReady] = useState<boolean>(false);
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
+  const [isLocationDenied, setIsLocationDenied] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
-  const [dob, setDob] = useState<string>('1995-01-01');
+  // Form input states (initially empty to enforce user filling out)
+  const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('men');
-  const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
-  const [weight, setWeight] = useState<string>('70kg (154lbs)');
-  const [rolePref, setRolePref] = useState<string>('Versatile');
-  const [safetyPref, setSafetyPref] = useState<string>('Safe');
-  const [playstylePref, setPlaystylePref] = useState<string>('Clean');
-  const [howManyPref, setHowManyPref] = useState<string>('1on1');
-  const [wherePref, setWherePref] = useState<string>('Host');
+  const [height, setHeight] = useState<string>('');
+  const [weight, setWeight] = useState<string>('');
+  const [rolePref, setRolePref] = useState<string>('');
+  const [safetyPref, setSafetyPref] = useState<string>('');
+  const [playstylePref, setPlaystylePref] = useState<string>('');
+  const [howManyPref, setHowManyPref] = useState<string>('');
+  const [wherePref, setWherePref] = useState<string>('');
+  const [nonManMode, setNonManMode] = useState<string>('');
 
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
@@ -250,17 +253,17 @@ export default function App() {
         lat: typeof u.lat === 'number' ? u.lat : lat,
         lng: typeof u.lng === 'number' ? u.lng : lng,
         last_seen: u.last_seen || new Date().toISOString(),
-        gender: u.gender || 'man',
-        seeking: u.seeking || 'men',
-        dob: u.dob || '',
-        height: u.height || '',
-        weight: u.weight || '',
-        role_pref: u.role_pref || '',
-        safety_pref: u.safety_pref || '',
-        playstyle_pref: u.playstyle_pref || '',
-        where_pref: u.where_pref || '',
-        how_many_pref: u.how_many_pref || '',
-        non_man_mode: u.non_man_mode || 'Meet up',
+        gender: u.gender || null,
+        seeking: u.seeking || null,
+        dob: u.dob || null,
+        height: u.height || null,
+        weight: u.weight || null,
+        role_pref: u.role_pref || null,
+        safety_pref: u.safety_pref || null,
+        playstyle_pref: u.playstyle_pref || null,
+        where_pref: u.where_pref || null,
+        how_many_pref: u.how_many_pref || null,
+        non_man_mode: u.non_man_mode || null,
         is_underage: u.is_underage || false,
         hide_age: u.hide_age || false,
         grid_visible: u.grid_visible ?? true,
@@ -299,24 +302,29 @@ export default function App() {
         const userUsername = tgUser?.username || '';
         const userAvatar = tgUser?.photo_url || '';
 
-        let lat = 22.3193;
-        let lng = 114.1694;
-
-        if (navigator.geolocation) {
-          await new Promise<void>((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                lat = pos.coords.latitude;
-                lng = pos.coords.longitude;
-                resolve();
-              },
-              () => resolve(),
-              { enableHighAccuracy: true, timeout: 5000 }
-            );
-          });
+        // 1. Mandatory Location Access Check
+        if (!navigator.geolocation) {
+          setIsLocationDenied(true);
+          setIsReady(true);
+          return;
         }
 
-        setLocation({ lat, lng });
+        const hasLocation = await new Promise<boolean>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              resolve(true);
+            },
+            () => resolve(false),
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        });
+
+        if (!hasLocation) {
+          setIsLocationDenied(true);
+          setIsReady(true);
+          return;
+        }
 
         let existingProfile: any = null;
         if (supabase) {
@@ -332,6 +340,20 @@ export default function App() {
           return;
         }
 
+        const isManSeekingMan = existingProfile?.gender === 'man' && existingProfile?.seeking === 'men';
+        const isFullySetup = existingProfile && 
+          existingProfile.dob && 
+          existingProfile.gender && 
+          existingProfile.seeking && 
+          existingProfile.height && 
+          existingProfile.weight && 
+          existingProfile.role_pref && 
+          existingProfile.safety_pref && 
+          existingProfile.playstyle_pref && 
+          existingProfile.how_many_pref && 
+          existingProfile.where_pref &&
+          (!isManSeekingMan || existingProfile.non_man_mode);
+
         if (existingProfile) {
           if (existingProfile.dob) setDob(existingProfile.dob);
           if (existingProfile.gender) setGender(existingProfile.gender);
@@ -343,6 +365,7 @@ export default function App() {
           if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
           if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
+          if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
 
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
@@ -360,45 +383,67 @@ export default function App() {
           if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
         }
 
-        const isFullySetup = existingProfile && existingProfile.dob && existingProfile.gender && existingProfile.seeking && existingProfile.height && existingProfile.weight && existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref;
-        
         if (!isFullySetup) {
           setShowProfileSetup(true);
-        }
-
-        const myProfile: UserProfile = {
-          id: userId,
-          name: userName,
-          username: userUsername,
-          avatar: userAvatar,
-          lat,
-          lng,
-          last_seen: new Date().toISOString(),
-          gender: existingProfile?.gender || 'man',
-          seeking: existingProfile?.seeking || 'men',
-          dob: existingProfile?.dob || '1995-01-01',
-          height: existingProfile?.height || '1.7m (5ft 7in)',
-          weight: existingProfile?.weight || '70kg (154lbs)',
-          role_pref: existingProfile?.role_pref || 'Versatile',
-          safety_pref: existingProfile?.safety_pref || 'Safe',
-          playstyle_pref: existingProfile?.playstyle_pref || 'Clean',
-          where_pref: existingProfile?.where_pref || 'Host',
-          how_many_pref: existingProfile?.how_many_pref || '1on1',
-          is_underage: false,
-          hide_age: existingProfile?.hide_age || false,
-          grid_visible: existingProfile?.grid_visible ?? true,
-          map_visible: existingProfile?.map_visible ?? false,
-          hide_age_expiry: existingProfile?.hide_age_expiry || null,
-          invisible_expiry: existingProfile?.invisible_expiry || null,
-        };
-
-        setCurrentUser(myProfile);
-
-        if (supabase) {
-          await supabase.from('profiles').upsert([myProfile], { onConflict: 'id' });
-          await fetchUsersData(lat, lng, userId);
+          // If brand new user, initialize object with null/empty values until they explicitly press save
+          const blankProfile: UserProfile = {
+            id: userId,
+            name: userName,
+            username: userUsername,
+            avatar: userAvatar,
+            lat: null,
+            lng: null,
+            last_seen: null,
+            gender: null,
+            seeking: null,
+            dob: null,
+            height: null,
+            weight: null,
+            role_pref: null,
+            safety_pref: null,
+            playstyle_pref: null,
+            where_pref: null,
+            how_many_pref: null,
+            non_man_mode: null,
+            is_underage: false,
+            hide_age: false,
+            grid_visible: true,
+            map_visible: false,
+            hide_age_expiry: null,
+            invisible_expiry: null,
+          };
+          setCurrentUser(blankProfile);
         } else {
-          setUsers([myProfile]);
+          const myProfile: UserProfile = {
+            id: userId,
+            name: userName,
+            username: userUsername,
+            avatar: userAvatar,
+            lat: location.lat,
+            lng: location.lng,
+            last_seen: new Date().toISOString(),
+            gender: existingProfile.gender,
+            seeking: existingProfile.seeking,
+            dob: existingProfile.dob,
+            height: existingProfile.height,
+            weight: existingProfile.weight,
+            role_pref: existingProfile.role_pref,
+            safety_pref: existingProfile.safety_pref,
+            playstyle_pref: existingProfile.playstyle_pref,
+            where_pref: existingProfile.where_pref,
+            how_many_pref: existingProfile.how_many_pref,
+            non_man_mode: existingProfile.non_man_mode,
+            is_underage: false,
+            hide_age: existingProfile.hide_age || false,
+            grid_visible: existingProfile.grid_visible ?? true,
+            map_visible: existingProfile.map_visible ?? false,
+            hide_age_expiry: existingProfile.hide_age_expiry || null,
+            invisible_expiry: existingProfile.invisible_expiry || null,
+          };
+          setCurrentUser(myProfile);
+          if (supabase) {
+            await fetchUsersData(location.lat, location.lng, userId);
+          }
         }
       } catch (err) {
         console.error('Initialization error:', err);
@@ -411,7 +456,7 @@ export default function App() {
   }, []);
 
   const handleRefresh = async () => {
-    if (!currentUser || !supabase) return;
+    if (!currentUser || !currentUser.lat || !currentUser.lng || !supabase) return;
     const lastRefreshKey = `last_refresh_${currentUser.id}`;
     const lastRefreshTime = Number(localStorage.getItem(lastRefreshKey) || 0);
     const now = Date.now();
@@ -421,15 +466,18 @@ export default function App() {
     }
 
     localStorage.setItem(lastRefreshKey, now.toString());
-    await fetchUsersData(location.lat, location.lng, currentUser.id);
+    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
   };
 
   const handleSaveInitialProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (!dob || !gender || !seeking || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref) {
-      setErrorMessage('Please fill out all required fields.');
+    const isManSeekingMan = gender === 'man' && seeking === 'men';
+
+    // Validate all questions answered
+    if (!dob || !gender || !seeking || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref || (isManSeekingMan && !nonManMode)) {
+      setErrorMessage('Please fill out all required questions to continue.');
       return;
     }
 
@@ -452,8 +500,11 @@ export default function App() {
 
     if (!currentUser || !supabase) return;
 
+    // Only now save and update database and add entry upon pressing save
     const updatedProfile = {
       ...currentUser,
+      lat: location.lat,
+      lng: location.lng,
       last_seen: new Date().toISOString(),
       dob,
       gender,
@@ -465,6 +516,7 @@ export default function App() {
       playstyle_pref: playstylePref,
       how_many_pref: howManyPref,
       where_pref: wherePref,
+      non_man_mode: isManSeekingMan ? nonManMode : null,
       hide_age: false,
       is_underage: false,
     };
@@ -477,7 +529,7 @@ export default function App() {
 
     setCurrentUser(updatedProfile);
     setShowProfileSetup(false);
-    window.location.reload();
+    await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
   const handleToggleGrid = async () => {
@@ -544,7 +596,9 @@ export default function App() {
       setView('grid');
     }
     
-    await fetchUsersData(location.lat, location.lng, currentUser.id);
+    if (currentUser.lat && currentUser.lng) {
+      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+    }
   };
 
   const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
@@ -653,7 +707,18 @@ export default function App() {
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
-        <p>Loading profile...</p>
+        <p>Loading app...</p>
+      </div>
+    );
+  }
+
+  if (isLocationDenied) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>Location Access Required</h2>
+        <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
+          Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.
+        </p>
       </div>
     );
   }
@@ -674,11 +739,12 @@ export default function App() {
 
   const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
+  const isManSeekingManInput = gender === 'man' && seeking === 'men';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
-      {/* INITIAL SETUP FULLSCREEN OVERLAY IF MISSING INFO */}
+      {/* INITIAL SETUP FULLSCREEN OVERLAY IF MISSING INFO OR BRAND NEW */}
       {showProfileSetup && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px', overflowY: 'auto' }}>
           <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '440px', boxSizing: 'border-box', border: '1px solid #333' }}>
@@ -724,13 +790,15 @@ export default function App() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select height</option>
                     {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
                   </select>
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select weight</option>
                     {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
                   </select>
                 </div>
@@ -739,13 +807,15 @@ export default function App() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Role:</label>
-                  <select value={rolePref} onChange={(e) => setRolePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  <select value={rolePref} onChange={(e) => setRolePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select role</option>
                     {roleCycleOptions.map((r, idx) => (<option key={idx} value={r}>{r}</option>))}
                   </select>
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Safety:</label>
-                  <select value={safetyPref} onChange={(e) => setSafetyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  <select value={safetyPref} onChange={(e) => setSafetyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select safety</option>
                     {safetyCycleOptions.map((s, idx) => (<option key={idx} value={s}>{s}</option>))}
                   </select>
                 </div>
@@ -754,13 +824,15 @@ export default function App() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Playstyle:</label>
-                  <select value={playstylePref} onChange={(e) => setPlaystylePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  <select value={playstylePref} onChange={(e) => setPlaystylePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select playstyle</option>
                     {playstyleCycleOptions.map((p, idx) => (<option key={idx} value={p}>{p}</option>))}
                   </select>
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Group Size:</label>
-                  <select value={howManyPref} onChange={(e) => setHowManyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  <select value={howManyPref} onChange={(e) => setHowManyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select group size</option>
                     {howManyCycleOptions.map((hm, idx) => (<option key={idx} value={hm}>{hm}</option>))}
                   </select>
                 </div>
@@ -768,10 +840,23 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Host / Travel:</label>
-                <select value={wherePref} onChange={(e) => setWherePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                <select value={wherePref} onChange={(e) => setWherePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                  <option value="" disabled>Select host/travel</option>
                   {['Host', 'Travel'].map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
                 </select>
               </div>
+
+              {/* Extra mandatory question specifically when Man seeking Man */}
+              {isManSeekingManInput && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#ff4d4d' }}>Additional Preference (Man seeking Man):</label>
+                  <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }} required>
+                    <option value="" disabled>Select additional option</option>
+                    <option value="Meet up">Meet up</option>
+                    <option value="Chat only">Chat only</option>
+                  </select>
+                </div>
+              )}
 
               <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
                 Save Profile & Continue
@@ -873,7 +958,7 @@ export default function App() {
               return (
                 <Marker 
                   key={user.id} 
-                  position={[user.lat, user.lng]} 
+                  position={[user.lat || location.lat, user.lng || location.lng]} 
                   icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
                   eventHandlers={{
                     click: () => handleCardClick(user),
