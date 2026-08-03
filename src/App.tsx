@@ -177,6 +177,8 @@ export default function App() {
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
   const [dob, setDob] = useState<string>('1995-01-01');
+  const [gender, setGender] = useState<string>('man');
+  const [seeking, setSeeking] = useState<string>('men');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
   const [rolePref, setRolePref] = useState<string>('Versatile');
@@ -332,6 +334,8 @@ export default function App() {
 
         if (existingProfile) {
           if (existingProfile.dob) setDob(existingProfile.dob);
+          if (existingProfile.gender) setGender(existingProfile.gender);
+          if (existingProfile.seeking) setSeeking(existingProfile.seeking);
           if (existingProfile.height) setHeight(existingProfile.height);
           if (existingProfile.weight) setWeight(existingProfile.weight);
           if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
@@ -356,7 +360,7 @@ export default function App() {
           if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
         }
 
-        const isFullySetup = existingProfile && existingProfile.dob && existingProfile.height && existingProfile.weight && existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref;
+        const isFullySetup = existingProfile && existingProfile.dob && existingProfile.gender && existingProfile.seeking && existingProfile.height && existingProfile.weight && existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref;
         
         if (!isFullySetup) {
           setShowProfileSetup(true);
@@ -370,8 +374,8 @@ export default function App() {
           lat,
           lng,
           last_seen: new Date().toISOString(),
-          gender: 'man',
-          seeking: 'men',
+          gender: existingProfile?.gender || 'man',
+          seeking: existingProfile?.seeking || 'men',
           dob: existingProfile?.dob || '1995-01-01',
           height: existingProfile?.height || '1.7m (5ft 7in)',
           weight: existingProfile?.weight || '70kg (154lbs)',
@@ -424,7 +428,7 @@ export default function App() {
     e.preventDefault();
     setErrorMessage('');
 
-    if (!dob || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref) {
+    if (!dob || !gender || !seeking || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref) {
       setErrorMessage('Please fill out all required fields.');
       return;
     }
@@ -452,6 +456,8 @@ export default function App() {
       ...currentUser,
       last_seen: new Date().toISOString(),
       dob,
+      gender,
+      seeking,
       height,
       weight,
       role_pref: rolePref,
@@ -688,6 +694,33 @@ export default function App() {
             )}
 
             <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Gender:</label>
+                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    <option value="man">Man</option>
+                    <option value="woman">Woman</option>
+                    <option value="non-binary">Non-binary</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Seeking:</label>
+                  <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    <option value="men">Men</option>
+                    <option value="women">Women</option>
+                    <option value="everyone">Everyone</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0' }} />
+
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
@@ -700,13 +733,6 @@ export default function App() {
                   <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
                     {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
                   </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-                  <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
                 </div>
               </div>
 
@@ -1051,7 +1077,7 @@ export default function App() {
 
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
 
-              {/* Preference Tags: Greyed out except host/travel if self */}
+              {/* Preference Tags in a row */}
               <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
                   {activeProfile.role_pref || 'Versatile'}
