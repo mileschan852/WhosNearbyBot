@@ -179,11 +179,16 @@ export default function App() {
   const [dob, setDob] = useState<string>('1995-01-01');
   const [height, setHeight] = useState<string>('1.7m (5ft 7in)');
   const [weight, setWeight] = useState<string>('70kg (154lbs)');
+  const [rolePref, setRolePref] = useState<string>('Versatile');
+  const [safetyPref, setSafetyPref] = useState<string>('Safe');
+  const [playstylePref, setPlaystylePref] = useState<string>('Clean');
+  const [howManyPref, setHowManyPref] = useState<string>('1on1');
+  const [wherePref, setWherePref] = useState<string>('Host');
+
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
 
-  const [wherePref, setWherePref] = useState<string>('Host');
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
@@ -329,7 +334,12 @@ export default function App() {
           if (existingProfile.dob) setDob(existingProfile.dob);
           if (existingProfile.height) setHeight(existingProfile.height);
           if (existingProfile.weight) setWeight(existingProfile.weight);
+          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
+          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
+          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
+          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
+
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
@@ -346,7 +356,8 @@ export default function App() {
           if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
         }
 
-        const isFullySetup = existingProfile && existingProfile.dob && existingProfile.height && existingProfile.weight;
+        const isFullySetup = existingProfile && existingProfile.dob && existingProfile.height && existingProfile.weight && existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref;
+        
         if (!isFullySetup) {
           setShowProfileSetup(true);
         }
@@ -413,7 +424,7 @@ export default function App() {
     e.preventDefault();
     setErrorMessage('');
 
-    if (!dob || !height || !weight) {
+    if (!dob || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref) {
       setErrorMessage('Please fill out all required fields.');
       return;
     }
@@ -443,6 +454,11 @@ export default function App() {
       dob,
       height,
       weight,
+      role_pref: rolePref,
+      safety_pref: safetyPref,
+      playstyle_pref: playstylePref,
+      how_many_pref: howManyPref,
+      where_pref: wherePref,
       hide_age: hideAge,
       is_underage: false,
     };
@@ -665,6 +681,95 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
+      {/* INITIAL SETUP FULLSCREEN OVERLAY IF MISSING INFO */}
+      {showProfileSetup && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '440px', boxSizing: 'border-box', border: '1px solid #333' }}>
+            <h2 style={{ fontSize: '22px', marginBottom: '8px', color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
+            <p style={{ fontSize: '15px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', marginBottom: '20px', lineHeight: '1.4' }}>
+              Warning: This cannot be changed in the future.
+            </p>
+
+            {errorMessage && (
+              <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px', textAlign: 'center' }}>
+                {errorMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
+                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
+                  </select>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
+                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
+                  <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
+                  <button type="button" onClick={() => setHideAge(!hideAge)} style={{ padding: '10px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    {hideAge ? 'Hide Age' : 'Show Age'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Role:</label>
+                  <select value={rolePref} onChange={(e) => setRolePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    {roleCycleOptions.map((r, idx) => (<option key={idx} value={r}>{r}</option>))}
+                  </select>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Safety:</label>
+                  <select value={safetyPref} onChange={(e) => setSafetyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    {safetyCycleOptions.map((s, idx) => (<option key={idx} value={s}>{s}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Playstyle:</label>
+                  <select value={playstylePref} onChange={(e) => setPlaystylePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    {playstyleCycleOptions.map((p, idx) => (<option key={idx} value={p}>{p}</option>))}
+                  </select>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Group Size:</label>
+                  <select value={howManyPref} onChange={(e) => setHowManyPref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                    {howManyCycleOptions.map((hm, idx) => (<option key={idx} value={hm}>{hm}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Host / Travel:</label>
+                <select value={wherePref} onChange={(e) => setWherePref(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px' }}>
+                  {['Host', 'Travel'].map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
+                </select>
+              </div>
+
+              <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Save Profile & Continue
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -909,155 +1014,71 @@ export default function App() {
         </div>
       )}
 
-      {/* PROFILE MODAL / SETUP */}
-      {(showProfileSetup || selectedProfile) && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => { setShowProfileSetup(false); setSelectedProfile(null); }}>
+      {/* PROFILE MODAL FOR OTHERS */}
+      {selectedProfile && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
 
-            {/* INITIAL SETUP FORM IF NOT FULLY SETUP */}
-            {showProfileSetup && (!currentUser?.dob || !currentUser?.height || !currentUser?.weight) ? (
-              <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '20px', marginBottom: '16px', color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
-                {errorMessage && (
-                  <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px', width: '100%', boxSizing: 'border-box' }}>
-                    {errorMessage}
-                  </div>
+            <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              
+              <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                {selectedProfile.avatar ? (
+                  <img src={selectedProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{selectedProfile.name ? selectedProfile.name.charAt(0).toUpperCase() : 'U'}</span>
                 )}
-                <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Height:</label>
-                      <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px' }}>
-                        {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
-                      </select>
-                    </div>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Weight:</label>
-                      <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px' }}>
-                        {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
-                      </select>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
-                      <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '12px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '15px', colorScheme: 'dark' }} required />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
-                      <button type="button" onClick={() => setHideAge(!hideAge)} style={{ padding: '12px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
-                        {hideAge ? 'Hide Age' : 'Show Age'}
-                      </button>
-                    </div>
-                  </div>
-                  <button type="submit" style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    Save Profile
-                  </button>
-                </form>
               </div>
-            ) : (
-              /* VIEW PROFILE CARD */
-              <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                
-                {/* Avatar Image */}
-                <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                  {activeProfile?.avatar ? (
-                    <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile?.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
-                  )}
-                </div>
 
-                <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile?.name}</h2>
+              <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{selectedProfile.name}</h2>
 
-                {/* Sub info: Age / Zodiac, Height, Weight, Distance, Last Online */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
-                  {!targetHideAge && targetAge && <span>{targetAge}yo</span>}
-                  {targetZodiac && <span>{targetZodiac}</span>}
-                  <span>•</span>
-                  <span>{targetHeight}</span>
-                  <span>•</span>
-                  <span>{targetWeight}</span>
-                  <span>•</span>
-                  <span>{isViewingSelf ? 'You' : `${targetDistance}m away`}</span>
-                  <span>•</span>
-                  <span style={{ color: '#4ade80' }}>{targetLastSeen}</span>
-                </div>
-
-                {/* Own profile extra controls: Hide Age toggle */}
-                {isViewingSelf && (
-                  <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    <button 
-                      type="button" 
-                      onClick={handleHideAgeToggle}
-                      style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
-                    >
-                      {hideAge ? 'Age Hidden (Click to Show)' : 'Age Shown (Click to Hide)'}
-                    </button>
-                    {hideAgeExpiry && (
-                      <span style={{ fontSize: '10px', color: '#888' }}>
-                        Expires: {new Date(hideAgeExpiry).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
-
-                {/* Preference Tags */}
-                <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                    {activeProfile?.role_pref || 'Versatile'}
-                  </div>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                    {activeProfile?.safety_pref || 'Safe'}
-                  </div>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                    {activeProfile?.playstyle_pref || 'Clean'}
-                  </div>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                    {activeProfile?.how_many_pref || '1on1'}
-                  </div>
-                  
-                  {/* Where Tag - Toggable and colored if self */}
-                  {isViewingSelf ? (
-                    <button 
-                      type="button" 
-                      onClick={async () => {
-                        const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
-                        setWherePref(nextWhere);
-                        await handleUpdateSelfField({ where_pref: nextWhere });
-                      }}
-                      style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
-                    >
-                      {wherePref}
-                    </button>
-                  ) : (
-                    <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                      {activeProfile?.where_pref || 'Host'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Send Message Button for others if matched */}
-                {!isViewingSelf && (
-                  <button 
-                    type="button" 
-                    onClick={() => handleStartChat(selectedProfile!)}
-                    style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="22" y1="2" x2="11" y2="13"></line>
-                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
-                    Send Message
-                  </button>
-                )}
-
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
+                {!selectedProfile.hide_age && calculateAge(selectedProfile.dob) && <span>{calculateAge(selectedProfile.dob)}yo</span>}
+                {getZodiacSignEmoji(selectedProfile.dob)}
+                <span>•</span>
+                <span>{selectedProfile.height}</span>
+                <span>•</span>
+                <span>{selectedProfile.weight}</span>
+                <span>•</span>
+                <span>{selectedProfile.distance}m away</span>
+                <span>•</span>
+                <span style={{ color: '#4ade80' }}>{formatLastSeen(selectedProfile.last_seen)}</span>
               </div>
-            )}
+
+              <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
+
+              <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {selectedProfile.role_pref || 'Versatile'}
+                </div>
+                <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {selectedProfile.safety_pref || 'Safe'}
+                </div>
+                <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {selectedProfile.playstyle_pref || 'Clean'}
+                </div>
+                <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {selectedProfile.how_many_pref || '1on1'}
+                </div>
+                <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {selectedProfile.where_pref || 'Host'}
+                </div>
+              </div>
+
+              <button 
+                type="button" 
+                onClick={() => handleStartChat(selectedProfile)}
+                style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                Send Message
+              </button>
+
+            </div>
 
           </div>
         </div>
