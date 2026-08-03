@@ -183,6 +183,7 @@ export default function App() {
   const [isLocationDenied, setIsLocationDenied] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [showStuffBubble, setShowStuffBubble] = useState<boolean>(false);
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
@@ -230,7 +231,7 @@ export default function App() {
 
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw'];
-  const playstyleCycleOptions = ['Clean', 'Party'];
+  const playstyleCycleOptions = ['Clean', 'Party', 'Party✓'];
   const howManyCycleOptions = ['1on1', 'Group'];
   const whereCycleOptions = ['Host', 'Travel'];
 
@@ -319,6 +320,7 @@ export default function App() {
         }
 
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
+        const userUsername = tgUser?.username || '';
         const userAvatar = tgUser?.photo_url || '';
 
         if (!navigator.geolocation) {
@@ -1230,9 +1232,44 @@ export default function App() {
                   <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
                     {activeProfile.safety_pref || 'Safe'}
                   </div>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
-                    {activeProfile.playstyle_pref || 'Clean'}
-                  </div>
+
+                  {/* Playstyle Tag: Interactive if self (Cycles Clean -> Party -> Party✓) */}
+                  {isViewingSelf ? (
+                    <div style={{ position: 'relative' }}>
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const nextPlaystyle = cycleNext(playstylePref, playstyleCycleOptions);
+                          setPlaystylePref(nextPlaystyle);
+                          const updated = { ...activeProfile, playstyle_pref: nextPlaystyle };
+                          setSelectedProfile(updated);
+                          await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });
+
+                          if (nextPlaystyle === 'Party✓') {
+                            setShowStuffBubble(true);
+                            setTimeout(() => {
+                              setShowStuffBubble(false);
+                            }, 3000);
+                          }
+                        }}
+                        style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                      >
+                        {playstylePref}
+                      </button>
+
+                      {showStuffBubble && (
+                        <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#ffffff', color: '#000000', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 20 }}>
+                          I got stuff
+                          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', borderWidth: '4px', borderStyle: 'solid', borderColor: '#ffffff transparent transparent transparent' }} />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile.playstyle_pref || 'Clean'}
+                    </div>
+                  )}
+
                   <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
                     {activeProfile.how_many_pref || '1on1'}
                   </div>
