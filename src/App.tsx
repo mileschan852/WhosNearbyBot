@@ -192,7 +192,7 @@ export default function App() {
   const [height, setHeight] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
   
-  // 5 Preferences Tags (Updated options)
+  // 5 Preferences Tags
   const [rolePref, setRolePref] = useState<string>('Versatile');
   const [safetyPref, setSafetyPref] = useState<string>('Safe');
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');
@@ -380,14 +380,12 @@ export default function App() {
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
 
-          if (existingProfile.role_pref) {
-            if (existingProfile.role_pref === 'Top') setFilterRoleVal('Bottom');
-            else if (existingProfile.role_pref === 'Bottom') setFilterRoleVal('Top');
-            else setFilterRoleVal(existingProfile.role_pref);
+          if (isManSeekingMan) {
+            if (existingProfile.role_pref) setFilterRoleVal(existingProfile.role_pref);
+            if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
+            if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
+            if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
           }
-          if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
-          if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
-          if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
         }
 
         if (!isFullySetup) {
@@ -529,6 +527,25 @@ export default function App() {
     if (error) {
       setErrorMessage(`Error saving profile: ${error.message}`);
       return;
+    }
+
+    if (isManSeekingMan) {
+      if (rolePref) {
+        setFilterRoleEnabled(true);
+        setFilterRoleVal(rolePref);
+      }
+      if (safetyPref) {
+        setFilterSafetyEnabled(true);
+        setFilterSafetyVal(safetyPref);
+      }
+      if (playstylePref) {
+        setFilterPlaystyleEnabled(true);
+        setFilterPlaystyleVal(playstylePref);
+      }
+      if (howManyPref) {
+        setFilterHowManyEnabled(true);
+        setFilterHowManyVal(howManyPref);
+      }
     }
 
     setCurrentUser(updatedProfile);
