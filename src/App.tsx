@@ -182,6 +182,7 @@ export default function App() {
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
   const [isLocationDenied, setIsLocationDenied] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
@@ -307,6 +308,10 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
+        const username = tgUser?.username || '';
+        const userIsAdmin = username === 'mileschan852' || username === 'HKMembersOnly';
+        setIsAdmin(userIsAdmin);
+
         const savedUserId = localStorage.getItem('whos_nearby_user_id');
         const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !savedUserId) {
@@ -314,7 +319,6 @@ export default function App() {
         }
 
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
-        const userUsername = tgUser?.username || '';
         const userAvatar = tgUser?.photo_url || '';
 
         if (!navigator.geolocation) {
@@ -562,6 +566,11 @@ export default function App() {
   const handleOpenFilterMenu = async () => {
     if (!currentUser || !supabase) return;
 
+    if (isAdmin) {
+      setShowFilterMenu(true);
+      return;
+    }
+
     const now = new Date();
     const isExpired = !filterSubExpiry || new Date(filterSubExpiry).getTime() < now.getTime();
 
@@ -607,7 +616,7 @@ export default function App() {
     let nextVal = !gridVisible;
     let newInvisibleExpiry = invisibleExpiry;
 
-    if (!nextVal) {
+    if (!nextVal && !isAdmin) {
       const now = new Date();
       const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();
       
@@ -679,35 +688,38 @@ export default function App() {
 
   const handleHideAgeToggle = async () => {
     if (!currentUser || !supabase) return;
-    const now = new Date();
-    const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
 
     let nextHide = !hideAge;
     let newExpiry = hideAgeExpiry;
 
-    if (nextHide && isExpired) {
-      const confirmed = window.confirm("Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?");
-      if (!confirmed) return;
+    if (nextHide && !isAdmin) {
+      const now = new Date();
+      const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
 
-      if (window.Telegram?.WebApp?.openInvoice) {
-        window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-          if (status === 'paid') {
-            const expiryDate = new Date();
-            expiryDate.setDate(expiryDate.getDate() + 30);
-            newExpiry = expiryDate.toISOString();
-            setHideAgeExpiry(newExpiry);
-            setHideAge(true);
-            await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
-          } else {
-            alert("Payment cancelled or failed.");
-          }
-        });
-        return;
-      } else {
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 30);
-        newExpiry = expiryDate.toISOString();
-        setHideAgeExpiry(newExpiry);
+      if (isExpired) {
+        const confirmed = window.confirm("Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?");
+        if (!confirmed) return;
+
+        if (window.Telegram?.WebApp?.openInvoice) {
+          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+            if (status === 'paid') {
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30);
+              newExpiry = expiryDate.toISOString();
+              setHideAgeExpiry(newExpiry);
+              setHideAge(true);
+              await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
+            } else {
+              alert("Payment cancelled or failed.");
+            }
+          });
+          return;
+        } else {
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          newExpiry = expiryDate.toISOString();
+          setHideAgeExpiry(newExpiry);
+        }
       }
     } else if (!nextHide) {
       newExpiry = null;
