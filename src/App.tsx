@@ -459,7 +459,7 @@ export default function App() {
       playstyle_pref: playstylePref,
       how_many_pref: howManyPref,
       where_pref: wherePref,
-      hide_age: hideAge,
+      hide_age: false,
       is_underage: false,
     };
 
@@ -663,17 +663,8 @@ export default function App() {
     );
   }
 
-  const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : showProfileSetup;
-  const activeProfile = isViewingSelf ? currentUser : selectedProfile;
-
-  const targetDob = activeProfile?.dob || '';
-  const targetAge = calculateAge(targetDob);
-  const targetHideAge = activeProfile?.hide_age ?? false;
-  const targetZodiac = getZodiacSignEmoji(targetDob);
-  const targetHeight = activeProfile?.height || '';
-  const targetWeight = activeProfile?.weight || '';
-  const targetDistance = activeProfile?.distance ?? 0;
-  const targetLastSeen = formatLastSeen(activeProfile?.last_seen);
+  const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
+  const activeProfile = selectedProfile;
 
   const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
@@ -716,12 +707,6 @@ export default function App() {
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Date of Birth:</label>
                   <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '14px', colorScheme: 'dark' }} required />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Age Display:</label>
-                  <button type="button" onClick={() => setHideAge(!hideAge)} style={{ padding: '10px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    {hideAge ? 'Hide Age' : 'Show Age'}
-                  </button>
                 </div>
               </div>
 
@@ -1014,8 +999,8 @@ export default function App() {
         </div>
       )}
 
-      {/* PROFILE MODAL FOR OTHERS */}
-      {selectedProfile && (
+      {/* PROFILE MODAL (SELF OR OTHER) */}
+      {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
@@ -1024,59 +1009,98 @@ export default function App() {
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               
               <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                {selectedProfile.avatar ? (
-                  <img src={selectedProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {activeProfile.avatar ? (
+                  <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{selectedProfile.name ? selectedProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
                 )}
               </div>
 
-              <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{selectedProfile.name}</h2>
+              <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
-                {!selectedProfile.hide_age && calculateAge(selectedProfile.dob) && <span>{calculateAge(selectedProfile.dob)}yo</span>}
-                {getZodiacSignEmoji(selectedProfile.dob)}
+                {!activeProfile.hide_age && calculateAge(activeProfile.dob) && <span>{calculateAge(activeProfile.dob)}yo</span>}
+                {getZodiacSignEmoji(activeProfile.dob)}
                 <span>•</span>
-                <span>{selectedProfile.height}</span>
+                <span>{activeProfile.height}</span>
                 <span>•</span>
-                <span>{selectedProfile.weight}</span>
+                <span>{activeProfile.weight}</span>
                 <span>•</span>
-                <span>{selectedProfile.distance}m away</span>
+                <span>{isViewingSelf ? 'You' : `${activeProfile.distance}m away`}</span>
                 <span>•</span>
-                <span style={{ color: '#4ade80' }}>{formatLastSeen(selectedProfile.last_seen)}</span>
+                <span style={{ color: '#4ade80' }}>{formatLastSeen(activeProfile.last_seen)}</span>
               </div>
+
+              {/* Hide Age Toggle Button only when viewing self */}
+              {isViewingSelf && (
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleHideAgeToggle}
+                    style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    {hideAge ? 'Age Hidden (Click to Show)' : 'Age Shown (Click to Hide)'}
+                  </button>
+                  {hideAgeExpiry && (
+                    <span style={{ fontSize: '10px', color: '#888' }}>
+                      Expires: {new Date(hideAgeExpiry).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
 
+              {/* Preference Tags: Greyed out except host/travel if self */}
               <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {selectedProfile.role_pref || 'Versatile'}
+                <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  {activeProfile.role_pref || 'Versatile'}
                 </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {selectedProfile.safety_pref || 'Safe'}
+                <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  {activeProfile.safety_pref || 'Safe'}
                 </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {selectedProfile.playstyle_pref || 'Clean'}
+                <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  {activeProfile.playstyle_pref || 'Clean'}
                 </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {selectedProfile.how_many_pref || '1on1'}
+                <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  {activeProfile.how_many_pref || '1on1'}
                 </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {selectedProfile.where_pref || 'Host'}
-                </div>
+                
+                {/* Host / Travel Tag: Interactive if self */}
+                {isViewingSelf ? (
+                  <button 
+                    type="button" 
+                    onClick={async () => {
+                      const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
+                      setWherePref(nextWhere);
+                      const updated = { ...activeProfile, where_pref: nextWhere };
+                      setSelectedProfile(updated);
+                      await handleUpdateSelfField({ where_pref: nextWhere });
+                    }}
+                    style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                  >
+                    {wherePref}
+                  </button>
+                ) : (
+                  <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {activeProfile.where_pref || 'Host'}
+                  </div>
+                )}
               </div>
 
-              <button 
-                type="button" 
-                onClick={() => handleStartChat(selectedProfile)}
-                style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                Send Message
-              </button>
+              {!isViewingSelf && (
+                <button 
+                  type="button" 
+                  onClick={() => handleStartChat(activeProfile)}
+                  style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  Send Message
+                </button>
+              )}
 
             </div>
 
