@@ -754,7 +754,7 @@ export default function App() {
           <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             
             <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
-            <p style={{ fontSize: '13px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>
               Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.
             </p>
 
