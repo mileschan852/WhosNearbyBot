@@ -357,11 +357,7 @@ export default function App() {
           existingProfile.seeking && 
           existingProfile.height && 
           existingProfile.weight && 
-          existingProfile.role_pref && 
-          existingProfile.safety_pref && 
-          existingProfile.playstyle_pref && 
-          existingProfile.how_many_pref && 
-          existingProfile.where_pref &&
+          (!isManSeekingMan || (existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref)) &&
           (isManSeekingMan || existingProfile.non_man_mode);
 
         if (existingProfile) {
@@ -436,12 +432,12 @@ export default function App() {
             dob: existingProfile.dob,
             height: existingProfile.height,
             weight: existingProfile.weight,
-            role_pref: existingProfile.role_pref,
-            safety_pref: existingProfile.safety_pref,
-            playstyle_pref: existingProfile.playstyle_pref,
-            where_pref: existingProfile.where_pref,
-            how_many_pref: existingProfile.how_many_pref,
-            non_man_mode: isManSeekingMan ? 'Meet up' : existingProfile.non_man_mode,
+            role_pref: isManSeekingMan ? existingProfile.role_pref : null,
+            safety_pref: isManSeekingMan ? existingProfile.safety_pref : null,
+            playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null,
+            where_pref: isManSeekingMan ? existingProfile.where_pref : null,
+            how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null,
+            non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode,
             is_underage: false,
             hide_age: existingProfile.hide_age || false,
             grid_visible: existingProfile.grid_visible ?? true,
@@ -484,7 +480,7 @@ export default function App() {
 
     const isManSeekingMan = gender === 'man' && seeking === 'men';
 
-    if (!dob || !gender || !seeking || !height || !weight || !rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref || (!isManSeekingMan && !nonManMode)) {
+    if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref)) || (!isManSeekingMan && !nonManMode)) {
       setErrorMessage('Please fill out all required questions to continue.');
       return;
     }
@@ -518,12 +514,12 @@ export default function App() {
       seeking,
       height,
       weight,
-      role_pref: rolePref,
-      safety_pref: safetyPref,
-      playstyle_pref: playstylePref,
-      how_many_pref: howManyPref,
-      where_pref: wherePref,
-      non_man_mode: isManSeekingMan ? 'Meet up' : nonManMode,
+      role_pref: isManSeekingMan ? rolePref : null,
+      safety_pref: isManSeekingMan ? safetyPref : null,
+      playstyle_pref: isManSeekingMan ? playstylePref : null,
+      how_many_pref: isManSeekingMan ? howManyPref : null,
+      where_pref: isManSeekingMan ? wherePref : null,
+      non_man_mode: isManSeekingMan ? null : nonManMode,
       hide_age: false,
       is_underage: false,
     };
@@ -747,6 +743,7 @@ export default function App() {
   const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
+  const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -814,32 +811,33 @@ export default function App() {
               {/* DIVIDING LINE */}
               <div style={{ width: '100%', borderTop: '1px solid #444', margin: '4px 0' }} />
 
-              {/* Below the dividing line: Preferences tag instructions */}
-              <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>
-                tap to change your preference:
-              </div>
+              {/* Only visible if user chose man seeking men */}
+              {isManSeekingManInput ? (
+                <>
+                  <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>
+                    tap to change your preference:
+                  </div>
 
-              {/* 5 preferences tag on same row */}
-              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {rolePref}
-                </button>
-                <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {safetyPref}
-                </button>
-                <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, playstyleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {playstylePref}
-                </button>
-                <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {howManyPref}
-                </button>
-                <button type="button" onClick={() => setWherePref(wherePref === 'Host' ? 'Travel' : 'Host')} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
-                  {wherePref}
-                </button>
-              </div>
-
-              {/* Non-man seeking man mode selection */}
-              {!isManSeekingManInput && (
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                    <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {rolePref}
+                    </button>
+                    <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {safetyPref}
+                    </button>
+                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, playstyleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {playstylePref}
+                    </button>
+                    <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {howManyPref}
+                    </button>
+                    <button type="button" onClick={() => setWherePref(wherePref === 'Host' ? 'Travel' : 'Host')} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {wherePref}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Non-man seeking man mode selection below dividing line */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>Mode:</label>
                   <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '11px' }} required>
@@ -1145,42 +1143,44 @@ export default function App() {
 
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
 
-              {/* Preference Tags in a row */}
-              <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
-                  {activeProfile.role_pref || 'Versatile'}
-                </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
-                  {activeProfile.safety_pref || 'Safe'}
-                </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
-                  {activeProfile.playstyle_pref || 'Clean'}
-                </div>
-                <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
-                  {activeProfile.how_many_pref || '1on1'}
-                </div>
-                
-                {/* Host / Travel Tag: Interactive if self */}
-                {isViewingSelf ? (
-                  <button 
-                    type="button" 
-                    onClick={async () => {
-                      const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
-                      setWherePref(nextWhere);
-                      const updated = { ...activeProfile, where_pref: nextWhere };
-                      setSelectedProfile(updated);
-                      await handleUpdateSelfField({ where_pref: nextWhere });
-                    }}
-                    style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
-                  >
-                    {wherePref}
-                  </button>
-                ) : (
-                  <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                    {activeProfile.where_pref || 'Host'}
+              {/* Preference Tags in a row (Only if target profile is man seeking men) */}
+              {targetIsManSeekingMan && (
+                <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.role_pref || 'Versatile'}
                   </div>
-                )}
-              </div>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.safety_pref || 'Safe'}
+                  </div>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.playstyle_pref || 'Clean'}
+                  </div>
+                  <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.how_many_pref || '1on1'}
+                  </div>
+                  
+                  {/* Host / Travel Tag: Interactive if self */}
+                  {isViewingSelf ? (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
+                        setWherePref(nextWhere);
+                        const updated = { ...activeProfile, where_pref: nextWhere };
+                        setSelectedProfile(updated);
+                        await handleUpdateSelfField({ where_pref: nextWhere });
+                      }}
+                      style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      {wherePref}
+                    </button>
+                  ) : (
+                    <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile.where_pref || 'Host'}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {!isViewingSelf && (
                 <button 
