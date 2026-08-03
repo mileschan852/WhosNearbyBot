@@ -192,7 +192,7 @@ export default function App() {
   const [height, setHeight] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
   
-  // 5 Preferences Tags
+  // 5 Preferences Tags (Updated options)
   const [rolePref, setRolePref] = useState<string>('Versatile');
   const [safetyPref, setSafetyPref] = useState<string>('Safe');
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');
@@ -225,10 +225,11 @@ export default function App() {
   const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
   const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
 
-  const roleCycleOptions = ['Top', 'Versatile', 'Bottom', 'Side'];
-  const safetyCycleOptions = ['Safe', 'Raw', 'Party'];
-  const playstyleCycleOptions = ['Clean', 'Raw'];
+  const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
+  const safetyCycleOptions = ['Safe', 'Raw'];
+  const playstyleCycleOptions = ['Clean', 'Party'];
   const howManyCycleOptions = ['1on1', 'Group'];
+  const whereCycleOptions = ['Host', 'Travel'];
 
   const cycleNext = (current: string, options: string[]) => {
     const idx = options.indexOf(current);
@@ -688,20 +689,20 @@ export default function App() {
       }
     }
 
-    if (filterRoleEnabled && filterRoleVal) {
-      if (user.role_pref !== filterRoleVal) return false;
-    }
-
-    if (filterSafetyEnabled && filterSafetyVal) {
-      if (user.safety_pref !== filterSafetyVal) return false;
-    }
-
-    if (filterPlaystyleEnabled && filterPlaystyleVal) {
-      if (user.playstyle_pref !== filterPlaystyleVal) return false;
-    }
-
-    if (filterHowManyEnabled && filterHowManyVal) {
-      if (user.how_many_pref !== filterHowManyVal) return false;
+    const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';
+    if (userIsManSeekingMan) {
+      if (filterRoleEnabled && filterRoleVal) {
+        if (user.role_pref !== filterRoleVal) return false;
+      }
+      if (filterSafetyEnabled && filterSafetyVal) {
+        if (user.safety_pref !== filterSafetyVal) return false;
+      }
+      if (filterPlaystyleEnabled && filterPlaystyleVal) {
+        if (user.playstyle_pref !== filterPlaystyleVal) return false;
+      }
+      if (filterHowManyEnabled && filterHowManyVal) {
+        if (user.how_many_pref !== filterHowManyVal) return false;
+      }
     }
 
     return true;
@@ -831,7 +832,7 @@ export default function App() {
                     <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {howManyPref}
                     </button>
-                    <button type="button" onClick={() => setWherePref(wherePref === 'Host' ? 'Travel' : 'Host')} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {wherePref}
                     </button>
                   </div>
