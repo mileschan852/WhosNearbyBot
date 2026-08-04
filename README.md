@@ -1,32 +1,14 @@
-# React + TypeScript + Vite
+# WhosNearbyBot
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A Telegram Mini App — React + TypeScript SPA with a Cloudflare Worker backend.
 
-Currently, two official plugins are available:
+**Live worker URL:** `https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/e74bb1b9bf16`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Telegram Stars Payments
 
-## React Compiler
+The bot supports Telegram Stars payments for premium features:
+- **Hide Age** (30 days) — 1000 XTR
+- **Invisible Mode** (30 days) — 3000 XTR
+- **Edit Profile Pass** — 1000 XTR
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Payments API: `POST /create-invoice` (returns invoice link), `POST /telegram-webhook` (payment confirmation).
