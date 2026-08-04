@@ -1,0 +1,7 @@
+name = "whosnearby-bot"
+main = "worker.js"
+compatibility_date = "2026-08-04"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+SUPABASE_URL = "https://fngcjkclxxodjaiqkfkm.supabase.co"
