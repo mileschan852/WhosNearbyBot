@@ -2,7 +2,7 @@
 
 A Telegram Mini App — React + TypeScript SPA with a Cloudflare Worker backend.
 
-**Backend worker URL:** `https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/e74bb1b9bf16`
+**Backend worker URL:** `https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf`
 
 ## Features
 
