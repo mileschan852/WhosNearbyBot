@@ -58,6 +58,7 @@ interface UserProfile {
   hide_age_expiry?: string | null;
   invisible_expiry?: string | null;
   filter_sub_expiry?: string | null;
+  edit_profile_expiry?: string | null;
 }
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -191,22 +192,23 @@ export default function App() {
   
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState<boolean>(false);
 
-  // Filter Active States & Criteria
+  // Filter States (Default logic applied on startup)
   const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
   const [minAge, setMinAge] = useState<number>(18);
   const [maxAge, setMaxAge] = useState<number>(80);
 
-  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(false);
+  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(true);
   const [filterRole, setFilterRole] = useState<string>('Bottom');
 
-  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(false);
+  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(true);
   const [filterSafety, setFilterSafety] = useState<string>('Raw');
 
-  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(false);
+  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
   const [filterPlaystyle, setFilterPlaystyle] = useState<string>('Party');
 
-  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(false);
+  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
   const [filterHowMany, setFilterHowMany] = useState<string>('1on1');
 
   const [filterWhereEnabled, setFilterWhereEnabled] = useState<boolean>(false);
@@ -228,12 +230,20 @@ export default function App() {
   const [howManyPref, setHowManyPref] = useState<string>('1on1');
   const [wherePref, setWherePref] = useState<string>('Travel');
 
+  // Edit Profile Modal Temp States (1000 stars feature)
+  const [editRolePref, setEditRolePref] = useState<string>('Bottom');
+  const [editSafetyPref, setEditSafetyPref] = useState<string>('Raw');
+  const [editPlaystylePref, setEditPlaystylePref] = useState<string>('Party');
+  const [editHowManyPref, setEditHowManyPref] = useState<string>('1on1');
+  const [editWherePref, setEditWherePref] = useState<string>('Travel');
+
   const [nonManMode, setNonManMode] = useState<string>('Meet up - You are visible on grid and map');
   
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
+  const [editProfileExpiry, setEditProfileExpiry] = useState<string | null>(null);
 
   const urlParams = new URLSearchParams(window.location.search);
   const isGayMode = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode' || urlParams.get('mode') === 'gay' || urlParams.get('startapp') === 'gaymode';
@@ -254,6 +264,24 @@ export default function App() {
     const idx = options.indexOf(current);
     if (idx === -1 || idx === options.length - 1) return options[0];
     return options[idx + 1];
+  };
+
+  const applyDefaultFilters = (role: string, safety: string, playstyle: string, howMany: string, where: string) => {
+    setFilterRole(role);
+    setFilterRoleEnabled(role !== 'Versatile');
+
+    setFilterSafety(safety);
+    setFilterSafetyEnabled(true);
+
+    const normalizedPlaystyle = playstyle === 'Party✓' ? 'Party' : (playstyle || 'Clean');
+    setFilterPlaystyle(normalizedPlaystyle);
+    setFilterPlaystyleEnabled(true);
+
+    setFilterHowMany(howMany);
+    setFilterHowManyEnabled(howMany !== 'Group');
+
+    setFilterWhere(where);
+    setFilterWhereEnabled(false);
   };
 
   const heightOptions = [];
@@ -294,7 +322,7 @@ export default function App() {
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
   };
 
-  const handlePurchase = async (itemType: 'hide_age' | 'invisible' | 'filter') => {
+  const handlePurchase = async (itemType: 'hide_age' | 'invisible' | 'filter' | 'edit_profile') => {
     if (!currentUser || !supabase) return;
 
     if (isAdmin) {
@@ -315,6 +343,16 @@ export default function App() {
         updateField.filter_sub_expiry = expiryStr;
         setFilterSubExpiry(expiryStr);
       }
+      if (itemType === 'edit_profile') {
+        updateField.edit_profile_expiry = expiryStr;
+        setEditProfileExpiry(expiryStr);
+        setEditRolePref(rolePref);
+        setEditSafetyPref(safetyPref);
+        setEditPlaystylePref(playstylePref);
+        setEditHowManyPref(howManyPref);
+        setEditWherePref(wherePref);
+        setShowEditProfileModal(true);
+      }
 
       await handleUpdateSelfField(updateField);
       
@@ -333,6 +371,16 @@ export default function App() {
         if (status === 'paid') {
           if (window.Telegram?.WebApp?.showAlert) {
             window.Telegram.WebApp.showAlert('Payment successful! Your feature is now active.');
+          }
+          if (itemType === 'edit_profile') {
+            const expiryStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            setEditProfileExpiry(expiryStr);
+            setEditRolePref(rolePref);
+            setEditSafetyPref(safetyPref);
+            setEditPlaystylePref(playstylePref);
+            setEditHowManyPref(howManyPref);
+            setEditWherePref(wherePref);
+            setShowEditProfileModal(true);
           }
           await handleRefresh();
         } else if (status === 'cancelled') {
@@ -377,6 +425,7 @@ export default function App() {
         hide_age_expiry: u.hide_age_expiry || null,
         invisible_expiry: u.invisible_expiry || null,
         filter_sub_expiry: u.filter_sub_expiry || null,
+        edit_profile_expiry: u.edit_profile_expiry || null,
       })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
         .filter((u) => !isGayMode || u.id === currentUserId || (u.gender === 'man' && u.seeking === 'men'))
         .sort((a, b) => (a.distance || 0) - (b.distance || 0));
@@ -466,26 +515,11 @@ export default function App() {
           if (existingProfile.seeking) setSeeking(existingProfile.seeking);
           if (existingProfile.height) setHeight(existingProfile.height);
           if (existingProfile.weight) setWeight(existingProfile.weight);
-          if (existingProfile.role_pref) {
-            setRolePref(existingProfile.role_pref);
-            setFilterRole(existingProfile.role_pref);
-          }
-          if (existingProfile.safety_pref) {
-            setSafetyPref(existingProfile.safety_pref);
-            setFilterSafety(existingProfile.safety_pref);
-          }
-          if (existingProfile.playstyle_pref) {
-            setPlaystylePref(existingProfile.playstyle_pref);
-            setFilterPlaystyle(existingProfile.playstyle_pref);
-          }
-          if (existingProfile.how_many_pref) {
-            setHowManyPref(existingProfile.how_many_pref);
-            setFilterHowMany(existingProfile.how_many_pref);
-          }
-          if (existingProfile.where_pref) {
-            setWherePref(existingProfile.where_pref);
-            setFilterWhere(existingProfile.where_pref);
-          }
+          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
+          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
+          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
+          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
+          if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
           if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
 
           if (isGayMode) {
@@ -493,10 +527,21 @@ export default function App() {
             setSeeking('men');
           }
 
+          if (existingProfile.role_pref) {
+            applyDefaultFilters(
+              existingProfile.role_pref,
+              existingProfile.safety_pref || 'Raw',
+              existingProfile.playstyle_pref || 'Party',
+              existingProfile.how_many_pref || '1on1',
+              existingProfile.where_pref || 'Travel'
+            );
+          }
+
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
           if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
+          if (existingProfile.edit_profile_expiry) setEditProfileExpiry(existingProfile.edit_profile_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
         }
@@ -529,6 +574,7 @@ export default function App() {
             hide_age_expiry: null,
             invisible_expiry: null,
             filter_sub_expiry: null,
+            edit_profile_expiry: null,
           };
           setCurrentUser(blankProfile);
         } else {
@@ -558,6 +604,7 @@ export default function App() {
             hide_age_expiry: existingProfile.hide_age_expiry || null,
             invisible_expiry: existingProfile.invisible_expiry || null,
             filter_sub_expiry: existingProfile.filter_sub_expiry || null,
+            edit_profile_expiry: existingProfile.edit_profile_expiry || null,
           };
           setCurrentUser(myProfile);
           if (supabase) {
@@ -656,11 +703,7 @@ export default function App() {
         return;
       }
 
-      setFilterRole(rolePref);
-      setFilterSafety(safetyPref);
-      setFilterPlaystyle(playstylePref);
-      setFilterHowMany(howManyPref);
-      setFilterWhere(wherePref);
+      applyDefaultFilters(rolePref, safetyPref, playstylePref, howManyPref, wherePref);
 
       setCurrentUser(updatedProfile);
       setShowProfileSetup(false);
@@ -1103,6 +1146,96 @@ export default function App() {
 
       </main>
 
+      {/* EDIT PROFILE MODAL (1000 Stars feature) */}
+      {showEditProfileModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setShowEditProfileModal(false)}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', border: '1px solid #444' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ fontSize: '18px', marginBottom: '8px', color: '#007bff', fontWeight: 'bold' }}>Edit Profile Preferences</h2>
+            <p style={{ fontSize: '12px', color: '#aaa', textAlign: 'center', marginBottom: '20px' }}>
+              Update your preferences below. Changes will only apply when you press save.
+            </p>
+
+            {/* 5 Preference Tags Horizontally */}
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '6px', justifyContent: 'center', width: '100%', marginBottom: '24px', flexWrap: 'wrap' }}>
+              <button 
+                type="button" 
+                onClick={() => setEditRolePref(cycleNext(editRolePref, roleCycleOptions))}
+                style={{ padding: '10px 12px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {editRolePref}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => setEditSafetyPref(cycleNext(editSafetyPref, safetyCycleOptions))}
+                style={{ padding: '10px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {editSafetyPref}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => {
+                  const nextPlaystyle = editPlaystylePref === 'Party' ? 'Party✓' : 'Party';
+                  setEditPlaystylePref(nextPlaystyle);
+                }}
+                style={{ padding: '10px 12px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {editPlaystylePref}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => setEditHowManyPref(cycleNext(editHowManyPref, howManyCycleOptions))}
+                style={{ padding: '10px 12px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {editHowManyPref}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => {
+                  const nextWhere = editWherePref === 'Host' ? 'Travel' : 'Host';
+                  setEditWherePref(nextWhere);
+                }}
+                style={{ padding: '10px 12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {editWherePref}
+              </button>
+            </div>
+
+            <button 
+              type="button"
+              onClick={async () => {
+                setRolePref(editRolePref);
+                setSafetyPref(editSafetyPref);
+                setPlaystylePref(editPlaystylePref);
+                setHowManyPref(editHowManyPref);
+                setWherePref(editWherePref);
+
+                applyDefaultFilters(editRolePref, editSafetyPref, editPlaystylePref, editHowManyPref, editWherePref);
+
+                await handleUpdateSelfField({
+                  role_pref: editRolePref,
+                  safety_pref: editSafetyPref,
+                  playstyle_pref: editPlaystylePref,
+                  how_many_pref: editHowManyPref,
+                  where_pref: editWherePref,
+                });
+
+                setShowEditProfileModal(false);
+                if (window.Telegram?.WebApp?.showAlert) {
+                  window.Telegram.WebApp.showAlert('Profile preferences updated successfully!');
+                }
+              }}
+              style={{ width: '100%', padding: '12px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Save Preferences
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* PROFILE MODAL / SETUP */}
       {(showProfileSetup || selectedProfile) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => { setShowProfileSetup(false); setSelectedProfile(null); }}>
@@ -1209,9 +1342,9 @@ export default function App() {
                   <span style={{ color: '#4ade80' }}>{targetLastSeen}</span>
                 </div>
 
-                {/* HIDE AGE PURCHASE TRIGGER */}
+                {/* HIDE AGE & EDIT PROFILE BUTTONS */}
                 {isViewingSelf && (
-                  <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', width: '100%', justifyContent: 'center', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
                     <button 
                       type="button" 
                       onClick={async () => {
@@ -1223,9 +1356,28 @@ export default function App() {
                         setHideAge(nextHide);
                         await handleUpdateSelfField({ hide_age: nextHide });
                       }}
-                      style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                      style={{ padding: '8px 12px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
                     >
-                      {hideAge ? 'Age Hidden (Click to Show)' : 'Age Shown (Click to Hide)'}
+                      {hideAge ? 'Age Hidden (Show)' : 'Age Shown (Hide)'}
+                    </button>
+
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        if (!hasValidSub(editProfileExpiry)) {
+                          await handlePurchase('edit_profile');
+                          return;
+                        }
+                        setEditRolePref(rolePref);
+                        setEditSafetyPref(safetyPref);
+                        setEditPlaystylePref(playstylePref);
+                        setEditHowManyPref(howManyPref);
+                        setEditWherePref(wherePref);
+                        setShowEditProfileModal(true);
+                      }}
+                      style={{ padding: '8px 12px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      Edit Profile (1000 Stars)
                     </button>
                   </div>
                 )}
@@ -1235,17 +1387,17 @@ export default function App() {
                 {/* Preference Tags */}
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* Role Tag (Greyed out / static on others) */}
-                  <div style={{ padding: '10px 10px', backgroundColor: isViewingSelf ? '#e11d48' : '#444', color: isViewingSelf ? '#fff' : '#aaa', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {/* Role Tag (Greyed out / static) */}
+                  <div style={{ padding: '10px 10px', backgroundColor: '#444', color: '#aaa', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.role_pref || 'Versatile'}
                   </div>
 
-                  {/* Safety Tag (Greyed out / static on others) */}
-                  <div style={{ padding: '10px 10px', backgroundColor: isViewingSelf ? '#2563eb' : '#444', color: isViewingSelf ? '#fff' : '#aaa', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {/* Safety Tag (Greyed out / static) */}
+                  <div style={{ padding: '10px 10px', backgroundColor: '#444', color: '#aaa', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.safety_pref || 'Safe'}
                   </div>
 
-                  {/* Playstyle Tag (Toggable between Party and Party✓ on self, greyed out/static on others) */}
+                  {/* Playstyle Tag (Toggable on self between Party and Party✓, greyed out on others) */}
                   {isViewingSelf ? (
                     <button 
                       type="button" 
@@ -1271,12 +1423,12 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* How Many Tag (Greyed out / static on others) */}
-                  <div style={{ padding: '10px 10px', backgroundColor: isViewingSelf ? '#9333ea' : '#444', color: isViewingSelf ? '#fff' : '#aaa', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {/* How Many Tag (Greyed out / static) */}
+                  <div style={{ padding: '10px 10px', backgroundColor: '#444', color: '#aaa', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.how_many_pref || '1on1'}
                   </div>
                   
-                  {/* Where Tag (Toggable between Host and Travel on self, greyed out/static on others) */}
+                  {/* Where Tag (Toggable on self between Host and Travel, greyed out on others) */}
                   {isViewingSelf ? (
                     <button 
                       type="button" 
