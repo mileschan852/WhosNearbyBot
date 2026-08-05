@@ -192,6 +192,26 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
+  // Filter Active States & Criteria
+  const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
+  const [minAge, setMinAge] = useState<number>(18);
+  const [maxAge, setMaxAge] = useState<number>(80);
+
+  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(false);
+  const [filterRole, setFilterRole] = useState<string>('Bottom');
+
+  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(false);
+  const [filterSafety, setFilterSafety] = useState<string>('Raw');
+
+  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(false);
+  const [filterPlaystyle, setFilterPlaystyle] = useState<string>('Party');
+
+  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(false);
+  const [filterHowMany, setFilterHowMany] = useState<string>('1on1');
+
+  const [filterWhereEnabled, setFilterWhereEnabled] = useState<boolean>(false);
+  const [filterWhere, setFilterWhere] = useState<string>('Travel');
+
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
 
   // Form input states
@@ -225,7 +245,8 @@ export default function App() {
 
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw'];
-  const playstyleSetupCycleOptions = ['Clean', 'Party']; // Setup excludes Party✓
+  const playstyleSetupCycleOptions = ['Clean', 'Party'];
+  const playstyleGridCycleOptions = ['Clean', 'Party', 'Party✓'];
   const howManyCycleOptions = ['1on1', 'Group'];
   const whereCycleOptions = ['Host', 'Travel'];
 
@@ -665,6 +686,55 @@ export default function App() {
 
   const checkMatchStatus = (me: UserProfile, target: UserProfile) => {
     if (me.id === target.id) return true;
+
+    // 1. Age Range Filter
+    if (filterAgeEnabled) {
+      const targetAge = calculateAge(target.dob);
+      if (targetAge === null || targetAge < minAge || targetAge > maxAge) {
+        return false;
+      }
+    }
+
+    // 2. Role Preference Filter
+    if (filterRoleEnabled) {
+      const myRole = filterRole;
+      const targetRole = target.role_pref;
+      let roleMatch = false;
+      if (myRole === 'Versatile' || targetRole === 'Versatile') roleMatch = true;
+      else if (myRole === 'Bottom' && targetRole === 'Top') roleMatch = true;
+      else if (myRole === 'Top' && targetRole === 'Bottom') roleMatch = true;
+      else if (myRole === 'Side' && targetRole === 'Side') roleMatch = true;
+      if (!roleMatch) return false;
+    }
+
+    // 3. Safety Preference Filter
+    if (filterSafetyEnabled) {
+      if (filterSafety !== target.safety_pref) return false;
+    }
+
+    // 4. Playstyle Preference Filter (Treat Party✓ same as Party)
+    if (filterPlaystyleEnabled) {
+      const normalizePlaystyle = (p?: string | null) => (p === 'Party✓' ? 'Party' : (p || 'Clean'));
+      if (normalizePlaystyle(filterPlaystyle) !== normalizePlaystyle(target.playstyle_pref)) return false;
+    }
+
+    // 5. How Many Preference Filter
+    if (filterHowManyEnabled) {
+      const myHowMany = filterHowMany;
+      const targetHowMany = target.how_many_pref;
+      let howManyMatch = false;
+      if (myHowMany === '1on1' && targetHowMany === '1on1') howManyMatch = true;
+      else if (myHowMany === 'Group' && (targetHowMany === 'Group' || targetHowMany === '1on1')) howManyMatch = true;
+      else if (targetHowMany === 'Group' && myHowMany === '1on1') howManyMatch = true;
+      if (!howManyMatch) return false;
+    }
+
+    // 6. Where Preference Filter
+    if (filterWhereEnabled) {
+      if (filterWhere !== target.where_pref) return false;
+    }
+
+    // Default baseline personal matching if filters are not enabled
     const myRole = me.role_pref;
     const targetRole = target.role_pref;
     let roleMatch = false;
@@ -674,8 +744,6 @@ export default function App() {
     else if (myRole === 'Side' && targetRole === 'Side') roleMatch = true;
 
     const safetyMatch = me.safety_pref === target.safety_pref;
-    
-    // Treat 'Party✓' same as 'Party' during matching
     const normalizePlaystyle = (p?: string | null) => (p === 'Party✓' ? 'Party' : (p || 'Clean'));
     const playstyleMatch = normalizePlaystyle(me.playstyle_pref) === normalizePlaystyle(target.playstyle_pref);
 
@@ -760,8 +828,8 @@ export default function App() {
   const isOtherMatched = selectedProfile && currentUser ? checkMatchStatus(currentUser, selectedProfile) : false;
   const showSendMessage = selectedProfile && !isViewingSelf && isOtherMatched;
 
-  const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
-  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
+  const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false).filter((u) => currentUser ? checkMatchStatus(currentUser, u) : true);
+  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false))).filter((u) => currentUser ? checkMatchStatus(currentUser, u) : true);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -802,17 +870,155 @@ export default function App() {
         </div>
       </header>
 
-      {/* FILTER MENU */}
+      {/* FILTER DROPDOWN PANEL */}
       {showFilterMenu && (
-        <div 
-          onClick={() => {
-            if (!hasValidSub(filterSubExpiry)) {
-              handlePurchase('filter');
-            }
-          }}
-          style={{ backgroundColor: '#2a2a2a', padding: '12px', fontSize: '13px', textAlign: 'center', borderBottom: '1px solid #444', color: hasValidSub(filterSubExpiry) ? '#4ade80' : '#ff4d4d', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          {hasValidSub(filterSubExpiry) ? 'Advanced Filters Active (Subscription Active)' : '🔒 Filters Locked. Tap here to unlock subscription!'}
+        <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderBottom: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '14px', zIndex: 11, maxHeight: '50vh', overflowY: 'auto' }}>
+          
+          <div style={{ fontSize: '13px', color: hasValidSub(filterSubExpiry) ? '#4ade80' : '#ff4d4d', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{hasValidSub(filterSubExpiry) ? 'Advanced Filters Active' : '🔒 Filters Locked'}</span>
+            {!hasValidSub(filterSubExpiry) && (
+              <button onClick={() => handlePurchase('filter')} style={{ padding: '4px 8px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Unlock</button>
+            )}
+          </div>
+
+          {/* Age Range Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input 
+              type="checkbox" 
+              checked={filterAgeEnabled} 
+              onChange={(e) => setFilterAgeEnabled(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#007bff' }} 
+            />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', opacity: filterAgeEnabled ? 1 : 0.4, pointerEvents: filterAgeEnabled ? 'auto' : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold' }}>
+                <span>Age Range</span>
+                <span style={{ color: '#007bff' }}>{minAge} - {maxAge} yo</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input 
+                  type="range" 
+                  min="18" 
+                  max="80" 
+                  value={minAge} 
+                  onChange={(e) => setMinAge(Math.min(Number(e.target.value), maxAge))} 
+                  style={{ flex: 1, accentColor: '#007bff' }} 
+                />
+                <input 
+                  type="range" 
+                  min="18" 
+                  max="80" 
+                  value={maxAge} 
+                  onChange={(e) => setMaxAge(Math.max(Number(e.target.value), minAge))} 
+                  style={{ flex: 1, accentColor: '#007bff' }} 
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ width: '100%', height: '1px', backgroundColor: '#333' }} />
+
+          {/* 5 Preference Tags Vertically */}
+          
+          {/* 1. Role Preference */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input 
+              type="checkbox" 
+              checked={filterRoleEnabled} 
+              onChange={(e) => setFilterRoleEnabled(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#e11d48' }} 
+            />
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: filterRoleEnabled ? 1 : 0.4, pointerEvents: filterRoleEnabled ? 'auto' : 'none' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Role Preference</span>
+              <button 
+                type="button" 
+                onClick={() => setFilterRole(cycleNext(filterRole, roleCycleOptions))}
+                style={{ padding: '6px 12px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {filterRole}
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Safety Preference */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input 
+              type="checkbox" 
+              checked={filterSafetyEnabled} 
+              onChange={(e) => setFilterSafetyEnabled(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#2563eb' }} 
+            />
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: filterSafetyEnabled ? 1 : 0.4, pointerEvents: filterSafetyEnabled ? 'auto' : 'none' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Safety Preference</span>
+              <button 
+                type="button" 
+                onClick={() => setFilterSafety(cycleNext(filterSafety, safetyCycleOptions))}
+                style={{ padding: '6px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {filterSafety}
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Playstyle Preference */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input 
+              type="checkbox" 
+              checked={filterPlaystyleEnabled} 
+              onChange={(e) => setFilterPlaystyleEnabled(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#16a34a' }} 
+            />
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: filterPlaystyleEnabled ? 1 : 0.4, pointerEvents: filterPlaystyleEnabled ? 'auto' : 'none' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Playstyle</span>
+              <button 
+                type="button" 
+                onClick={() => setFilterPlaystyle(cycleNext(filterPlaystyle, playstyleGridCycleOptions))}
+                style={{ padding: '6px 12px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {filterPlaystyle}
+              </button>
+            </div>
+          </div>
+
+          {/* 4. How Many Preference */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input 
+              type="checkbox" 
+              checked={filterHowManyEnabled} 
+              onChange={(e) => setFilterHowManyEnabled(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#9333ea' }} 
+            />
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: filterHowManyEnabled ? 1 : 0.4, pointerEvents: filterHowManyEnabled ? 'auto' : 'none' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>How Many</span>
+              <button 
+                type="button" 
+                onClick={() => setFilterHowMany(cycleNext(filterHowMany, howManyCycleOptions))}
+                style={{ padding: '6px 12px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {filterHowMany}
+              </button>
+            </div>
+          </div>
+
+          {/* 5. Where Preference */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input 
+              type="checkbox" 
+              checked={filterWhereEnabled} 
+              onChange={(e) => setFilterWhereEnabled(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#d97706' }} 
+            />
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: filterWhereEnabled ? 1 : 0.4, pointerEvents: filterWhereEnabled ? 'auto' : 'none' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Where</span>
+              <button 
+                type="button" 
+                onClick={() => setFilterWhere(cycleNext(filterWhere, whereCycleOptions))}
+                style={{ padding: '6px 12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {filterWhere}
+              </button>
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -950,7 +1156,7 @@ export default function App() {
                   
                   <div style={{ width: '100%', borderTop: '1px solid #333', margin: '8px 0 16px 0' }} />
 
-                  {/* Cycle Tags (Setup uses playstyleSetupCycleOptions without Party✓) */}
+                  {/* Cycle Tags */}
                   <div style={{ width: '100%', textAlign: 'center', marginBottom: '16px' }}>
                     <span style={{ fontSize: '12px', color: '#888', fontStyle: 'italic', marginBottom: '10px', display: 'block' }}>tap to change your preference:</span>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1028,7 +1234,7 @@ export default function App() {
                     {activeProfile?.safety_pref || 'Safe'}
                   </div>
 
-                  {/* Playstyle Tag - If self and currently Party, toggles exclusively between Party and Party✓ (skipping Clean) */}
+                  {/* Playstyle Tag */}
                   {isViewingSelf ? (
                     <button 
                       type="button" 
@@ -1039,7 +1245,6 @@ export default function App() {
                         } else if (playstylePref === 'Party✓') {
                           nextPlaystyle = 'Party';
                         }
-                        // If it was 'Clean', leave it or let them keep it, but if they chose Party originally, toggle Party <-> Party✓
                         setPlaystylePref(nextPlaystyle);
                         await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });
                       }}
@@ -1057,7 +1262,7 @@ export default function App() {
                     {activeProfile?.how_many_pref || '1on1'}
                   </div>
                   
-                  {/* Where Tag - Toggable if self */}
+                  {/* Where Tag */}
                   {isViewingSelf ? (
                     <button 
                       type="button" 
@@ -1105,7 +1310,7 @@ export default function App() {
         </div>
       )}
 
-      {/* FOOTER NAVIGATION WITH ON/OFF STATUS LIGHTS */}
+      {/* FOOTER NAVIGATION */}
       <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
         
         {/* GRID TAB */}
