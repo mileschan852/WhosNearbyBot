@@ -466,11 +466,26 @@ export default function App() {
           if (existingProfile.seeking) setSeeking(existingProfile.seeking);
           if (existingProfile.height) setHeight(existingProfile.height);
           if (existingProfile.weight) setWeight(existingProfile.weight);
-          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
-          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
-          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
-          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
-          if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
+          if (existingProfile.role_pref) {
+            setRolePref(existingProfile.role_pref);
+            setFilterRole(existingProfile.role_pref);
+          }
+          if (existingProfile.safety_pref) {
+            setSafetyPref(existingProfile.safety_pref);
+            setFilterSafety(existingProfile.safety_pref);
+          }
+          if (existingProfile.playstyle_pref) {
+            setPlaystylePref(existingProfile.playstyle_pref);
+            setFilterPlaystyle(existingProfile.playstyle_pref);
+          }
+          if (existingProfile.how_many_pref) {
+            setHowManyPref(existingProfile.how_many_pref);
+            setFilterHowMany(existingProfile.how_many_pref);
+          }
+          if (existingProfile.where_pref) {
+            setWherePref(existingProfile.where_pref);
+            setFilterWhere(existingProfile.where_pref);
+          }
           if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
 
           if (isGayMode) {
@@ -641,6 +656,13 @@ export default function App() {
         return;
       }
 
+      // Set default filter values to match the saved profile values
+      setFilterRole(rolePref);
+      setFilterSafety(safetyPref);
+      setFilterPlaystyle(playstylePref);
+      setFilterHowMany(howManyPref);
+      setFilterWhere(wherePref);
+
       setCurrentUser(updatedProfile);
       setShowProfileSetup(false);
       window.location.reload();
@@ -695,7 +717,7 @@ export default function App() {
       }
     }
 
-    // 2. Role Preference Filter
+    // 2. Role Preference Filter (Top/Bottom matches with Versatile, or exact match, or Top<->Bottom)
     if (filterRoleEnabled) {
       const myRole = filterRole;
       const targetRole = target.role_pref;
@@ -1321,6 +1343,7 @@ export default function App() {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
