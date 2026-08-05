@@ -183,11 +183,8 @@ export default function App() {
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
   const [isLocationDenied, setIsLocationDenied] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [showStuffBubble, setShowStuffBubble] = useState<boolean>(false);
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
-  const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
   // Form input states
   const [dob, setDob] = useState<string>('');
@@ -204,51 +201,13 @@ export default function App() {
   const [wherePref, setWherePref] = useState<string>('Travel');
 
   const [nonManMode, setNonManMode] = useState<string>('Meet up - You are visible on grid and map');
-
   const [hideAge, setHideAge] = useState<boolean>(false);
-  const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
-  const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
-  const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
 
   const urlParams = new URLSearchParams(window.location.search);
   const isGayMode = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode' || urlParams.get('mode') === 'gay' || urlParams.get('startapp') === 'gaymode';
 
-  const PAYMENT_WORKER_URL = import.meta.env.VITE_PAYMENT_WORKER_URL || 'https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf';
-
-  const createInvoiceLink = async (userId: string, type: string): Promise<string | null> => {
-    try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, type }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.invoiceLink || null;
-    } catch {
-      return null;
-    }
-  };
-
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
-
-  // Filter States
-  const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
-  const [filterAgeMin, setFilterAgeMin] = useState<number>(0);
-  const [filterAgeMax, setFilterAgeMax] = useState<number>(99);
-
-  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(true);
-  const [filterRoleVal, setFilterRoleVal] = useState<string>('Bottom');
-
-  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(true);
-  const [filterSafetyVal, setFilterSafetyVal] = useState<string>('Safe');
-
-  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
-  const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string>('Clean');
-
-  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
-  const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
 
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw'];
@@ -331,10 +290,6 @@ export default function App() {
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
 
-        const username = tgUser?.username || '';
-        const userIsAdmin = username === 'mileschan852' || username === 'HKMembersOnly';
-        setIsAdmin(userIsAdmin);
-
         const savedUserId = localStorage.getItem('whos_nearby_user_id');
         const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
         if (!tgUser?.id && !savedUserId) {
@@ -412,18 +367,8 @@ export default function App() {
           }
 
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
-          if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
-          if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
-          if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
-
-          if (isManSeekingMan) {
-            if (existingProfile.role_pref) setFilterRoleVal(existingProfile.role_pref);
-            if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
-            if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
-            if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
-          }
         }
 
         if (!isFullySetup) {
