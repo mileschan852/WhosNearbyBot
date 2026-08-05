@@ -799,7 +799,7 @@ export default function App() {
         window.open(profileUrl, '_blank');
       }
     } else {
-      alert(`Selected user: ${targetUser.name}`);
+      alert(`Selected user ID: ${targetUser.id}`);
     }
     setSelectedProfile(null);
   };
@@ -1050,12 +1050,12 @@ export default function App() {
                   {user.avatar ? (
                     <img 
                       src={user.avatar} 
-                      alt={user.name} 
+                      alt="User" 
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                     />
                   ) : (
                     <div style={{ width: '100%', height: '100%', backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>
-                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                      U
                     </div>
                   )}
                   
@@ -1191,14 +1191,12 @@ export default function App() {
                   {activeProfile?.avatar ? (
                     <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile?.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+                    <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>U</span>
                   )}
                 </div>
 
-                <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile?.name}</h2>
-
-                {/* Sub info: Age / Zodiac, Height, Weight, Distance, Last Online */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
+                {/* Sub info: Age / Zodiac, Height, Weight, Distance, Last Online (Name hidden) */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center', marginTop: '6px' }}>
                   {!targetHideAge && targetAge && <span>{targetAge}yo</span>}
                   {targetZodiac && <span>{targetZodiac}</span>}
                   <span>•</span>
