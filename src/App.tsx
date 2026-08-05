@@ -141,6 +141,11 @@ const formatLastSeenBigUnit = (isoString?: string | null) => {
   }
 };
 
+const hasValidSub = (expiry?: string | null) => {
+  if (!expiry) return false;
+  return new Date(expiry).getTime() > Date.now();
+};
+
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -183,6 +188,9 @@ export default function App() {
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
   const [isLocationDenied, setIsLocationDenied] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
 
@@ -193,7 +201,7 @@ export default function App() {
   const [height, setHeight] = useState<string>('1.8m (5ft 11in)');
   const [weight, setWeight] = useState<string>('74kg (163lbs)');
   
-  // 5 Preferences Tags
+  // Preferences Tags (Setup profile excludes 'Party✓')
   const [rolePref, setRolePref] = useState<string>('Bottom');
   const [safetyPref, setSafetyPref] = useState<string>('Raw');
   const [playstylePref, setPlaystylePref] = useState<string>('Party');
@@ -201,17 +209,24 @@ export default function App() {
   const [wherePref, setWherePref] = useState<string>('Travel');
 
   const [nonManMode, setNonManMode] = useState<string>('Meet up - You are visible on grid and map');
+  
   const [hideAge, setHideAge] = useState<boolean>(false);
+  const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
+  const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
+  const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
 
   const urlParams = new URLSearchParams(window.location.search);
   const isGayMode = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode' || urlParams.get('mode') === 'gay' || urlParams.get('startapp') === 'gaymode';
+
+  const PAYMENT_WORKER_URL = import.meta.env.VITE_PAYMENT_WORKER_URL || 'https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf';
 
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw'];
-  const playstyleCycleOptions = ['Clean', 'Party', 'Party✓'];
+  const playstyleSetupCycleOptions = ['Clean', 'Party']; // Excludes Party✓ during setup
+  const playstyleGridCycleOptions = ['Clean', 'Party', 'Party✓']; // Includes Party✓ when tapped on grid profile card
   const howManyCycleOptions = ['1on1', 'Group'];
   const whereCycleOptions = ['Host', 'Travel'];
 
@@ -236,6 +251,80 @@ export default function App() {
     const lbs = Math.round(kg * 2.20462);
     weightOptions.push(`${kg}kg (${lbs}lbs)`);
   }
+
+  const createInvoiceLink = async (userId: string, type: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, type }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.invoiceLink || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
+    if (!currentUser || !supabase) return;
+    const updated = { ...currentUser, ...fields };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+  };
+
+  const handlePurchase = async (itemType: 'hide_age' | 'invisible' | 'filter') => {
+    if (!currentUser || !supabase) return;
+
+    if (isAdmin) {
+      const newExpiry = new Date();
+      newExpiry.setDate(newExpiry.getDate() + 30);
+      const expiryStr = newExpiry.toISOString();
+      
+      const updateField: Partial<UserProfile> = {};
+      if (itemType === 'hide_age') {
+        updateField.hide_age_expiry = expiryStr;
+        setHideAgeExpiry(expiryStr);
+      }
+      if (itemType === 'invisible') {
+        updateField.invisible_expiry = expiryStr;
+        setInvisibleExpiry(expiryStr);
+      }
+      if (itemType === 'filter') {
+        updateField.filter_sub_expiry = expiryStr;
+        setFilterSubExpiry(expiryStr);
+      }
+
+      await handleUpdateSelfField(updateField);
+      
+      const msg = `Admin Bypass: ${itemType} unlocked for 30 days!`;
+      if (window.Telegram?.WebApp?.showAlert) {
+        window.Telegram.WebApp.showAlert(msg);
+      } else {
+        alert(msg);
+      }
+      return; 
+    }
+
+    const invoiceLink = await createInvoiceLink(currentUser.id, itemType);
+    if (invoiceLink && window.Telegram?.WebApp?.openInvoice) {
+      window.Telegram.WebApp.openInvoice(invoiceLink, async (status) => {
+        if (status === 'paid') {
+          if (window.Telegram?.WebApp?.showAlert) {
+            window.Telegram.WebApp.showAlert('Payment successful! Your feature is now active.');
+          }
+          await handleRefresh();
+        } else if (status === 'cancelled') {
+          console.log('Payment cancelled by user.');
+        } else {
+          setErrorMessage('Payment failed or pending.');
+        }
+      });
+    } else {
+      setErrorMessage('Payment system is currently unavailable.');
+    }
+  };
 
   const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
     if (!supabase) return;
@@ -289,6 +378,10 @@ export default function App() {
           await new Promise((res) => setTimeout(res, 300));
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         }
+
+        const username = tgUser?.username || '';
+        const userIsAdmin = username === 'mileschan852' || username === 'HKMembersOnly';
+        setIsAdmin(userIsAdmin);
 
         const savedUserId = localStorage.getItem('whos_nearby_user_id');
         const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
@@ -360,13 +453,15 @@ export default function App() {
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
           if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
 
-          // Gaymode override: lock gender to man, seeking to men regardless of stored profile
           if (isGayMode) {
             setGender('man');
             setSeeking('men');
           }
 
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
+          if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
+          if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
+          if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
         }
@@ -537,6 +632,12 @@ export default function App() {
 
   const handleToggleGrid = async () => {
     if (!currentUser || !supabase) return;
+    
+    if (gridVisible && !hasValidSub(invisibleExpiry)) {
+      await handlePurchase('invisible');
+      return;
+    }
+
     const nextVal = !gridVisible;
     setGridVisible(nextVal);
     const updated = { ...currentUser, grid_visible: nextVal };
@@ -563,13 +664,6 @@ export default function App() {
     await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
-  const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
-    if (!currentUser || !supabase) return;
-    const updated = { ...currentUser, ...fields };
-    setCurrentUser(updated);
-    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-  };
-
   const checkMatchStatus = (me: UserProfile, target: UserProfile) => {
     if (me.id === target.id) return true;
     const myRole = me.role_pref;
@@ -581,7 +675,10 @@ export default function App() {
     else if (myRole === 'Side' && targetRole === 'Side') roleMatch = true;
 
     const safetyMatch = me.safety_pref === target.safety_pref;
-    const playstyleMatch = me.playstyle_pref === target.playstyle_pref;
+    
+    // Treat 'Party✓' same as 'Party' during matching
+    const normalizePlaystyle = (p?: string | null) => (p === 'Party✓' ? 'Party' : (p || 'Clean'));
+    const playstyleMatch = normalizePlaystyle(me.playstyle_pref) === normalizePlaystyle(target.playstyle_pref);
 
     const myHowMany = me.how_many_pref;
     const targetHowMany = target.how_many_pref;
@@ -681,6 +778,22 @@ export default function App() {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          
+          <button 
+            onClick={() => {
+              if (!hasValidSub(filterSubExpiry)) {
+                handlePurchase('filter');
+                return;
+              }
+              setShowFilterMenu(!showFilterMenu);
+            }} 
+            style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+          </button>
+
           <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -689,6 +802,20 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* FILTER MENU */}
+      {showFilterMenu && (
+        <div 
+          onClick={() => {
+            if (!hasValidSub(filterSubExpiry)) {
+              handlePurchase('filter');
+            }
+          }}
+          style={{ backgroundColor: '#2a2a2a', padding: '12px', fontSize: '13px', textAlign: 'center', borderBottom: '1px solid #444', color: hasValidSub(filterSubExpiry) ? '#4ade80' : '#ff4d4d', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          {hasValidSub(filterSubExpiry) ? 'Advanced Filters Active (Subscription Active)' : '🔒 Filters Locked. Tap here to unlock subscription!'}
+        </div>
+      )}
 
       {/* MAIN VIEW */}
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -769,7 +896,7 @@ export default function App() {
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
 
-            {/* INITIAL SETUP FORM IF NOT FULLY SETUP */}
+            {/* INITIAL SETUP FORM IF NOT FULLY SETUP (Uses playstyleSetupCycleOptions without Party✓) */}
             {showProfileSetup && (!currentUser?.dob || !currentUser?.height || !currentUser?.weight) ? (
               <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '20px', marginBottom: '8px', color: '#007bff', textAlign: 'center', fontWeight: 'bold' }}>Complete Your Profile</h2>
@@ -824,13 +951,13 @@ export default function App() {
                   
                   <div style={{ width: '100%', borderTop: '1px solid #333', margin: '8px 0 16px 0' }} />
 
-                  {/* Cycle Tags */}
+                  {/* Cycle Tags (Setup uses playstyleSetupCycleOptions) */}
                   <div style={{ width: '100%', textAlign: 'center', marginBottom: '16px' }}>
                     <span style={{ fontSize: '12px', color: '#888', fontStyle: 'italic', marginBottom: '10px', display: 'block' }}>tap to change your preference:</span>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ padding: '10px 14px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{rolePref}</button>
                       <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ padding: '10px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{safetyPref}</button>
-                      <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, playstyleCycleOptions))} style={{ padding: '10px 14px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{playstylePref}</button>
+                      <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, playstyleSetupCycleOptions))} style={{ padding: '10px 14px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{playstylePref}</button>
                       <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ padding: '10px 14px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{howManyPref}</button>
                       <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ padding: '10px 14px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{wherePref}</button>
                     </div>
@@ -842,7 +969,7 @@ export default function App() {
                 </form>
               </div>
             ) : (
-              /* VIEW PROFILE CARD */
+              /* VIEW PROFILE CARD (If self, can toggle Party✓ using playstyleGridCycleOptions) */
               <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 
                 {/* Avatar Image */}
@@ -870,12 +997,16 @@ export default function App() {
                   <span style={{ color: '#4ade80' }}>{targetLastSeen}</span>
                 </div>
 
-                {/* Own profile extra controls: Hide Age toggle */}
+                {/* HIDE AGE PURCHASE TRIGGER */}
                 {isViewingSelf && (
                   <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px' }}>
                     <button 
                       type="button" 
                       onClick={async () => {
+                        if (!hideAge && !hasValidSub(hideAgeExpiry)) {
+                          await handlePurchase('hide_age');
+                          return;
+                        }
                         const nextHide = !hideAge;
                         setHideAge(nextHide);
                         await handleUpdateSelfField({ hide_age: nextHide });
@@ -889,7 +1020,7 @@ export default function App() {
 
                 <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
 
-                {/* Preference Tags */}
+                {/* Preference Tags (If viewing self, playstyle tag can cycle to Party✓ using playstyleGridCycleOptions) */}
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
                   <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.role_pref || 'Versatile'}
@@ -897,14 +1028,31 @@ export default function App() {
                   <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.safety_pref || 'Safe'}
                   </div>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                    {activeProfile?.playstyle_pref || 'Clean'}
-                  </div>
+
+                  {/* Playstyle Tag - Toggable with Party✓ if self */}
+                  {isViewingSelf ? (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const nextPlaystyle = cycleNext(playstylePref, playstyleGridCycleOptions);
+                        setPlaystylePref(nextPlaystyle);
+                        await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });
+                      }}
+                      style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      {playstylePref}
+                    </button>
+                  ) : (
+                    <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile?.playstyle_pref || 'Clean'}
+                    </div>
+                  )}
+
                   <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.how_many_pref || '1on1'}
                   </div>
                   
-                  {/* Where Tag - Toggable and colored if self */}
+                  {/* Where Tag - Toggable if self */}
                   {isViewingSelf ? (
                     <button 
                       type="button" 
