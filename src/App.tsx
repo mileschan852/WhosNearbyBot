@@ -201,7 +201,7 @@ export default function App() {
   const [height, setHeight] = useState<string>('1.8m (5ft 11in)');
   const [weight, setWeight] = useState<string>('74kg (163lbs)');
   
-  // Preferences Tags (Setup profile excludes 'Party✓')
+  // Preferences Tags
   const [rolePref, setRolePref] = useState<string>('Bottom');
   const [safetyPref, setSafetyPref] = useState<string>('Raw');
   const [playstylePref, setPlaystylePref] = useState<string>('Party');
@@ -225,8 +225,7 @@ export default function App() {
 
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw'];
-  const playstyleSetupCycleOptions = ['Clean', 'Party']; // Excludes Party✓ during setup
-  const playstyleGridCycleOptions = ['Clean', 'Party', 'Party✓']; // Includes Party✓ when tapped on grid profile card
+  const playstyleSetupCycleOptions = ['Clean', 'Party']; // Setup excludes Party✓
   const howManyCycleOptions = ['1on1', 'Group'];
   const whereCycleOptions = ['Host', 'Travel'];
 
@@ -896,7 +895,7 @@ export default function App() {
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
 
-            {/* INITIAL SETUP FORM IF NOT FULLY SETUP (Uses playstyleSetupCycleOptions without Party✓) */}
+            {/* INITIAL SETUP FORM IF NOT FULLY SETUP */}
             {showProfileSetup && (!currentUser?.dob || !currentUser?.height || !currentUser?.weight) ? (
               <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '20px', marginBottom: '8px', color: '#007bff', textAlign: 'center', fontWeight: 'bold' }}>Complete Your Profile</h2>
@@ -951,7 +950,7 @@ export default function App() {
                   
                   <div style={{ width: '100%', borderTop: '1px solid #333', margin: '8px 0 16px 0' }} />
 
-                  {/* Cycle Tags (Setup uses playstyleSetupCycleOptions) */}
+                  {/* Cycle Tags (Setup uses playstyleSetupCycleOptions without Party✓) */}
                   <div style={{ width: '100%', textAlign: 'center', marginBottom: '16px' }}>
                     <span style={{ fontSize: '12px', color: '#888', fontStyle: 'italic', marginBottom: '10px', display: 'block' }}>tap to change your preference:</span>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -969,7 +968,7 @@ export default function App() {
                 </form>
               </div>
             ) : (
-              /* VIEW PROFILE CARD (If self, can toggle Party✓ using playstyleGridCycleOptions) */
+              /* VIEW PROFILE CARD */
               <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 
                 {/* Avatar Image */}
@@ -1020,7 +1019,7 @@ export default function App() {
 
                 <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
 
-                {/* Preference Tags (If viewing self, playstyle tag can cycle to Party✓ using playstyleGridCycleOptions) */}
+                {/* Preference Tags */}
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
                   <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                     {activeProfile?.role_pref || 'Versatile'}
@@ -1029,12 +1028,18 @@ export default function App() {
                     {activeProfile?.safety_pref || 'Safe'}
                   </div>
 
-                  {/* Playstyle Tag - Toggable with Party✓ if self */}
+                  {/* Playstyle Tag - If self and currently Party, toggles exclusively between Party and Party✓ (skipping Clean) */}
                   {isViewingSelf ? (
                     <button 
                       type="button" 
                       onClick={async () => {
-                        const nextPlaystyle = cycleNext(playstylePref, playstyleGridCycleOptions);
+                        let nextPlaystyle = playstylePref;
+                        if (playstylePref === 'Party') {
+                          nextPlaystyle = 'Party✓';
+                        } else if (playstylePref === 'Party✓') {
+                          nextPlaystyle = 'Party';
+                        }
+                        // If it was 'Clean', leave it or let them keep it, but if they chose Party originally, toggle Party <-> Party✓
                         setPlaystylePref(nextPlaystyle);
                         await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });
                       }}
