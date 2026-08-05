@@ -1,7 +1,6 @@
 // WhosNearbyBot Payment Worker — plain fetch, no supabase-js dependency
-const TELEGRAM_BOT_TOKEN = '8155360875:AAHDcl3wcrNolWauDEpteH-br3AzIdE6f_Q';
-const SUPABASE_URL = 'https://fngcjkclxxodjaiqkfkm.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuZ2Nqa2NseHhvZGphaXFrZmttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5OTE4NzUsImV4cCI6MjA5MjU2Nzg3NX0.dpoNP8EO7iZCFP7dzjD33mCdiJ0gxl5lTl6-hPY0HH4';
+// Secrets are injected via env (Cloudflare Workers secrets / wrangler.toml [vars]).
+// Set TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY as secrets.
 
 export default {
   async fetch(request, env, ctx) {
@@ -48,7 +47,7 @@ export default {
           prices: [{ label: title, amount }],
         };
 
-        const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/createInvoiceLink`, {
+        const tgRes = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/createInvoiceLink`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -86,12 +85,12 @@ export default {
           else if (subType === 'edit_profile') updateData = { edit_profile_pass: true, edit_profile_expiry: expiryIso };
 
           // Update Supabase profile via REST API (no client library)
-          const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+          const sbRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'apikey': env.SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
               'Prefer': 'return=minimal',
             },
             body: JSON.stringify(updateData),

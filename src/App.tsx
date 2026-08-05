@@ -15,6 +15,7 @@ declare global {
             username?: string;
             photo_url?: string;
           };
+          start_param?: string;
         };
         ready?: () => void;
         expand?: () => void;
@@ -209,6 +210,26 @@ export default function App() {
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
 
+  const isGayMode = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode';
+
+  // Worker URL for Stars invoice creation — configured via env var, falls back to deployed worker
+  const PAYMENT_WORKER_URL = import.meta.env.VITE_PAYMENT_WORKER_URL || 'https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf';
+
+  const createInvoiceLink = async (userId: string, type: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, type }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.invoiceLink || null;
+    } catch {
+      return null;
+    }
+  };
+
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
@@ -383,6 +404,12 @@ export default function App() {
           if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
           if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
 
+          // Gaymode override: lock gender to man, seeking to men regardless of stored profile
+          if (isGayMode) {
+            setGender('man');
+            setSeeking('men');
+          }
+
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
@@ -521,8 +548,8 @@ export default function App() {
       lng: location.lng,
       last_seen: new Date().toISOString(),
       dob,
-      gender,
-      seeking,
+      gender: isGayMode ? 'man' : gender,
+      seeking: isGayMode ? 'men' : seeking,
       height,
       weight,
       role_pref: isManSeekingMan ? rolePref : null,
@@ -581,7 +608,12 @@ export default function App() {
       if (!confirmed) return;
 
       if (window.Telegram?.WebApp?.openInvoice) {
-        window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+        const link = await createInvoiceLink(currentUser.id, 'filter_sub');
+        if (!link) {
+          alert("Failed to create invoice. Please try again.");
+          return;
+        }
+        window.Telegram.WebApp.openInvoice(link, async (status) => {
           if (status === 'paid') {
             const expiryDate = new Date();
             expiryDate.setDate(expiryDate.getDate() + 30);
@@ -627,13 +659,18 @@ export default function App() {
         if (!confirmed) return;
 
         if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+          const link = await createInvoiceLink(currentUser.id, 'invisible');
+          if (!link) {
+            alert("Failed to create invoice. Please try again.");
+            return;
+          }
+          window.Telegram.WebApp.openInvoice(link, async (status) => {
             if (status === 'paid') {
               const expiryDate = new Date();
               expiryDate.setDate(expiryDate.getDate() + 30);
               newInvisibleExpiry = expiryDate.toISOString();
               setInvisibleExpiry(newInvisibleExpiry);
-              
+
               setGridVisible(false);
               const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
               setCurrentUser(updated);
@@ -703,7 +740,12 @@ export default function App() {
         if (!confirmed) return;
 
         if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+          const link = await createInvoiceLink(currentUser.id, 'hide_age');
+          if (!link) {
+            alert("Failed to create invoice. Please try again.");
+            return;
+          }
+          window.Telegram.WebApp.openInvoice(link, async (status) => {
             if (status === 'paid') {
               const expiryDate = new Date();
               expiryDate.setDate(expiryDate.getDate() + 30);
@@ -854,20 +896,26 @@ export default function App() {
               {/* "I'm a [gender] seeking [gender seeking]" */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Orientation:</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-                  <span>I'm a</span>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
-                    <option value="man">man</option>
-                    <option value="woman">woman</option>
-                    <option value="non-binary">non-binary</option>
-                  </select>
-                  <span>seeking</span>
-                  <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
-                    <option value="men">men</option>
-                    <option value="women">women</option>
-                    <option value="everyone">everyone</option>
-                  </select>
-                </div>
+                {isGayMode ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#888', fontStyle: 'italic' }}>
+                    <span>I'm a 🔒 man seeking 🔒 men (locked for this entry)</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                    <span>I'm a</span>
+                    <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
+                      <option value="man">man</option>
+                      <option value="woman">woman</option>
+                      <option value="non-binary">non-binary</option>
+                    </select>
+                    <span>seeking</span>
+                    <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
+                      <option value="men">men</option>
+                      <option value="women">women</option>
+                      <option value="everyone">everyone</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Height and weight above dividing line */}
@@ -944,6 +992,9 @@ export default function App() {
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
           <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({gridFilteredUsers.length})</h1>
+              {isGayMode && (
+                <span style={{ backgroundColor: '#e11d48', color: '#fff', fontSize: '10px', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold', lineHeight: '1.6' }}>Men Only</span>
+              )}
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1046,7 +1097,13 @@ export default function App() {
             <h2 style={{ fontSize: '18px', marginBottom: '20px', color: '#ffffff', fontWeight: 'bold' }}>Filter Users</h2>
 
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              
+
+              {isGayMode && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#252525', padding: '12px', borderRadius: '8px', color: '#888', fontStyle: 'italic', fontSize: '13px' }}>
+                  I'm a man seeking men 🔒 (locked)
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
                 <input 
                   type="checkbox" 

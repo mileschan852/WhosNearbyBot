@@ -5,3 +5,6 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 SUPABASE_URL = "https://fngcjkclxxodjaiqkfkm.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuZ2Nqa2NseHhvZGphaXFrZmttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5OTE4NzUsImV4cCI6MjA5MjU2Nzg3NX0.dpoNP8EO7iZCFP7dzjD33mCdiJ0gxl5lTl6-hPY0HH4"
+
+# TELEGRAM_BOT_TOKEN is set via `wrangler secret put TELEGRAM_BOT_TOKEN` (never in this file)
