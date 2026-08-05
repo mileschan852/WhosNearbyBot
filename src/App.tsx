@@ -210,7 +210,8 @@ export default function App() {
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
 
-  const isGayMode = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode';
+  const urlParams = new URLSearchParams(window.location.search);
+  const isGayMode = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode' || urlParams.get('mode') === 'gay' || urlParams.get('startapp') === 'gaymode';
 
   // Worker URL for Stars invoice creation — configured via env var, falls back to deployed worker
   const PAYMENT_WORKER_URL = import.meta.env.VITE_PAYMENT_WORKER_URL || 'https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf';
@@ -310,6 +311,7 @@ export default function App() {
         invisible_expiry: u.invisible_expiry || null,
         filter_sub_expiry: u.filter_sub_expiry || null,
       })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
+        .filter((u) => !isGayMode || u.id === currentUserId || (u.gender === 'man' && u.seeking === 'men'))
         .sort((a, b) => (a.distance || 0) - (b.distance || 0));
       
       setUsers(processed);
