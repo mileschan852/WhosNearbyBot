@@ -14,6 +14,7 @@ declare global {
             last_name?: string;
             username?: string;
             photo_url?: string;
+            language_code?: string;
           };
         };
         ready?: () => void;
@@ -29,6 +30,330 @@ declare global {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Localization Dictionary
+type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
+
+const translations: Record<LangKey, Record<string, string>> = {
+  'en': {
+    loading: 'Loading app...',
+    locationRequired: 'Location Access Required',
+    locationMessage: "Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.",
+    accessDenied: 'Access Denied',
+    underageMessage: 'The app is for adults only. Access has been locked for this account due to age restrictions.',
+    completeProfile: 'Complete Your Profile',
+    profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.',
+    dob: 'Date of Birth:',
+    orientation: 'Orientation:',
+    imA: "I'm a",
+    seeking: 'seeking',
+    man: 'man',
+    woman: 'woman',
+    nonBinary: 'non-binary',
+    men: 'men',
+    women: 'women',
+    everyone: 'everyone',
+    height: 'Height:',
+    selectHeight: 'Select height',
+    weight: 'Weight:',
+    selectWeight: 'Select weight',
+    tapToChange: 'tap to change your preference:',
+    mode: 'Mode:',
+    browsingOnly: 'Browsing only - You cannot send not receive private message from others',
+    onlineOnly: 'Online only - You are visible on grid but not on map, map is inaccessible',
+    meetUp: 'Meet up - You are visible on grid and map',
+    saveProfile: 'Save Profile & Continue',
+    whosNearby: "Who's Nearby",
+    filter: 'Filter',
+    refresh: 'Refresh',
+    grid: 'Grid',
+    map: 'Map',
+    filterUsers: 'Filter Users',
+    ageRange: 'Age Range',
+    rolePreference: 'Role Preference',
+    safetyPreference: 'Safety Preference',
+    playstylePreference: 'Playstyle Preference',
+    groupSize: 'Group Size',
+    applyFilters: 'Apply Filters',
+    ageHidden: 'Age Hidden (Click to Show)',
+    ageShown: 'Age Shown (Click to Hide)',
+    expires: 'Expires:',
+    sendMessage: 'Send Message',
+    unlockPreference: 'Unlock Preference',
+    iGotStuff: 'I got stuff',
+    unlockPreferencePrompt: 'Unlock Preference requires a one-time payment of 1000 Telegram Stars. Proceed to payment?',
+    invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?',
+    hideAgePrompt: 'Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?',
+    paymentCancelled: 'Payment cancelled or failed.',
+    errorSaving: 'Error saving profile:',
+    fillAll: 'Please fill out all required questions to continue.',
+  },
+  'zh-CN': {
+    loading: '正在加载应用...',
+    locationRequired: '需要位置权限',
+    locationMessage: '使用“附近”功能必须获得位置权限。请在浏览器或 Telegram 设置中启用位置访问并重新启动应用。',
+    accessDenied: '拒绝访问',
+    underageMessage: '本应用仅限成年人使用。由于年龄限制，该账户已被锁定。',
+    completeProfile: '完善您的个人资料',
+    profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。',
+    dob: '出生日期：',
+    orientation: '取向：',
+    imA: '我是',
+    seeking: '寻找',
+    man: '男性',
+    woman: '女性',
+    nonBinary: '非二元性别',
+    men: '男性',
+    women: '女性',
+    everyone: '所有人',
+    height: '身高：',
+    selectHeight: '选择身高',
+    weight: '体重：',
+    selectWeight: '选择体重',
+    tapToChange: '点击更改您的偏好：',
+    mode: '模式：',
+    browsingOnly: '仅浏览 - 您无法发送和接收来自他人的私信',
+    onlineOnly: '仅在线 - 您在网格上可见但在地图上不可见，地图不可用',
+    meetUp: '约会中 - 您在网格和地图上均可见',
+    saveProfile: '保存资料并继续',
+    whosNearby: '附近的人',
+    filter: '筛选',
+    refresh: '刷新',
+    grid: '网格',
+    map: '地图',
+    filterUsers: '筛选用户',
+    ageRange: '年龄范围',
+    rolePreference: '角色偏好',
+    safetyPreference: '安全偏好',
+    playstylePreference: '游戏风格偏好',
+    groupSize: '群组人数',
+    applyFilters: '应用筛选',
+    ageHidden: '年龄已隐藏（点击显示）',
+    ageShown: '年龄已显示（点击隐藏）',
+    expires: '到期时间：',
+    sendMessage: '发送消息',
+    unlockPreference: '解锁偏好',
+    iGotStuff: '我有货',
+    unlockPreferencePrompt: '解锁偏好需要一次性支付 1000 Telegram Stars。是否继续支付？',
+    invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？',
+    hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？',
+    paymentCancelled: '支付已取消或失败。',
+    errorSaving: '保存资料出错：',
+    fillAll: '请填写所有必填问题以继续。',
+  },
+  'zh-TW': {
+    loading: '正在載入應用程式...',
+    locationRequired: '需要位置權限',
+    locationMessage: '使用「附近」功能必須獲得位置權限。請在瀏覽器或 Telegram 設定中啟用位置存取並重新啟動應用程式。',
+    accessDenied: '存取被拒',
+    underageMessage: '本應用程式僅限成年人使用。由於年齡限制，該帳戶已被鎖定。',
+    completeProfile: '完善您的個人資料',
+    profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。',
+    dob: '出生日期：',
+    orientation: '性取向：',
+    imA: '我是',
+    seeking: '尋找',
+    man: '男性',
+    woman: '女性',
+    nonBinary: '非二元性別',
+    men: '男性',
+    women: '女性',
+    everyone: '所有人',
+    height: '身高：',
+    selectHeight: '選擇身高',
+    weight: '體重：',
+    selectWeight: '選擇體重',
+    tapToChange: '點擊更改您的偏好：',
+    mode: '模式：',
+    browsingOnly: '僅瀏覽 - 您無法發送和接收來自他人的私訊',
+    onlineOnly: '僅線上 - 您在網格上可見但在地圖上不可見，地圖不可用',
+    meetUp: '見面中 - 您在網格和地圖上均可見',
+    saveProfile: '儲存資料並繼續',
+    whosNearby: '附近的人',
+    filter: '篩選',
+    refresh: '重新整理',
+    grid: '網格',
+    map: '地圖',
+    filterUsers: '篩選使用者',
+    ageRange: '年齡範圍',
+    rolePreference: '角色偏好',
+    safetyPreference: '安全偏好',
+    playstylePreference: '風格偏好',
+    groupSize: '群組人數',
+    applyFilters: '套用篩選',
+    ageHidden: '年齡已隱藏（點擊顯示）',
+    ageShown: '年齡已顯示（點擊隱藏）',
+    expires: '到期時間：',
+    sendMessage: '傳送訊息',
+    unlockPreference: '解鎖偏好',
+    iGotStuff: '我有貨',
+    unlockPreferencePrompt: '解鎖偏好需要一次性支付 1000 Telegram Stars。是否繼續支付？',
+    invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？',
+    hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？',
+    paymentCancelled: '付款已取消或失敗。',
+    errorSaving: '儲存資料出錯：',
+    fillAll: '請填寫所有必填問題以繼續。',
+  },
+  'ja': {
+    loading: 'アプリを読み込んでいます...',
+    locationRequired: '位置情報のアクセスが必要です',
+    locationMessage: '「近くの人」機能を使用するには位置情報の許可が必須です。ブラウザまたはTelegramの設定で位置情報のアクセスを有効にして、アプリを再起動してください。',
+    accessDenied: 'アクセスが拒否されました',
+    underageMessage: 'このアプリは成人向けです。年齢制限によりこのアカウントへのアクセスがロックされました。',
+    completeProfile: 'プロフィールを完成させる',
+    profileWarning: '警告：これは後から変更できません。ここで入力した情報は、表示ややり取りできる相手に影響します。',
+    dob: '生年月日：',
+    orientation: '指向：',
+    imA: '私は',
+    seeking: '探しています：',
+    man: '男性',
+    woman: '女性',
+    nonBinary: 'ノンバイナリー',
+    men: '男性',
+    women: '女性',
+    everyone: 'すべての人',
+    height: '身長：',
+    selectHeight: '身長を選択',
+    weight: '体重：',
+    selectWeight: '体重を選択',
+    tapToChange: 'タップして好みを変更：',
+    mode: 'モード：',
+    browsingOnly: '閲覧のみ - 他の人からのプライベートメッセージの送受信ができません',
+    onlineOnly: 'オンラインのみ - グリッドには表示されますがマップには表示されず、マップは利用できません',
+    meetUp: 'ミートアップ - グリッドとマップの両方に表示されます',
+    saveProfile: 'プロフィールを保存して続ける',
+    whosNearby: '近くの人',
+    filter: 'フィルター',
+    refresh: '更新',
+    grid: 'グリッド',
+    map: 'マップ',
+    filterUsers: 'ユーザーをフィルター',
+    ageRange: '年齢層',
+    rolePreference: 'ロールの好み',
+    safetyPreference: '安全の好み',
+    playstylePreference: 'プレイスタイルの好み',
+    groupSize: 'グループサイズ',
+    applyFilters: 'フィルターを適用',
+    ageHidden: '年齢非表示（クリックして表示）',
+    ageShown: '年齢表示（クリックして非表示）',
+    expires: '有効期限：',
+    sendMessage: 'メッセージを送る',
+    unlockPreference: '好みをアンロック',
+    iGotStuff: '持ってるよ',
+    unlockPreferencePrompt: '好みのアンロックには1000 Telegram Starsの1回限りの支払いが必要です。支払いに進みますか？',
+    invisiblePrompt: '透明化には30日間のサブスクリプション（3000 Telegram Stars）が必要です。支払いに進みますか？',
+    hideAgePrompt: '年齢非表示には30日間のサブスクリプション（1000 Telegram Stars）が必要です。支払いに進みますか？',
+    paymentCancelled: '支払いがキャンセルされたか、失敗しました。',
+    errorSaving: 'プロフィールの保存エラー：',
+    fillAll: '続けるにはすべての必須項目を入力してください。',
+  },
+  'ko': {
+    loading: '앱 로딩 중...',
+    locationRequired: '위치 접근 권한 필요',
+    locationMessage: '주변 사용자 기능을 사용하려면 위치 권한이 필수입니다. 브라우저나 Telegram 설정에서 위치 접근을 활성화한 후 앱을 다시 시작해 주세요.',
+    accessDenied: '접근 거부됨',
+    underageMessage: '이 앱은 성인 전용입니다. 연령 제한으로 인해 이 계정의 접근이 잠겼습니다.',
+    completeProfile: '프로필 완성하기',
+    profileWarning: '경고: 이는 나중에 변경할 수 없습니다. 여기에 입력한 정보는 볼 수 있는 사용자와 상호작용에 영향을 줍니다.',
+    dob: '생년월일:',
+    orientation: '성향:',
+    imA: '나는',
+    seeking: '찾는 대상:',
+    man: '남성',
+    woman: '여성',
+    nonBinary: '논바이너리',
+    men: '남성',
+    women: '여성',
+    everyone: '모두',
+    height: '키:',
+    selectHeight: '키 선택',
+    weight: '체중:',
+    selectWeight: '체중 선택',
+    tapToChange: '탭하여 선호도 변경:',
+    mode: '모드:',
+    browsingOnly: '브라우징 전용 - 다른 사람의 비공개 메시지를 보내거나 받을 수 없습니다',
+    onlineOnly: '온라인 전용 - 그리드에는 표시되지만 지도에는 표시되지 않으며 지도는 사용할 수 없습니다',
+    meetUp: '만남 - 그리드와 지도 모두에 표시됩니다',
+    saveProfile: '프로필 저장 및 계속',
+    whosNearby: '내 주변',
+    filter: '필터',
+    refresh: '새로고침',
+    grid: '그리드',
+    map: '지도',
+    filterUsers: '사용자 필터',
+    ageRange: '연령대',
+    rolePreference: '포지션 선호',
+    safetyPreference: '안전 선호',
+    playstylePreference: '플레이스타일 선호',
+    groupSize: '그룹 인원',
+    applyFilters: '필터 적용',
+    ageHidden: '나이 숨김 (클릭하여 표시)',
+    ageShown: '나이 표시 (클릭하여 숨김)',
+    expires: '만료일:',
+    sendMessage: '메시지 보내기',
+    unlockPreference: '선호도 잠금 해제',
+    iGotStuff: '나 있음',
+    unlockPreferencePrompt: '선호도를 잠금 해제하려면 1000 Telegram Stars의 일회성 결제가 필요합니다. 결제를 진행하시겠습니까?',
+    invisiblePrompt: '숨김 모드는 30일 구독(3000 Telegram Stars)이 필요합니다. 결제를 진행하시겠습니까?',
+    hideAgePrompt: '나이 숨기기는 30일 구독(1000 Telegram Stars)이 필요합니다. 결제를 진행하시겠습니까?',
+    paymentCancelled: '결제가 취소되었거나 실패했습니다.',
+    errorSaving: '프로필 저장 오류:',
+    fillAll: '계속하려면 모든 필수 항목을 입력해주세요.',
+  },
+  'ru': {
+    loading: 'Загрузка приложения...',
+    locationRequired: 'Требуется доступ к геолокации',
+    locationMessage: 'Разрешение на геолокацию обязательно для использования функции «Рядом». Включите геолокацию в настройках браузера или Telegram и перезапустите приложение.',
+    accessDenied: 'Доступ запрещен',
+    underageMessage: 'Приложение только для взрослых. Доступ для этой учетной записи заблокирован из-за возрастных ограничений.',
+    completeProfile: 'Заполните профиль',
+    profileWarning: 'Предупреждение: это нельзя будет изменить в будущем. Указанная здесь информация влияет на то, кого вы видите и с кем взаимодействуете.',
+    dob: 'Дата рождения:',
+    orientation: 'Ориентация:',
+    imA: 'Я',
+    seeking: 'ищу',
+    man: 'мужчину',
+    woman: 'женщину',
+    nonBinary: 'небинарную персону',
+    men: 'мужчин',
+    women: 'женщин',
+    everyone: 'всех',
+    height: 'Рост:',
+    selectHeight: 'Выберите рост',
+    weight: 'Вес:',
+    selectWeight: 'Выберите вес',
+    tapToChange: 'нажмите, чтобы изменить предпочтение:',
+    mode: 'Режим:',
+    browsingOnly: 'Только просмотр - вы не можете отправлять и получать личные сообщения от других',
+    onlineOnly: 'Только онлайн - вы видны в сетке, но не на карте, карта недоступна',
+    meetUp: 'Встреча - вы видны в сетке и на карте',
+    saveProfile: 'Сохранить профиль и продолжить',
+    whosNearby: 'Рядом',
+    filter: 'Фильтр',
+    refresh: 'Обновить',
+    grid: 'Сетка',
+    map: 'Карта',
+    filterUsers: 'Фильтровать пользователей',
+    ageRange: 'Возрастной диапазон',
+    rolePreference: 'Роль',
+    safetyPreference: 'Безопасность',
+    playstylePreference: 'Стиль',
+    groupSize: 'Размер группы',
+    applyFilters: 'Применить фильтры',
+    ageHidden: 'Возраст скрыт (Нажмите, чтобы показать)',
+    ageShown: 'Возраст виден (Нажмите, чтобы скрыть)',
+    expires: 'И истекает:',
+    sendMessage: 'Отправить сообщение',
+    unlockPreference: 'Разблокировать предпочтения',
+    iGotStuff: 'У меня есть стафф',
+    unlockPreferencePrompt: 'Разблокировка предпочтений требует разового платежа в размере 1000 Telegram Stars. Перейти к оплате?',
+    invisiblePrompt: 'Переход в режим невидимки требует подписки на 30 дней за 3000 Telegram Stars. Перейти к оплате?',
+    hideAgePrompt: 'Сокрытие возраста требует подписки на 30 дней за 1000 Telegram Stars. Перейти к оплате?',
+    paymentCancelled: 'Оплата отменена или не удалась.',
+    errorSaving: 'Ошибка сохранения профиля:',
+    fillAll: 'Пожалуйста, заполните все обязательные поля для продолжения.',
+  }
+};
 
 interface UserProfile {
   id: string;
@@ -174,6 +499,9 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
 };
 
 export default function App() {
+  const [lang, setLang] = useState<LangKey>('en');
+  const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
+
   const [view, setView] = useState<'grid' | 'map'>('grid');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -211,7 +539,7 @@ export default function App() {
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
   const [preferenceUnlocked, setPreferenceUnlocked] = useState<boolean>(false);
 
-  const [gridVisible, setGridVisible] = useState<boolean>(true);
+    const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
   // Filter States
@@ -310,6 +638,24 @@ export default function App() {
         if (!tgUser) {
           await new Promise((res) => setTimeout(res, 300));
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        }
+
+        // Language detection
+        const tgLangCode = (tgUser?.language_code || navigator.language || 'en').toLowerCase();
+        if (tgLangCode.startsWith('zh')) {
+          if (tgLangCode.includes('tw') || tgLangCode.includes('hk') || tgLangCode.includes('hant')) {
+            setLang('zh-TW');
+          } else {
+            setLang('zh-CN');
+          }
+        } else if (tgLangCode.startsWith('ja')) {
+          setLang('ja');
+        } else if (tgLangCode.startsWith('ko')) {
+          setLang('ko');
+        } else if (tgLangCode.startsWith('ru')) {
+          setLang('ru');
+        } else {
+          setLang('en');
         }
 
         const username = tgUser?.username || '';
@@ -498,7 +844,7 @@ export default function App() {
     const isManSeekingMan = gender === 'man' && seeking === 'men';
 
     if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref)) || (!isManSeekingMan && !nonManMode)) {
-      setErrorMessage('Please fill out all required questions to continue.');
+      setErrorMessage(t('fillAll'));
       return;
     }
 
@@ -543,7 +889,7 @@ export default function App() {
 
     const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
     if (error) {
-      setErrorMessage(`Error saving profile: ${error.message}`);
+      setErrorMessage(`${t('errorSaving')} ${error.message}`);
       return;
     }
 
@@ -580,7 +926,7 @@ export default function App() {
     }
 
     if (!preferenceUnlocked) {
-      const confirmed = window.confirm("Unlock Preference requires a one-time payment of 1000 Telegram Stars. Proceed to payment?");
+      const confirmed = window.confirm(t('unlockPreferencePrompt'));
       if (!confirmed) return;
 
       if (window.Telegram?.WebApp?.openInvoice) {
@@ -592,7 +938,7 @@ export default function App() {
             await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
             setShowFilterMenu(true);
           } else {
-            alert("Payment cancelled or failed.");
+            alert(t('paymentCancelled'));
           }
         });
         return;
@@ -618,7 +964,7 @@ export default function App() {
       const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();
       
       if (isExpired) {
-        const confirmed = window.confirm("Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?");
+        const confirmed = window.confirm(t('invisiblePrompt'));
         if (!confirmed) return;
 
         if (window.Telegram?.WebApp?.openInvoice) {
@@ -636,7 +982,7 @@ export default function App() {
               setView('grid');
               await handleRefresh();
             } else {
-              alert("Payment cancelled or failed.");
+              alert(t('paymentCancelled'));
             }
           });
           return;
@@ -694,7 +1040,7 @@ export default function App() {
       const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
 
       if (isExpired) {
-        const confirmed = window.confirm("Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?");
+        const confirmed = window.confirm(t('hideAgePrompt'));
         if (!confirmed) return;
 
         if (window.Telegram?.WebApp?.openInvoice) {
@@ -707,7 +1053,7 @@ export default function App() {
               setHideAge(true);
               await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
             } else {
-              alert("Payment cancelled or failed.");
+              alert(t('paymentCancelled'));
             }
           });
           return;
@@ -785,7 +1131,7 @@ export default function App() {
   if (!isReady) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
-        <p>Loading app...</p>
+        <p>{t('loading')}</p>
       </div>
     );
   }
@@ -793,9 +1139,9 @@ export default function App() {
   if (isLocationDenied) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
-        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>Location Access Required</h2>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('locationRequired')}</h2>
         <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
-          Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.
+          {t('locationMessage')}
         </p>
       </div>
     );
@@ -804,9 +1150,9 @@ export default function App() {
   if (isUnderageLocked) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
-        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>Access Denied</h2>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('accessDenied')}</h2>
         <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
-          The app is for adults only. Access has been locked for this account due to age restrictions.
+          {t('underageMessage')}
         </p>
       </div>
     );
@@ -828,9 +1174,9 @@ export default function App() {
         <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '12px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             
-            <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>Complete Your Profile</h2>
+            <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{t('completeProfile')}</h2>
             <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>
-              Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.
+              {t('profileWarning')}
             </p>
 
             {errorMessage && (
@@ -842,25 +1188,25 @@ export default function App() {
             <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Date of Birth:</label>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('dob')}</label>
                 <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '6px 8px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', colorScheme: 'dark' }} required />
               </div>
 
-              {/* "I'm a [gender] seeking [gender seeking]" */}
+              {/* Orientation Selection */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Orientation:</label>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('orientation')}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-                  <span>I'm a</span>
+                  <span>{t('imA')}</span>
                   <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
-                    <option value="man">man</option>
-                    <option value="woman">woman</option>
-                    <option value="non-binary">non-binary</option>
+                    <option value="man">{t('man')}</option>
+                    <option value="woman">{t('woman')}</option>
+                    <option value="non-binary">{t('nonBinary')}</option>
                   </select>
-                  <span>seeking</span>
+                  <span>{t('seeking')}</span>
                   <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
-                    <option value="men">men</option>
-                    <option value="women">women</option>
-                    <option value="everyone">everyone</option>
+                    <option value="men">{t('men')}</option>
+                    <option value="women">{t('women')}</option>
+                    <option value="everyone">{t('everyone')}</option>
                   </select>
                 </div>
               </div>
@@ -868,16 +1214,16 @@ export default function App() {
               {/* Height and weight above dividing line */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Height:</label>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('height')}</label>
                   <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
-                    <option value="" disabled>Select height</option>
+                    <option value="" disabled>{t('selectHeight')}</option>
                     {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
                   </select>
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Weight:</label>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('weight')}</label>
                   <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
-                    <option value="" disabled>Select weight</option>
+                    <option value="" disabled>{t('selectWeight')}</option>
                     {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
                   </select>
                 </div>
@@ -890,7 +1236,7 @@ export default function App() {
               {isManSeekingManInput ? (
                 <>
                   <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>
-                    tap to change your preference:
+                    {t('tapToChange')}
                   </div>
 
                   <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
@@ -914,17 +1260,17 @@ export default function App() {
               ) : (
                 /* Non-man seeking man mode selection below dividing line */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>Mode:</label>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>{t('mode')}</label>
                   <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '11px' }} required>
-                    <option value="Browsing only - You cannot send not receive private message from others">Browsing only - You cannot send not receive private message from others</option>
-                    <option value="Online only - You are visible on grid but not on map, map is inaccessible">Online only - You are visible on grid but not on map, map is inaccessible</option>
-                    <option value="Meet up - You are visible on grid and map">Meet up - You are visible on grid and map</option>
+                    <option value="Browsing only - You cannot send not receive private message from others">{t('browsingOnly')}</option>
+                    <option value="Online only - You are visible on grid but not on map, map is inaccessible">{t('onlineOnly')}</option>
+                    <option value="Meet up - You are visible on grid and map">{t('meetUp')}</option>
                   </select>
                 </div>
               )}
 
               <button type="submit" style={{ marginTop: '4px', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Save Profile & Continue
+                {t('saveProfile')}
               </button>
             </form>
           </div>
@@ -938,21 +1284,21 @@ export default function App() {
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>Who's Nearby ({gridFilteredUsers.length})</h1>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{t('whosNearby')} ({gridFilteredUsers.length})</h1>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button 
             onClick={handleOpenFilterMenu} 
             style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Unlock Preference"
+            title={t('unlockPreference')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
             </svg>
           </button>
 
-          <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Refresh">
+          <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={t('refresh')}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
@@ -1038,7 +1384,7 @@ export default function App() {
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
-            <h2 style={{ fontSize: '18px', marginBottom: '20px', color: '#ffffff', fontWeight: 'bold' }}>Unlock Preference</h2>
+            <h2 style={{ fontSize: '18px', marginBottom: '20px', color: '#ffffff', fontWeight: 'bold' }}>{t('unlockPreference')}</h2>
 
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
@@ -1051,7 +1397,7 @@ export default function App() {
                 />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', opacity: filterAgeEnabled ? 1 : 0.4 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span>Age Range</span>
+                    <span>{t('ageRange')}</span>
                     <span style={{ fontWeight: 'bold' }}>{filterAgeMin} - {filterAgeMax}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -1085,7 +1431,7 @@ export default function App() {
                     onChange={(e) => setFilterRoleEnabled(e.target.checked)} 
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
                   />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterRoleEnabled ? 1 : 0.4 }}>Role Preference</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterRoleEnabled ? 1 : 0.4 }}>{t('rolePreference')}</span>
                 </div>
                 <button 
                   disabled={!filterRoleEnabled}
@@ -1104,7 +1450,7 @@ export default function App() {
                     onChange={(e) => setFilterSafetyEnabled(e.target.checked)} 
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
                   />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterSafetyEnabled ? 1 : 0.4 }}>Safety Preference</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterSafetyEnabled ? 1 : 0.4 }}>{t('safetyPreference')}</span>
                 </div>
                 <button 
                   disabled={!filterSafetyEnabled}
@@ -1123,7 +1469,7 @@ export default function App() {
                     onChange={(e) => setFilterPlaystyleEnabled(e.target.checked)} 
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
                   />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterPlaystyleEnabled ? 1 : 0.4 }}>Playstyle Preference</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterPlaystyleEnabled ? 1 : 0.4 }}>{t('playstylePreference')}</span>
                 </div>
                 <button 
                   disabled={!filterPlaystyleEnabled}
@@ -1142,7 +1488,7 @@ export default function App() {
                     onChange={(e) => setFilterHowManyEnabled(e.target.checked)} 
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
                   />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterHowManyEnabled ? 1 : 0.4 }}>Group Size</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterHowManyEnabled ? 1 : 0.4 }}>{t('groupSize')}</span>
                 </div>
                 <button 
                   disabled={!filterHowManyEnabled}
@@ -1157,7 +1503,7 @@ export default function App() {
                 onClick={() => setShowFilterMenu(false)}
                 style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
               >
-                Apply Filters
+                {t('applyFilters')}
               </button>
 
             </div>
@@ -1206,11 +1552,11 @@ export default function App() {
                     onClick={handleHideAgeToggle}
                     style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
                   >
-                    {hideAge ? 'Age Hidden (Click to Show)' : 'Age Shown (Click to Hide)'}
+                    {hideAge ? t('ageHidden') : t('ageShown')}
                   </button>
                   {hideAgeExpiry && (
                     <span style={{ fontSize: '10px', color: '#888' }}>
-                      Expires: {new Date(hideAgeExpiry).toLocaleDateString()}
+                      {t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}
                     </span>
                   )}
                 </div>
@@ -1254,7 +1600,7 @@ export default function App() {
 
                       {showStuffBubble && (
                         <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#ffffff', color: '#000000', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 20 }}>
-                          I got stuff
+                          {t('iGotStuff')}
                           <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', borderWidth: '4px', borderStyle: 'solid', borderColor: '#ffffff transparent transparent transparent' }} />
                         </div>
                       )}
@@ -1302,7 +1648,7 @@ export default function App() {
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                   </svg>
-                  Send Message
+                  {t('sendMessage')}
                 </button>
               )}
 
@@ -1326,7 +1672,7 @@ export default function App() {
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>Grid</span>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('grid')}</span>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
         
@@ -1340,7 +1686,7 @@ export default function App() {
             <line x1="9" y1="3" x2="9" y2="21"></line>
             <line x1="15" y1="3" x2="15" y2="21"></line>
           </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>Map</span>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('map')}</span>
           <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
 
