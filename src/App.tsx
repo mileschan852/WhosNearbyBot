@@ -44,7 +44,6 @@ const translations: Record<LangKey, Record<string, string>> = {
     completeProfile: 'Complete Your Profile',
     profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.',
     dob: 'Date of Birth:',
-    orientation: 'Orientation:',
     imA: "I'm a",
     seeking: 'seeking',
     man: 'man',
@@ -79,9 +78,9 @@ const translations: Record<LangKey, Record<string, string>> = {
     ageShown: 'Age Shown (Click to Hide)',
     expires: 'Expires:',
     sendMessage: 'Send Message',
-    unlockPreference: 'Unlock Preference',
+    unlockPreference: 'Change Profile & Preferences',
     iGotStuff: 'I got stuff',
-    unlockPreferencePrompt: 'Unlock Preference requires a one-time payment of 1000 Telegram Stars. Proceed to payment?',
+    unlockPreferencePrompt: 'Changing your profile/preferences requires a one-time payment of 1000 Telegram Stars. Proceed to payment?',
     invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?',
     hideAgePrompt: 'Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?',
     paymentCancelled: 'Payment cancelled or failed.',
@@ -97,7 +96,6 @@ const translations: Record<LangKey, Record<string, string>> = {
     completeProfile: '完善您的个人资料',
     profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。',
     dob: '出生日期：',
-    orientation: '取向：',
     imA: '我是',
     seeking: '寻找',
     man: '男性',
@@ -132,9 +130,9 @@ const translations: Record<LangKey, Record<string, string>> = {
     ageShown: '年龄已显示（点击隐藏）',
     expires: '到期时间：',
     sendMessage: '发送消息',
-    unlockPreference: '解锁偏好',
+    unlockPreference: '更改资料与偏好',
     iGotStuff: '我有货',
-    unlockPreferencePrompt: '解锁偏好需要一次性支付 1000 Telegram Stars。是否继续支付？',
+    unlockPreferencePrompt: '更改个人资料与偏好需要支付 1000 Telegram Stars。是否继续支付？',
     invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？',
     hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？',
     paymentCancelled: '支付已取消或失败。',
@@ -150,7 +148,6 @@ const translations: Record<LangKey, Record<string, string>> = {
     completeProfile: '完善您的個人資料',
     profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。',
     dob: '出生日期：',
-    orientation: '性取向：',
     imA: '我是',
     seeking: '尋找',
     man: '男性',
@@ -185,9 +182,9 @@ const translations: Record<LangKey, Record<string, string>> = {
     ageShown: '年齡已顯示（點擊隱藏）',
     expires: '到期時間：',
     sendMessage: '傳送訊息',
-    unlockPreference: '解鎖偏好',
+    unlockPreference: '更改資料與偏好',
     iGotStuff: '我有貨',
-    unlockPreferencePrompt: '解鎖偏好需要一次性支付 1000 Telegram Stars。是否繼續支付？',
+    unlockPreferencePrompt: '更改個人資料與偏好需要支付 1000 Telegram Stars。是否繼續支付？',
     invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？',
     hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？',
     paymentCancelled: '付款已取消或失敗。',
@@ -203,7 +200,6 @@ const translations: Record<LangKey, Record<string, string>> = {
     completeProfile: 'プロフィールを完成させる',
     profileWarning: '警告：これは後から変更できません。ここで入力した情報は、表示ややり取りできる相手に影響します。',
     dob: '生年月日：',
-    orientation: '指向：',
     imA: '私は',
     seeking: '探しています：',
     man: '男性',
@@ -238,9 +234,9 @@ const translations: Record<LangKey, Record<string, string>> = {
     ageShown: '年齢表示（クリックして非表示）',
     expires: '有効期限：',
     sendMessage: 'メッセージを送る',
-    unlockPreference: '好みをアンロック',
+    unlockPreference: 'プロフィールと好みを変更',
     iGotStuff: '持ってるよ',
-    unlockPreferencePrompt: '好みのアンロックには1000 Telegram Starsの1回限りの支払いが必要です。支払いに進みますか？',
+    unlockPreferencePrompt: 'プロフィールと好みの変更には1000 Telegram Starsの支払いが必要です。支払いに進みますか？',
     invisiblePrompt: '透明化には30日間のサブスクリプション（3000 Telegram Stars）が必要です。支払いに進みますか？',
     hideAgePrompt: '年齢非表示には30日間のサブスクリプション（1000 Telegram Stars）が必要です。支払いに進みますか？',
     paymentCancelled: '支払いがキャンセルされたか、失敗しました。',
@@ -256,7 +252,6 @@ const translations: Record<LangKey, Record<string, string>> = {
     completeProfile: '프로필 완성하기',
     profileWarning: '경고: 이는 나중에 변경할 수 없습니다. 여기에 입력한 정보는 볼 수 있는 사용자와 상호작용에 영향을 줍니다.',
     dob: '생년월일:',
-    orientation: '성향:',
     imA: '나는',
     seeking: '찾는 대상:',
     man: '남성',
@@ -291,9 +286,9 @@ const translations: Record<LangKey, Record<string, string>> = {
     ageShown: '나이 표시 (클릭하여 숨김)',
     expires: '만료일:',
     sendMessage: '메시지 보내기',
-    unlockPreference: '선호도 잠금 해제',
+    unlockPreference: '프로필 및 선호도 변경',
     iGotStuff: '나 있음',
-    unlockPreferencePrompt: '선호도를 잠금 해제하려면 1000 Telegram Stars의 일회성 결제가 필요합니다. 결제를 진행하시겠습니까?',
+    unlockPreferencePrompt: '프로필 및 선호도를 변경하려면 1000 Telegram Stars 결제가 필요합니다. 결제를 진행하시겠습니까?',
     invisiblePrompt: '숨김 모드는 30일 구독(3000 Telegram Stars)이 필요합니다. 결제를 진행하시겠습니까?',
     hideAgePrompt: '나이 숨기기는 30일 구독(1000 Telegram Stars)이 필요합니다. 결제를 진행하시겠습니까?',
     paymentCancelled: '결제가 취소되었거나 실패했습니다.',
@@ -309,7 +304,6 @@ const translations: Record<LangKey, Record<string, string>> = {
     completeProfile: 'Заполните профиль',
     profileWarning: 'Предупреждение: это нельзя будет изменить в будущем. Указанная здесь информация влияет на то, кого вы видите и с кем взаимодействуете.',
     dob: 'Дата рождения:',
-    orientation: 'Ориентация:',
     imA: 'Я',
     seeking: 'ищу',
     man: 'мужчину',
@@ -344,9 +338,9 @@ const translations: Record<LangKey, Record<string, string>> = {
     ageShown: 'Возраст виден (Нажмите, чтобы скрыть)',
     expires: 'И истекает:',
     sendMessage: 'Отправить сообщение',
-    unlockPreference: 'Разблокировать предпочтения',
+    unlockPreference: 'Изменить профиль и предпочтения',
     iGotStuff: 'У меня есть стафф',
-    unlockPreferencePrompt: 'Разблокировка предпочтений требует разового платежа в размере 1000 Telegram Stars. Перейти к оплате?',
+    unlockPreferencePrompt: 'Изменение профиля и предпочтений требует разового платежа в размере 1000 Telegram Stars. Перейти к оплате?',
     invisiblePrompt: 'Переход в режим невидимки требует подписки на 30 дней за 3000 Telegram Stars. Перейти к оплате?',
     hideAgePrompt: 'Сокрытие возраста требует подписки на 30 дней за 1000 Telegram Stars. Перейти к оплате?',
     paymentCancelled: 'Оплата отменена или не удалась.',
@@ -515,12 +509,12 @@ export default function App() {
   const [showStuffBubble, setShowStuffBubble] = useState<boolean>(false);
 
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
-  const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
+  const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
 
   // Form input states
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
-  const [seeking, setSeeking] = useState<string>('men');
+  const [seeking, setSeeking] = useState<string>('women');
   const [height, setHeight] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
   
@@ -538,8 +532,7 @@ export default function App() {
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
   const [preferenceUnlocked, setPreferenceUnlocked] = useState<boolean>(false);
-
-    const [gridVisible, setGridVisible] = useState<boolean>(true);
+  const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
   // Filter States
@@ -914,43 +907,33 @@ export default function App() {
 
     setCurrentUser(updatedProfile);
     setShowProfileSetup(false);
+    setShowProfileEditModal(false);
     await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
-  const handleOpenFilterMenu = async () => {
+  const handleOpenProfileEdit = async () => {
     if (!currentUser || !supabase) return;
 
     if (isAdmin) {
-      setShowFilterMenu(true);
+      setShowProfileEditModal(true);
       return;
     }
 
-    if (!preferenceUnlocked) {
-      const confirmed = window.confirm(t('unlockPreferencePrompt'));
-      if (!confirmed) return;
+    const confirmed = window.confirm(t('unlockPreferencePrompt'));
+    if (!confirmed) return;
 
-      if (window.Telegram?.WebApp?.openInvoice) {
-        window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-          if (status === 'paid') {
-            setPreferenceUnlocked(true);
-            const updated = { ...currentUser, preference_unlocked: true };
-            setCurrentUser(updated);
-            await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-            setShowFilterMenu(true);
-          } else {
-            alert(t('paymentCancelled'));
-          }
-        });
-        return;
-      } else {
-        setPreferenceUnlocked(true);
-        const updated = { ...currentUser, preference_unlocked: true };
-        setCurrentUser(updated);
-        await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-      }
+    if (window.Telegram?.WebApp?.openInvoice) {
+      window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+        if (status === 'paid') {
+          setShowProfileEditModal(true);
+        } else {
+          alert(t('paymentCancelled'));
+        }
+      });
+      return;
+    } else {
+      setShowProfileEditModal(true);
     }
-
-    setShowFilterMenu(true);
   };
 
   const handleToggleGrid = async () => {
@@ -1076,7 +1059,6 @@ export default function App() {
   const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
-
   const handleStartChat = (targetUser: UserProfile) => {
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
@@ -1170,10 +1152,19 @@ export default function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
       {/* INITIAL SETUP FULLSCREEN OVERLAY (FITS ENTIRE SCREEN WITHOUT SCROLLING) */}
-      {showProfileSetup && (
+      {(showProfileSetup || showProfileEditModal) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '12px', boxSizing: 'border-box' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
             
+            {showProfileEditModal && (
+              <button 
+                onClick={() => setShowProfileEditModal(false)}
+                style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'transparent', border: 'none', color: '#aaa', fontSize: '18px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            )}
+
             <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{t('completeProfile')}</h2>
             <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>
               {t('profileWarning')}
@@ -1194,7 +1185,6 @@ export default function App() {
 
               {/* Orientation Selection */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('orientation')}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
                   <span>{t('imA')}</span>
                   <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
@@ -1240,28 +1230,28 @@ export default function App() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                    <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {rolePref}
                     </button>
-                    <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {safetyPref}
                     </button>
-                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Party', 'Party✓']))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Party', 'Party✓']))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {playstylePref === 'Clean' ? 'Party' : playstylePref}
                     </button>
-                    <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {howManyPref}
                     </button>
-                    <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '6px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
                       {wherePref}
                     </button>
                   </div>
                 </>
               ) : (
-                /* Non-man seeking man mode selection below dividing line */
+                /* Non-man seeking man mode selection below dividing line with smaller font */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>{t('mode')}</label>
-                  <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '11px' }} required>
+                  <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '10px' }} required>
                     <option value="Browsing only - You cannot send not receive private message from others">{t('browsingOnly')}</option>
                     <option value="Online only - You are visible on grid but not on map, map is inaccessible">{t('onlineOnly')}</option>
                     <option value="Meet up - You are visible on grid and map">{t('meetUp')}</option>
@@ -1289,7 +1279,7 @@ export default function App() {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button 
-            onClick={handleOpenFilterMenu} 
+            onClick={handleOpenProfileEdit} 
             style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             title={t('unlockPreference')}
           >
@@ -1378,141 +1368,7 @@ export default function App() {
 
       </main>
 
-      {/* UNLOCK PREFERENCE MODAL */}
-      {showFilterMenu && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setShowFilterMenu(false)}>
-          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            
-            <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
-            <h2 style={{ fontSize: '18px', marginBottom: '20px', color: '#ffffff', fontWeight: 'bold' }}>{t('unlockPreference')}</h2>
-
-            <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
-                <input 
-                  type="checkbox" 
-                  checked={filterAgeEnabled} 
-                  onChange={(e) => setFilterAgeEnabled(e.target.checked)} 
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
-                />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', opacity: filterAgeEnabled ? 1 : 0.4 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span>{t('ageRange')}</span>
-                    <span style={{ fontWeight: 'bold' }}>{filterAgeMin} - {filterAgeMax}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="99" 
-                      disabled={!filterAgeEnabled}
-                      value={filterAgeMin} 
-                      onChange={(e) => setFilterAgeMin(Math.min(Number(e.target.value), filterAgeMax))}
-                      style={{ flex: 1 }} 
-                    />
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="99" 
-                      disabled={!filterAgeEnabled}
-                      value={filterAgeMax} 
-                      onChange={(e) => setFilterAgeMax(Math.max(Number(e.target.value), filterAgeMin))}
-                      style={{ flex: 1 }} 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={filterRoleEnabled} 
-                    onChange={(e) => setFilterRoleEnabled(e.target.checked)} 
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
-                  />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterRoleEnabled ? 1 : 0.4 }}>{t('rolePreference')}</span>
-                </div>
-                <button 
-                  disabled={!filterRoleEnabled}
-                  onClick={() => setFilterRoleVal(cycleNext(filterRoleVal, roleCycleOptions))}
-                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterRoleEnabled ? 1 : 0.4 }}
-                >
-                  {filterRoleVal}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={filterSafetyEnabled} 
-                    onChange={(e) => setFilterSafetyEnabled(e.target.checked)} 
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
-                  />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterSafetyEnabled ? 1 : 0.4 }}>{t('safetyPreference')}</span>
-                </div>
-                <button 
-                  disabled={!filterSafetyEnabled}
-                  onClick={() => setFilterSafetyVal(cycleNext(filterSafetyVal, safetyCycleOptions))}
-                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterSafetyEnabled ? 1 : 0.4 }}
-                >
-                  {filterSafetyVal}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={filterPlaystyleEnabled} 
-                    onChange={(e) => setFilterPlaystyleEnabled(e.target.checked)} 
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
-                  />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterPlaystyleEnabled ? 1 : 0.4 }}>{t('playstylePreference')}</span>
-                </div>
-                <button 
-                  disabled={!filterPlaystyleEnabled}
-                  onClick={() => setFilterPlaystyleVal(cycleNext(filterPlaystyleVal, playstyleCycleOptions))}
-                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterPlaystyleEnabled ? 1 : 0.4 }}
-                >
-                  {filterPlaystyleVal}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#252525', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={filterHowManyEnabled} 
-                    onChange={(e) => setFilterHowManyEnabled(e.target.checked)} 
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
-                  />
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', opacity: filterHowManyEnabled ? 1 : 0.4 }}>{t('groupSize')}</span>
-                </div>
-                <button 
-                  disabled={!filterHowManyEnabled}
-                  onClick={() => setFilterHowManyVal(cycleNext(filterHowManyVal, howManyCycleOptions))}
-                  style={{ padding: '6px 14px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', opacity: filterHowManyEnabled ? 1 : 0.4 }}
-                >
-                  {filterHowManyVal}
-                </button>
-              </div>
-
-              <button 
-                onClick={() => setShowFilterMenu(false)}
-                style={{ marginTop: '10px', padding: '14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
-              >
-                {t('applyFilters')}
-              </button>
-
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* PROFILE MODAL (SELF OR OTHER) */}
+     {/* PROFILE MODAL (SELF OR OTHER) */}
       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
@@ -1567,16 +1423,16 @@ export default function App() {
               {/* Preference Tags in a row (Only if target profile is man seeking men) */}
               {targetIsManSeekingMan && (
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
                     {activeProfile.role_pref || 'Versatile'}
                   </div>
-                  <div style={{ padding: '10px 10px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
                     {activeProfile.safety_pref || 'Safe'}
                   </div>
 
                   {/* Playstyle Tag: Interactive if self (Cycles Party <-> Party✓, excluding Clean) */}
                   {isViewingSelf ? (
-                    <div style={{ position: 'relative' }}>
+                    <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
                       <button 
                         type="button" 
                         onClick={async () => {
@@ -1593,7 +1449,7 @@ export default function App() {
                             }, 3000);
                           }
                         }}
-                        style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                        style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
                       >
                         {playstylePref === 'Clean' ? 'Party' : playstylePref}
                       </button>
@@ -1606,12 +1462,12 @@ export default function App() {
                       )}
                     </div>
                   ) : (
-                    <div style={{ padding: '10px 10px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                       {activeProfile.playstyle_pref || 'Clean'}
                     </div>
                   )}
 
-                  <div style={{ padding: '10px 10px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
                     {activeProfile.how_many_pref || '1on1'}
                   </div>
                   
@@ -1626,12 +1482,12 @@ export default function App() {
                         setSelectedProfile(updated);
                         await handleUpdateSelfField({ where_pref: nextWhere });
                       }}
-                      style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                      style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
                     >
                       {wherePref}
                     </button>
                   ) : (
-                    <div style={{ padding: '10px 10px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                    <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                       {activeProfile.where_pref || 'Host'}
                     </div>
                   )}
