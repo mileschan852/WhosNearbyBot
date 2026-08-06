@@ -533,6 +533,558 @@ export default function App() {
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
   const [preferenceUnlocked, setPreferenceUnlocked] = useState<boolean>(false);
+  const [gridVisible, setGridVisible] = useState<boolean>(true);
+  const [mapVisible, setMapVisible] = useState<boolean>(false);
+
+  // Filter States
+  const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
+  const [filterAgeMin, setFilterAgeMin] = useState<number>(0);
+  const [filterAgeMax, setFilterAgeMax] = useState<number>(99);
+
+  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(true);
+  const [filterRoleVal, setFilterRoleVal] = useState<string>('Bottom');
+
+  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(true);
+  const [filterSafetyVal, setFilterSafetyVal] = useState<string>('Safe');
+
+  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
+  const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string>('Clean');
+
+  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
+  const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
+
+  const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
+  const safetyCycleOptions = ['Safe', 'Raw'];
+  const playstyleCycleOptions = ['Clean', 'Party', 'Party✓'];
+  const howManyCycleOptions = ['1on1', 'Group'];
+  const whereCycleOptions = ['Host', 'Travel'];
+
+  const cycleNext = (current: string, options: string[]) => {
+    const idx = options.indexOf(current);
+    if (idx === -1 || idx === options.length - 1) return options[0];
+    return options[idx + 1];
+  };
+
+  const heightOptions = [];
+  for (let i = 10; i <= 30; i++) {
+    const m = (i / 10).toFixed(1);
+    const cm = i * 10;
+    const totalInches = Math.round(cm / 2.54);
+    const ft = Math.floor(totalInches / 12);
+    const inch = totalInches % 12;
+    heightOptions.push(`${m}m (${ft}ft ${inch}in)`);
+  }
+
+  const weightOptions = [];
+  for (let kg = 35; kg <= 160; kg += 1) {
+    const lbs = Math.round(kg * 2.20462);
+    weightOptions.push(`${kg}kg (${lbs}lbs)`);
+  }
+
+  const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (!error && data && Array.isArray(data)) {
+      const processed = data.map((u: any) => ({
+        id: u.id || 'unknown',
+        name: u.name || 'User',
+        username: u.username || '',
+        avatar: u.avatar || '',
+        lat: typeof u.lat === 'number' ? u.lat : lat,
+        lng: typeof u.lng === 'number' ? u.lng : lng,
+        last_seen: u.last_seen || new Date().toISOString(),
+        gender: u.gender || null,
+        seeking: u.seeking || null,
+        dob: u.dob || null,
+        height: u.height || null,
+        weight: u.weight || null,
+        role_pref: u.role_pref || null,
+        safety_pref: u.safety_pref || null,
+        playstyle_pref: u.playstyle_pref || null,
+        where_pref: u.where_pref || null,
+        how_many_pref: u.how_many_pref || null,
+        non_man_mode: u.non_man_mode || null,
+        is_underage: u.is_underage || false,
+        hide_age: u.hide_age || false,
+        grid_visible: u.grid_visible ?? true,
+        map_visible: u.map_visible ?? false,
+        distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
+        hide_age_expiry: u.hide_age_expiry || null,
+        invisible_expiry: u.invisible_expiry || null,
+        filter_sub_expiry: u.filter_sub_expiry || null,
+        preference_unlocked: u.preference_unlocked || false,
+      })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
+        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      
+      setUsers(processed);
+    }
+  };
+
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.ready?.();
+          window.Telegram.WebApp.expand?.();
+        }
+
+        let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || '';
+
+        if (!tgUser) {
+          await new Promise((res) => setTimeout(res, 300));
+          tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+          startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || startParam;
+        }
+
+        // Language detection
+        const tgLangCode = (tgUser?.language_code || navigator.language || 'en').toLowerCase();
+        if (tgLangCode.startsWith('zh')) {
+          if (tgLangCode.includes('tw') || tgLangCode.includes('hk') || tgLangCode.includes('hant')) {
+            setLang('zh-TW');
+          } else {
+            setLang('zh-CN');
+          }
+        } else if (tgLangCode.startsWith('ja')) {
+          setLang('ja');
+        } else if (tgLangCode.startsWith('ko')) {
+          setLang('ko');
+        } else if (tgLangCode.startsWith('ru')) {
+          setLang('ru');
+        } else {
+          setLang('en');
+        }
+
+        const username = tgUser?.username || '';
+        setIsAdmin(false);
+
+        const savedUserId = localStorage.getItem('whos_nearby_user_id');
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
+        if (!tgUser?.id && !savedUserId) {
+          localStorage.setItem('whos_nearby_user_id', userId);
+        }
+
+        const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
+        const userUsername = tgUser?.username || '';
+        const userAvatar = tgUser?.photo_url || '';
+
+        if (!navigator.geolocation) {
+          setIsLocationDenied(true);
+          setIsReady(true);
+          return;
+        }
+
+        const hasLocation = await new Promise<boolean>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              resolve(true);
+            },
+            () => {
+              // Fallback with lower accuracy or allow proceeding to prevent false lockouts
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  resolve(true);
+                },
+                () => resolve(false),
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+              );
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        });
+
+        if (!hasLocation) {
+          setIsLocationDenied(true);
+          setIsReady(true);
+          return;
+        }
+
+        let existingProfile: any = null;
+        if (supabase) {
+          const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+          if (data) {
+            existingProfile = data;
+          }
+        }
+
+        if (existingProfile?.is_underage) {
+          setIsUnderageLocked(true);
+          setIsReady(true);
+          return;
+        }
+
+        // STRICT LOGIC: HKMOD forces seeking men. Normal entry defaults to women (or allows saving their choice).
+        let initialGender = 'man';
+        let initialSeeking = 'women';
+
+        if (startParam === 'hkmod') {
+          initialGender = 'man';
+          initialSeeking = 'men';
+        } else if (existingProfile) {
+          if (existingProfile.gender) initialGender = existingProfile.gender;
+          if (existingProfile.seeking) initialSeeking = existingProfile.seeking;
+        }
+
+        setGender(initialGender);
+        setSeeking(initialSeeking);
+
+        const isManSeekingMan = initialGender === 'man' && initialSeeking === 'men';
+        const isFullySetup = existingProfile && 
+          existingProfile.dob && 
+          existingProfile.gender && 
+          existingProfile.seeking && 
+          existingProfile.height && 
+          existingProfile.weight && 
+          (!isManSeekingMan || (existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref)) &&
+          (isManSeekingMan || existingProfile.non_man_mode);
+
+        if (existingProfile) {
+          if (existingProfile.dob) setDob(existingProfile.dob);
+          if (existingProfile.height) setHeight(existingProfile.height);
+          if (existingProfile.weight) setWeight(existingProfile.weight);
+          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
+          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
+          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
+          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
+          if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
+          if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
+
+          if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
+          if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
+          if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
+          if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
+          if (typeof existingProfile.preference_unlocked === 'boolean') setPreferenceUnlocked(existingProfile.preference_unlocked);
+          if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
+          if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
+
+          if (isManSeekingMan) {
+            if (existingProfile.role_pref) setFilterRoleVal(existingProfile.role_pref);
+            if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
+            if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
+            if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
+          }
+        }
+
+        if (!isFullySetup) {
+          setShowProfileSetup(true);
+          const blankProfile: UserProfile = {
+            id: userId,
+            name: userName,
+            username: userUsername,
+            avatar: userAvatar,
+            lat: null,
+            lng: null,
+            last_seen: null,
+            gender: initialGender,
+            seeking: initialSeeking,
+            dob: null,
+            height: null,
+            weight: null,
+            role_pref: null,
+            safety_pref: null,
+            playstyle_pref: null,
+            where_pref: null,
+            how_many_pref: null,
+            non_man_mode: null,
+            is_underage: false,
+            hide_age: false,
+            grid_visible: true,
+            map_visible: false,
+            hide_age_expiry: null,
+            invisible_expiry: null,
+            filter_sub_expiry: null,
+            preference_unlocked: false,
+          };
+          setCurrentUser(blankProfile);
+        } else {
+          const myProfile: UserProfile = {
+            id: userId,
+            name: userName,
+            username: userUsername,
+            avatar: userAvatar,
+            lat: location.lat,
+            lng: location.lng,
+            last_seen: new Date().toISOString(),
+            gender: initialGender,
+            seeking: initialSeeking,
+            dob: existingProfile.dob,
+            height: existingProfile.height,
+            weight: existingProfile.weight,
+            role_pref: isManSeekingMan ? existingProfile.role_pref : null,
+            safety_pref: isManSeekingMan ? existingProfile.safety_pref : null,
+            playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null,
+            where_pref: isManSeekingMan ? existingProfile.where_pref : null,
+            how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null,
+            non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode,
+            is_underage: false,
+            hide_age: existingProfile.hide_age || false,
+            grid_visible: existingProfile.grid_visible ?? true,
+            map_visible: existingProfile.map_visible ?? false,
+            hide_age_expiry: existingProfile.hide_age_expiry || null,
+            invisible_expiry: existingProfile.invisible_expiry || null,
+            filter_sub_expiry: existingProfile.filter_sub_expiry || null,
+            preference_unlocked: existingProfile.preference_unlocked || false,
+          };
+          setCurrentUser(myProfile);
+          if (supabase) {
+            await fetchUsersData(location.lat, location.lng, userId);
+          }
+        }
+      } catch (err) {
+        console.error('Initialization error:', err);
+      } finally {
+        setIsReady(true);
+      }
+    };
+
+    initApp();
+  }, []);
+
+  const handleRefresh = async () => {
+    if (!currentUser || !currentUser.lat || !currentUser.lng || !supabase) return;
+    const lastRefreshKey = `last_refresh_${currentUser.id}`;
+    const lastRefreshTime = Number(localStorage.getItem(lastRefreshKey) || 0);
+    const now = Date.now();
+
+    if (now - lastRefreshTime < 5 * 60 * 1000) {
+      return;
+    }
+
+    localStorage.setItem(lastRefreshKey, now.toString());
+    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+  };
+
+  const handleSaveInitialProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    const isManSeekingMan = gender === 'man' && seeking === 'men';
+
+    if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref)) || (!isManSeekingMan && !nonManMode)) {
+      setErrorMessage(t('fillAll'));
+      return;
+    }
+
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    if (age < 18) {
+      if (currentUser && supabase) {
+        const underageProfile = { ...currentUser, dob, is_underage: true };
+        await supabase.from('profiles').upsert([underageProfile], { onConflict: 'id' });
+      }
+      setIsUnderageLocked(true);
+      return;
+    }
+
+    if (!currentUser || !supabase) return;
+
+    const updatedProfile = {
+      ...currentUser,
+      lat: location.lat,
+      lng: location.lng,
+      last_seen: new Date().toISOString(),
+      dob,
+      gender,
+      seeking,
+      height,
+      weight,
+      role_pref: isManSeekingMan ? rolePref : null,
+      safety_pref: isManSeekingMan ? safetyPref : null,
+      playstyle_pref: isManSeekingMan ? playstylePref : null,
+      how_many_pref: isManSeekingMan ? howManyPref : null,
+      where_pref: isManSeekingMan ? wherePref : null,
+      non_man_mode: isManSeekingMan ? null : nonManMode,
+      hide_age: false,
+      is_underage: false,
+    };
+
+    const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
+    if (error) {
+      setErrorMessage(`${t('errorSaving')} ${error.message}`);
+      return;
+    }
+
+    if (isManSeekingMan) {
+      if (rolePref) {
+        setFilterRoleEnabled(true);
+        setFilterRoleVal(rolePref);
+      }
+      if (safetyPref) {
+        setFilterSafetyEnabled(true);
+        setFilterSafetyVal(safetyPref);
+      }
+      if (playstylePref) {
+        setFilterPlaystyleEnabled(true);
+        setFilterPlaystyleVal(playstylePref);
+      }
+      if (howManyPref) {
+        setFilterHowManyEnabled(true);
+        setFilterHowManyVal(howManyPref);
+      }
+    }
+
+    setCurrentUser(updatedProfile);
+    setShowProfileSetup(false);
+    setShowProfileEditModal(false);
+    await fetchUsersData(location.lat, location.lng, currentUser.id);
+  };
+
+  const handleOpenProfileEdit = async () => {
+    if (!currentUser || !supabase) return;
+
+    if (isAdmin) {
+      setShowProfileEditModal(true);
+      return;
+    }
+
+    const confirmed = window.confirm(t('unlockPreferencePrompt'));
+    if (!confirmed) return;
+
+    if (window.Telegram?.WebApp?.openInvoice) {
+      window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+        if (status === 'paid') {
+          setShowProfileEditModal(true);
+        } else {
+          alert(t('paymentCancelled'));
+        }
+      });
+      return;
+    } else {
+      setShowProfileEditModal(true);
+    }
+  };
+
+  const handleToggleGrid = async () => {
+    if (!currentUser || !supabase) return;
+    
+    let nextVal = !gridVisible;
+    let newInvisibleExpiry = invisibleExpiry;
+
+    if (!nextVal && !isAdmin) {
+      const now = new Date();
+      const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();
+      
+      if (isExpired) {
+        const confirmed = window.confirm(t('invisiblePrompt'));
+        if (!confirmed) return;
+
+        if (window.Telegram?.WebApp?.openInvoice) {
+          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+            if (status === 'paid') {
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30);
+              newInvisibleExpiry = expiryDate.toISOString();
+              setInvisibleExpiry(newInvisibleExpiry);
+              
+              setGridVisible(false);
+              const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
+              setCurrentUser(updated);
+              await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+              setView('grid');
+              await handleRefresh();
+            } else {
+              alert(t('paymentCancelled'));
+            }
+          });
+          return;
+        } else {
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          newInvisibleExpiry = expiryDate.toISOString();
+          setInvisibleExpiry(newInvisibleExpiry);
+        }
+      }
+    }
+
+    setGridVisible(nextVal);
+    const updated = { ...currentUser, grid_visible: nextVal, invisible_expiry: newInvisibleExpiry };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+    setView('grid');
+    await handleRefresh();
+  };
+
+  const handleToggleMap = async () => {
+    if (!currentUser || !supabase) return;
+    const nextVal = !mapVisible;
+    setMapVisible(nextVal);
+    const updated = { ...currentUser, map_visible: nextVal };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+    
+    if (nextVal) {
+      setView('map');
+    } else {
+      setView('grid');
+    }
+    
+    if (currentUser.lat && currentUser.lng) {
+      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+    }
+  };
+
+  const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
+    if (!currentUser || !supabase) return;
+    const updated = { ...currentUser, ...fields };
+    setCurrentUser(updated);
+    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+  };
+
+  const handleHideAgeToggle = async () => {
+    if (!currentUser || !supabase) return;
+
+    let nextHide = !hideAge;
+    let newExpiry = hideAgeExpiry;
+
+    if (nextHide && !isAdmin) {
+      const now = new Date();
+      const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
+
+      if (isExpired) {
+        const confirmed = window.confirm(t('hideAgePrompt'));
+        if (!confirmed) return;
+
+        if (window.Telegram?.WebApp?.openInvoice) {
+          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
+            if (status === 'paid') {
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30);
+              newExpiry = expiryDate.toISOString();
+              setHideAgeExpiry(newExpiry);
+              setHideAge(true);
+              await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
+            } else {
+              alert(t('paymentCancelled'));
+            }
+          });
+          return;
+        } else {
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          newExpiry = expiryDate.toISOString();
+          setHideAgeExpiry(newExpiry);
+        }
+      }
+    } else if (!nextHide) {
+      newExpiry = null;
+      setHideAgeExpiry(null);
+    }
+
+    setHideAge(nextHide);
+    await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
+  };
+
+  const handleCardClick = (targetUser: UserProfile) => {
+    setSelectedProfile(targetUser);
+  };
   const handleStartChat = (targetUser: UserProfile) => {
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
@@ -782,7 +1334,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* MAIN VIEW */}
+  {/* MAIN VIEW */}
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
@@ -864,4 +1416,174 @@ export default function App() {
               
               <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
                 {activeProfile.avatar ? (
-                  <img src={activeProfile.
+                  <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+                )}
+              </div>
+
+              <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
+                {!activeProfile.hide_age && calculateAge(activeProfile.dob) && <span>{calculateAge(activeProfile.dob)}yo</span>}
+                {getZodiacSignEmoji(activeProfile.dob)}
+                <span>•</span>
+                <span>{activeProfile.height}</span>
+                <span>•</span>
+                <span>{activeProfile.weight}</span>
+                <span>•</span>
+                <span>{isViewingSelf ? 'You' : `${formatDistanceBigUnit(activeProfile.distance)} away`}</span>
+                <span>•</span>
+                <span style={{ color: '#4ade80' }}>{formatLastSeenBigUnit(activeProfile.last_seen)}</span>
+              </div>
+
+              {/* Hide Age Toggle Button only when viewing self */}
+              {isViewingSelf && (
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleHideAgeToggle}
+                    style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    {hideAge ? t('ageHidden') : t('ageShown')}
+                  </button>
+                  {hideAgeExpiry && (
+                    <span style={{ fontSize: '10px', color: '#888' }}>
+                      {t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
+
+              {/* Preference Tags in a row (Only if target profile is man seeking men) */}
+              {targetIsManSeekingMan && (
+                <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.role_pref || 'Versatile'}
+                  </div>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.safety_pref || 'Safe'}
+                  </div>
+
+                  {/* Playstyle Tag: Interactive if self (Cycles Party <-> Party✓, excluding Clean) */}
+                  {isViewingSelf ? (
+                    <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const nextPlaystyle = playstylePref === 'Party✓' ? 'Party' : 'Party✓';
+                          setPlaystylePref(nextPlaystyle);
+                          const updated = { ...activeProfile, playstyle_pref: nextPlaystyle };
+                          setSelectedProfile(updated);
+                          await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });
+
+                          if (nextPlaystyle === 'Party✓') {
+                            setShowStuffBubble(true);
+                            setTimeout(() => {
+                              setShowStuffBubble(false);
+                            }, 3000);
+                          }
+                        }}
+                        style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                      >
+                        {playstylePref === 'Clean' ? 'Party' : playstylePref}
+                      </button>
+
+                      {showStuffBubble && (
+                        <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#ffffff', color: '#000000', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 20 }}>
+                          {t('iGotStuff')}
+                          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', borderWidth: '4px', borderStyle: 'solid', borderColor: '#ffffff transparent transparent transparent' }} />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile.playstyle_pref || 'Clean'}
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.how_many_pref || '1on1'}
+                  </div>
+                  
+                  {/* Host / Travel Tag: Interactive if self */}
+                  {isViewingSelf ? (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
+                        setWherePref(nextWhere);
+                        const updated = { ...activeProfile, where_pref: nextWhere };
+                        setSelectedProfile(updated);
+                        await handleUpdateSelfField({ where_pref: nextWhere });
+                      }}
+                      style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      {wherePref}
+                    </button>
+                  ) : (
+                    <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile.where_pref || 'Host'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isViewingSelf && (
+                <button 
+                  type="button" 
+                  onClick={() => handleStartChat(activeProfile)}
+                  style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  {t('sendMessage')}
+                </button>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* FOOTER NAVIGATION WITH ON/OFF STATUS LIGHTS */}
+      <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
+        
+        {/* GRID TAB */}
+        <button 
+          onClick={handleToggleGrid}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('grid')}</span>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
+        </button>
+        
+        {/* MAP TAB */}
+        <button 
+          onClick={handleToggleMap}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <line x1="15" y1="3" x2="15" y2="21"></line>
+          </svg>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('map')}</span>
+          <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
+        </button>
+
+      </footer>
+    </div>
+  );
+}
