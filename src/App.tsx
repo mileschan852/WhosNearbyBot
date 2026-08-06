@@ -512,7 +512,7 @@ export default function App() {
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
 
-  // Form input states
+  // Form input states (Default to seeking women for normal users)
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('women');
@@ -526,8 +526,6 @@ export default function App() {
   const [howManyPref, setHowManyPref] = useState<string>('1on1');
   const [wherePref, setWherePref] = useState<string>('Host');
 
-
-
   const [nonManMode, setNonManMode] = useState<string>('Meet up - You are visible on grid and map');
 
   const [hideAge, setHideAge] = useState<boolean>(false);
@@ -535,549 +533,6 @@ export default function App() {
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
   const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
   const [preferenceUnlocked, setPreferenceUnlocked] = useState<boolean>(false);
-    const [gridVisible, setGridVisible] = useState<boolean>(true);
-  const [mapVisible, setMapVisible] = useState<boolean>(false);
-
-  // Filter States
-  const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
-  const [filterAgeMin, setFilterAgeMin] = useState<number>(0);
-  const [filterAgeMax, setFilterAgeMax] = useState<number>(99);
-
-  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(true);
-  const [filterRoleVal, setFilterRoleVal] = useState<string>('Bottom');
-
-  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(true);
-  const [filterSafetyVal, setFilterSafetyVal] = useState<string>('Safe');
-
-  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
-  const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string>('Clean');
-
-  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
-  const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
-
-  const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
-  const safetyCycleOptions = ['Safe', 'Raw'];
-  const playstyleCycleOptions = ['Clean', 'Party', 'Party✓'];
-  const howManyCycleOptions = ['1on1', 'Group'];
-  const whereCycleOptions = ['Host', 'Travel'];
-
-  const cycleNext = (current: string, options: string[]) => {
-    const idx = options.indexOf(current);
-    if (idx === -1 || idx === options.length - 1) return options[0];
-    return options[idx + 1];
-  };
-
-  const heightOptions = [];
-  for (let i = 10; i <= 30; i++) {
-    const m = (i / 10).toFixed(1);
-    const cm = i * 10;
-    const totalInches = Math.round(cm / 2.54);
-    const ft = Math.floor(totalInches / 12);
-    const inch = totalInches % 12;
-    heightOptions.push(`${m}m (${ft}ft ${inch}in)`);
-  }
-
-  const weightOptions = [];
-  for (let kg = 35; kg <= 160; kg += 1) {
-    const lbs = Math.round(kg * 2.20462);
-    weightOptions.push(`${kg}kg (${lbs}lbs)`);
-  }
-
-  const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
-    if (!supabase) return;
-    const { data, error } = await supabase.from('profiles').select('*');
-    if (!error && data && Array.isArray(data)) {
-      const processed = data.map((u: any) => ({
-        id: u.id || 'unknown',
-        name: u.name || 'User',
-        username: u.username || '',
-        avatar: u.avatar || '',
-        lat: typeof u.lat === 'number' ? u.lat : lat,
-        lng: typeof u.lng === 'number' ? u.lng : lng,
-        last_seen: u.last_seen || new Date().toISOString(),
-        gender: u.gender || null,
-        seeking: u.seeking || null,
-        dob: u.dob || null,
-        height: u.height || null,
-        weight: u.weight || null,
-        role_pref: u.role_pref || null,
-        safety_pref: u.safety_pref || null,
-        playstyle_pref: u.playstyle_pref || null,
-        where_pref: u.where_pref || null,
-        how_many_pref: u.how_many_pref || null,
-        non_man_mode: u.non_man_mode || null,
-        is_underage: u.is_underage || false,
-        hide_age: u.hide_age || false,
-        grid_visible: u.grid_visible ?? true,
-        map_visible: u.map_visible ?? false,
-        distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
-        hide_age_expiry: u.hide_age_expiry || null,
-        invisible_expiry: u.invisible_expiry || null,
-        filter_sub_expiry: u.filter_sub_expiry || null,
-        preference_unlocked: u.preference_unlocked || false,
-      })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
-        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
-      
-      setUsers(processed);
-    }
-  };
-
-  useEffect(() => {
-    const initApp = async () => {
-      try {
-        if (window.Telegram?.WebApp) {
-          window.Telegram.WebApp.ready?.();
-          window.Telegram.WebApp.expand?.();
-        }
-
-        let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || '';
-
-        if (!tgUser) {
-          await new Promise((res) => setTimeout(res, 300));
-          tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-          startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || startParam;
-        }
-
-        // Language detection
-        const tgLangCode = (tgUser?.language_code || navigator.language || 'en').toLowerCase();
-        if (tgLangCode.startsWith('zh')) {
-          if (tgLangCode.includes('tw') || tgLangCode.includes('hk') || tgLangCode.includes('hant')) {
-            setLang('zh-TW');
-          } else {
-            setLang('zh-CN');
-          }
-        } else if (tgLangCode.startsWith('ja')) {
-          setLang('ja');
-        } else if (tgLangCode.startsWith('ko')) {
-          setLang('ko');
-        } else if (tgLangCode.startsWith('ru')) {
-          setLang('ru');
-        } else {
-          setLang('en');
-        }
-
-        const username = tgUser?.username || '';
-        const userIsAdmin = username === 'mileschan852' || username === 'HKMembersOnly';
-        setIsAdmin(userIsAdmin);
-
-        const savedUserId = localStorage.getItem('whos_nearby_user_id');
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
-        if (!tgUser?.id && !savedUserId) {
-          localStorage.setItem('whos_nearby_user_id', userId);
-        }
-
-        const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
-        const userUsername = tgUser?.username || '';
-        const userAvatar = tgUser?.photo_url || '';
-
-        if (!navigator.geolocation) {
-          setIsLocationDenied(true);
-          setIsReady(true);
-          return;
-        }
-
-        const hasLocation = await new Promise<boolean>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-              resolve(true);
-            },
-            () => resolve(false),
-            { enableHighAccuracy: true, timeout: 8000 }
-          );
-        });
-
-        if (!hasLocation) {
-          setIsLocationDenied(true);
-          setIsReady(true);
-          return;
-        }
-
-        let existingProfile: any = null;
-        if (supabase) {
-          const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-          if (data) {
-            existingProfile = data;
-          }
-        }
-
-        if (existingProfile?.is_underage) {
-          setIsUnderageLocked(true);
-          setIsReady(true);
-          return;
-        }
-
-        // Strict orientation logic: Only force man seeking men if hkmod start_param is used
-        let initialGender = 'man';
-        let initialSeeking = 'women';
-
-        if (startParam === 'hkmod') {
-          initialGender = 'man';
-          initialSeeking = 'men';
-        } else if (existingProfile) {
-          if (existingProfile.gender) initialGender = existingProfile.gender;
-          if (existingProfile.seeking) initialSeeking = existingProfile.seeking;
-        }
-
-        setGender(initialGender);
-        setSeeking(initialSeeking);
-
-        const isManSeekingMan = initialGender === 'man' && initialSeeking === 'men';
-        const isFullySetup = existingProfile && 
-          existingProfile.dob && 
-          existingProfile.gender && 
-          existingProfile.seeking && 
-          existingProfile.height && 
-          existingProfile.weight && 
-          (!isManSeekingMan || (existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref)) &&
-          (isManSeekingMan || existingProfile.non_man_mode);
-
-        if (existingProfile) {
-          if (existingProfile.dob) setDob(existingProfile.dob);
-          if (existingProfile.height) setHeight(existingProfile.height);
-          if (existingProfile.weight) setWeight(existingProfile.weight);
-          if (existingProfile.role_pref) setRolePref(existingProfile.role_pref);
-          if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);
-          if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);
-          if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);
-          if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);
-          if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);
-
-          if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
-          if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
-          if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
-          if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
-          if (typeof existingProfile.preference_unlocked === 'boolean') setPreferenceUnlocked(existingProfile.preference_unlocked);
-          if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
-          if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
-
-          if (isManSeekingMan) {
-            if (existingProfile.role_pref) setFilterRoleVal(existingProfile.role_pref);
-            if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
-            if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
-            if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
-          }
-        }
-
-        if (!isFullySetup) {
-          setShowProfileSetup(true);
-          const blankProfile: UserProfile = {
-            id: userId,
-            name: userName,
-            username: userUsername,
-            avatar: userAvatar,
-            lat: null,
-            lng: null,
-            last_seen: null,
-            gender: initialGender,
-            seeking: initialSeeking,
-            dob: null,
-            height: null,
-            weight: null,
-            role_pref: null,
-            safety_pref: null,
-            playstyle_pref: null,
-            where_pref: null,
-            how_many_pref: null,
-            non_man_mode: null,
-            is_underage: false,
-            hide_age: false,
-            grid_visible: true,
-            map_visible: false,
-            hide_age_expiry: null,
-            invisible_expiry: null,
-            filter_sub_expiry: null,
-            preference_unlocked: false,
-          };
-          setCurrentUser(blankProfile);
-        } else {
-          const myProfile: UserProfile = {
-            id: userId,
-            name: userName,
-            username: userUsername,
-            avatar: userAvatar,
-            lat: location.lat,
-            lng: location.lng,
-            last_seen: new Date().toISOString(),
-            gender: initialGender,
-            seeking: initialSeeking,
-            dob: existingProfile.dob,
-            height: existingProfile.height,
-            weight: existingProfile.weight,
-            role_pref: isManSeekingMan ? existingProfile.role_pref : null,
-            safety_pref: isManSeekingMan ? existingProfile.safety_pref : null,
-            playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null,
-            where_pref: isManSeekingMan ? existingProfile.where_pref : null,
-            how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null,
-            non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode,
-            is_underage: false,
-            hide_age: existingProfile.hide_age || false,
-            grid_visible: existingProfile.grid_visible ?? true,
-            map_visible: existingProfile.map_visible ?? false,
-            hide_age_expiry: existingProfile.hide_age_expiry || null,
-            invisible_expiry: existingProfile.invisible_expiry || null,
-            filter_sub_expiry: existingProfile.filter_sub_expiry || null,
-            preference_unlocked: existingProfile.preference_unlocked || false,
-          };
-          setCurrentUser(myProfile);
-          if (supabase) {
-            await fetchUsersData(location.lat, location.lng, userId);
-          }
-        }
-      } catch (err) {
-        console.error('Initialization error:', err);
-      } finally {
-        setIsReady(true);
-      }
-    };
-
-    initApp();
-  }, []);
-
-  const handleRefresh = async () => {
-    if (!currentUser || !currentUser.lat || !currentUser.lng || !supabase) return;
-    const lastRefreshKey = `last_refresh_${currentUser.id}`;
-    const lastRefreshTime = Number(localStorage.getItem(lastRefreshKey) || 0);
-    const now = Date.now();
-
-    if (now - lastRefreshTime < 5 * 60 * 1000) {
-      return;
-    }
-
-    localStorage.setItem(lastRefreshKey, now.toString());
-    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
-  };
-
-  const handleSaveInitialProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-
-    const isManSeekingMan = gender === 'man' && seeking === 'men';
-
-    if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref)) || (!isManSeekingMan && !nonManMode)) {
-      setErrorMessage(t('fillAll'));
-      return;
-    }
-
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    if (age < 18) {
-      if (currentUser && supabase) {
-        const underageProfile = { ...currentUser, dob, is_underage: true };
-        await supabase.from('profiles').upsert([underageProfile], { onConflict: 'id' });
-      }
-      setIsUnderageLocked(true);
-      return;
-    }
-
-    if (!currentUser || !supabase) return;
-
-    const updatedProfile = {
-      ...currentUser,
-      lat: location.lat,
-      lng: location.lng,
-      last_seen: new Date().toISOString(),
-      dob,
-      gender,
-      seeking,
-      height,
-      weight,
-      role_pref: isManSeekingMan ? rolePref : null,
-      safety_pref: isManSeekingMan ? safetyPref : null,
-      playstyle_pref: isManSeekingMan ? playstylePref : null,
-      how_many_pref: isManSeekingMan ? howManyPref : null,
-      where_pref: isManSeekingMan ? wherePref : null,
-      non_man_mode: isManSeekingMan ? null : nonManMode,
-      hide_age: false,
-      is_underage: false,
-    };
-
-    const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
-    if (error) {
-      setErrorMessage(`${t('errorSaving')} ${error.message}`);
-      return;
-    }
-
-    if (isManSeekingMan) {
-      if (rolePref) {
-        setFilterRoleEnabled(true);
-        setFilterRoleVal(rolePref);
-      }
-      if (safetyPref) {
-        setFilterSafetyEnabled(true);
-        setFilterSafetyVal(safetyPref);
-      }
-      if (playstylePref) {
-        setFilterPlaystyleEnabled(true);
-        setFilterPlaystyleVal(playstylePref);
-      }
-      if (howManyPref) {
-        setFilterHowManyEnabled(true);
-        setFilterHowManyVal(howManyPref);
-      }
-    }
-
-    setCurrentUser(updatedProfile);
-    setShowProfileSetup(false);
-    setShowProfileEditModal(false);
-    await fetchUsersData(location.lat, location.lng, currentUser.id);
-  };
-
-  const handleOpenProfileEdit = async () => {
-    if (!currentUser || !supabase) return;
-
-    if (isAdmin) {
-      setShowProfileEditModal(true);
-      return;
-    }
-
-    const confirmed = window.confirm(t('unlockPreferencePrompt'));
-    if (!confirmed) return;
-
-    if (window.Telegram?.WebApp?.openInvoice) {
-      window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-        if (status === 'paid') {
-          setShowProfileEditModal(true);
-        } else {
-          alert(t('paymentCancelled'));
-        }
-      });
-      return;
-    } else {
-      setShowProfileEditModal(true);
-    }
-  };
-
-  const handleToggleGrid = async () => {
-    if (!currentUser || !supabase) return;
-    
-    let nextVal = !gridVisible;
-    let newInvisibleExpiry = invisibleExpiry;
-
-    if (!nextVal && !isAdmin) {
-      const now = new Date();
-      const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();
-      
-      if (isExpired) {
-        const confirmed = window.confirm(t('invisiblePrompt'));
-        if (!confirmed) return;
-
-        if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-            if (status === 'paid') {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              newInvisibleExpiry = expiryDate.toISOString();
-              setInvisibleExpiry(newInvisibleExpiry);
-              
-              setGridVisible(false);
-              const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
-              setCurrentUser(updated);
-              await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-              setView('grid');
-              await handleRefresh();
-            } else {
-              alert(t('paymentCancelled'));
-            }
-          });
-          return;
-        } else {
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30);
-          newInvisibleExpiry = expiryDate.toISOString();
-          setInvisibleExpiry(newInvisibleExpiry);
-        }
-      }
-    }
-
-    setGridVisible(nextVal);
-    const updated = { ...currentUser, grid_visible: nextVal, invisible_expiry: newInvisibleExpiry };
-    setCurrentUser(updated);
-    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-    setView('grid');
-    await handleRefresh();
-  };
-
-  const handleToggleMap = async () => {
-    if (!currentUser || !supabase) return;
-    const nextVal = !mapVisible;
-    setMapVisible(nextVal);
-    const updated = { ...currentUser, map_visible: nextVal };
-    setCurrentUser(updated);
-    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-    
-    if (nextVal) {
-      setView('map');
-    } else {
-      setView('grid');
-    }
-    
-    if (currentUser.lat && currentUser.lng) {
-      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
-    }
-  };
-
-  const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
-    if (!currentUser || !supabase) return;
-    const updated = { ...currentUser, ...fields };
-    setCurrentUser(updated);
-    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-  };
-
-    const handleHideAgeToggle = async () => {
-    if (!currentUser || !supabase) return;
-
-    let nextHide = !hideAge;
-    let newExpiry = hideAgeExpiry;
-
-    if (nextHide && !isAdmin) {
-      const now = new Date();
-      const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
-
-      if (isExpired) {
-        const confirmed = window.confirm(t('hideAgePrompt'));
-        if (!confirmed) return;
-
-        if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-            if (status === 'paid') {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              newExpiry = expiryDate.toISOString();
-              setHideAgeExpiry(newExpiry);
-              setHideAge(true);
-              await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
-            } else {
-              alert(t('paymentCancelled'));
-            }
-          });
-          return;
-        } else {
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30);
-          newExpiry = expiryDate.toISOString();
-          setHideAgeExpiry(newExpiry);
-        }
-      }
-    } else if (!nextHide) {
-      newExpiry = null;
-      setHideAgeExpiry(null);
-    }
-
-    setHideAge(nextHide);
-    await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
-  };
-
-  const handleCardClick = (targetUser: UserProfile) => {
-    setSelectedProfile(targetUser);
-  };
   const handleStartChat = (targetUser: UserProfile) => {
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
@@ -1166,6 +621,7 @@ export default function App() {
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
+  const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'hkmod';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -1202,17 +658,27 @@ export default function App() {
                 <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '6px 8px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', colorScheme: 'dark' }} required />
               </div>
 
-              {/* Orientation Selection */}
+              {/* Orientation Selection with equal width selectors */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-                  <span>{t('imA')}</span>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>{t('imA')}</span>
+                  <select 
+                    value={gender} 
+                    onChange={(e) => setGender(e.target.value)} 
+                    disabled={isHkModEntry}
+                    style={{ flex: 1, minWidth: 0, padding: '6px 4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}
+                  >
                     <option value="man">{t('man')}</option>
                     <option value="woman">{t('woman')}</option>
                     <option value="non-binary">{t('nonBinary')}</option>
                   </select>
-                  <span>{t('seeking')}</span>
-                  <select value={seeking} onChange={(e) => setSeeking(e.target.value)} style={{ padding: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>{t('seeking')}</span>
+                  <select 
+                    value={seeking} 
+                    onChange={(e) => setSeeking(e.target.value)} 
+                    disabled={isHkModEntry}
+                    style={{ flex: 1, minWidth: 0, padding: '6px 4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}
+                  >
                     <option value="men">{t('men')}</option>
                     <option value="women">{t('women')}</option>
                     <option value="everyone">{t('everyone')}</option>
@@ -1398,12 +864,4 @@ export default function App() {
               
               <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
                 {activeProfile.avatar ? (
-                  <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
-                )}
-              </div>
-
-              <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
-
-              <div style={{ display: 'flex', flexWra 6th
+                  <img src={activeProfile.
