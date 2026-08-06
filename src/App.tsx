@@ -1124,3 +1124,336 @@ export default function App() {
   const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
+
+  const handleStartChat = (targetUser: UserProfile) => {
+    if (targetUser.username) {
+      const chatUrl = `https://t.me/${targetUser.username}`;
+      if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(chatUrl);
+      } else {
+        window.open(chatUrl, '_blank');
+      }
+    } else if (targetUser.id.startsWith('tg_')) {
+      const rawTgId = targetUser.id.replace('tg_', '');
+      const profileUrl = `https://t.me/user?id=${rawTgId}`;
+      if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(profileUrl);
+      } else {
+        window.open(profileUrl, '_blank');
+      }
+    } else {
+      alert(`Selected user: ${targetUser.name}`);
+    }
+    setSelectedProfile(null);
+  };
+
+  const checkFilterPass = (user: UserProfile) => {
+    if (currentUser && user.id === currentUser.id) return true;
+
+    if (filterAgeEnabled) {
+      const uAge = calculateAge(user.dob);
+      if (uAge !== null) {
+        if (uAge < filterAgeMin || uAge > filterAgeMax) return false;
+      }
+    }
+
+    const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';
+    if (userIsManSeekingMan) {
+      if (filterRoleEnabled && filterRoleVal) {
+        if (user.role_pref !== filterRoleVal) return false;
+      }
+      if (filterSafetyEnabled && filterSafetyVal) {
+        if (user.safety_pref !== filterSafetyVal) return false;
+      }
+      if (filterPlaystyleEnabled && filterPlaystyleVal) {
+        if (user.playstyle_pref !== filterPlaystyleVal) return false;
+      }
+      if (filterHowManyEnabled && filterHowManyVal) {
+        if (user.how_many_pref !== filterHowManyVal) return false;
+      }
+    }
+
+    return true;
+  };
+
+  if (!isReady) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}>
+        <p>{t('loading')}</p>
+      </div>
+    );
+  }
+
+  if (isLocationDenied) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('locationRequired')}</h2>
+        <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
+          {t('locationMessage')}
+        </p>
+      </div>
+    );
+  }
+
+  if (isUnderageLocked) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}>
+        <h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('accessDenied')}</h2>
+        <p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
+          {t('underageMessage')}
+        </p>
+      </div>
+    );
+  }
+
+  const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
+  const activeProfile = selectedProfile;
+
+  const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
+  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
+  const isManSeekingManInput = gender === 'man' && seeking === 'men';
+  const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
+  const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'hkmod';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
+      
+      {/* INITIAL SETUP FULLSCREEN OVERLAY (FITS ENTIRE SCREEN WITHOUT SCROLLING) */}
+      {(showProfileSetup || showProfileEditModal) && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '12px', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
+            
+            {showProfileEditModal && (
+              <button 
+                onClick={() => setShowProfileEditModal(false)}
+                style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'transparent', border: 'none', color: '#aaa', fontSize: '18px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            )}
+
+            <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{t('completeProfile')}</h2>
+            <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>
+              {t('profileWarning')}
+            </p>
+
+            {errorMessage && (
+              <div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '6px', borderRadius: '4px', fontSize: '11px', textAlign: 'center' }}>
+                {errorMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('dob')}</label>
+                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '6px 8px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', colorScheme: 'dark' }} required />
+              </div>
+
+              {/* Orientation Selection with equal width selectors */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>{t('imA')}</span>
+                  <select 
+                    value={gender} 
+                    onChange={(e) => setGender(e.target.value)} 
+                    disabled={isHkModEntry}
+                    style={{ flex: 1, minWidth: 0, padding: '6px 4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}
+                  >
+                    <option value="man">{t('man')}</option>
+                    <option value="woman">{t('woman')}</option>
+                    <option value="non-binary">{t('nonBinary')}</option>
+                  </select>
+                  <span style={{ whiteSpace: 'nowrap' }}>{t('seeking')}</span>
+                  <select 
+                    value={seeking} 
+                    onChange={(e) => setSeeking(e.target.value)} 
+                    disabled={isHkModEntry}
+                    style={{ flex: 1, minWidth: 0, padding: '6px 4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}
+                  >
+                    <option value="men">{t('men')}</option>
+                    <option value="women">{t('women')}</option>
+                    <option value="everyone">{t('everyone')}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Height and weight above dividing line */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('height')}</label>
+                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
+                    <option value="" disabled>{t('selectHeight')}</option>
+                    {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
+                  </select>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('weight')}</label>
+                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
+                    <option value="" disabled>{t('selectWeight')}</option>
+                    {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              {/* DIVIDING LINE */}
+              <div style={{ width: '100%', borderTop: '1px solid #444', margin: '4px 0' }} />
+
+              {/* Only visible if user chose man seeking men */}
+              {isManSeekingManInput ? (
+                <>
+                  <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>
+                    {t('tapToChange')}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                    <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {rolePref}
+                    </button>
+                    <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {safetyPref}
+                    </button>
+                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Party', 'Party✓']))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {playstylePref === 'Clean' ? 'Party' : playstylePref}
+                    </button>
+                    <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {howManyPref}
+                    </button>
+                    <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>
+                      {wherePref}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Non-man seeking man mode selection below dividing line with smaller font */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>{t('mode')}</label>
+                  <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '10px' }} required>
+                    <option value="Browsing only - You cannot send not receive private message from others">{t('browsingOnly')}</option>
+                    <option value="Online only - You are visible on grid but not on map, map is inaccessible">{t('onlineOnly')}</option>
+                    <option value="Meet up - You are visible on grid and map">{t('meetUp')}</option>
+                  </select>
+                </div>
+              )}
+
+              <button type="submit" style={{ marginTop: '4px', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {t('saveProfile')}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{t('whosNearby')} ({gridFilteredUsers.length})</h1>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button 
+            onClick={handleOpenProfileEdit} 
+            style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title={t('unlockPreference')}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+          </button>
+
+          <button onClick={handleRefresh} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={t('refresh')}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN VIEW */}
+      <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        
+        <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
+            {gridFilteredUsers.map((user, index) => {
+              const isSelf = currentUser && user.id === currentUser.id;
+              const passesFilter = checkFilterPass(user);
+              const opacity = passesFilter ? 1 : 0.3;
+              const filterStyle = passesFilter ? 'none' : 'grayscale(100%)';
+              const bigDistanceText = formatDistanceBigUnit(user.distance);
+
+              return (
+                <div 
+                  key={user.id || index} 
+                  onClick={() => handleCardClick(user)}
+                  style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity, filter: filterStyle }}
+                >
+                  {user.avatar ? (
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>
+                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
+                    {isSelf ? 'You' : bigDistanceText}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
+          <MapContainer 
+            center={[location.lat, location.lng]} 
+            zoom={15} 
+            style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}
+            zoomControl={false}
+          >
+            <MapController center={[location.lat, location.lng]} />
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            />
+            {mapFilteredUsers.map((user) => {
+              const isSelf = currentUser && user.id === currentUser.id;
+              const passesFilter = checkFilterPass(user);
+              const isEnabled = isSelf ? (mapVisible && gridVisible) : passesFilter;
+              return (
+                <Marker 
+                  key={user.id} 
+                  position={[user.lat || location.lat, user.lng || location.lng]} 
+                  icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
+                  eventHandlers={{
+                    click: () => handleCardClick(user),
+                  }}
+                />
+              );
+            })}
+          </MapContainer>
+        </div>
+
+      </main>
+
+      {/* PROFILE MODAL (SELF OR OTHER) */}
+      {activeProfile && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
+          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            
+            <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
+
+            <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              
+              <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                {activeProfile.avatar ? (
+                  <img src={activeProfile.
