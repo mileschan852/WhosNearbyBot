@@ -32,7 +32,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-// Localization Dictionary
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
 
 const translations: Record<LangKey, Record<string, string>> = {
@@ -512,14 +511,12 @@ export default function App() {
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
 
-  // Form input states (Default to seeking women for normal users)
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('women');
   const [height, setHeight] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
   
-  // 5 Preferences Tags
   const [rolePref, setRolePref] = useState<string>('Versatile');
   const [safetyPref, setSafetyPref] = useState<string>('Safe');
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');
@@ -536,7 +533,6 @@ export default function App() {
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
-  // Filter States
   const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
   const [filterAgeMin, setFilterAgeMin] = useState<number>(0);
   const [filterAgeMax, setFilterAgeMax] = useState<number>(99);
@@ -637,7 +633,6 @@ export default function App() {
           startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || startParam;
         }
 
-        // Language detection
         const tgLangCode = (tgUser?.language_code || navigator.language || 'en').toLowerCase();
         if (tgLangCode.startsWith('zh')) {
           if (tgLangCode.includes('tw') || tgLangCode.includes('hk') || tgLangCode.includes('hant')) {
@@ -655,7 +650,6 @@ export default function App() {
           setLang('en');
         }
 
-        const username = tgUser?.username || '';
         setIsAdmin(false);
 
         const savedUserId = localStorage.getItem('whos_nearby_user_id');
@@ -695,7 +689,7 @@ export default function App() {
         });
 
         if (!hasLocation) {
-          setLocation({ lat: 22.3193, lng: 114.1694 }); // Fallback default coordinates to prevent blocking
+          setLocation({ lat: 22.3193, lng: 114.1694 });
         }
 
         let existingProfile: any = null;
@@ -712,15 +706,12 @@ export default function App() {
           return;
         }
 
-        let initialGender = 'man';
-        let initialSeeking = 'women';
+        let initialGender = existingProfile?.gender || 'man';
+        let initialSeeking = existingProfile?.seeking || 'women';
 
         if (startParam === 'hkmod') {
           initialGender = 'man';
           initialSeeking = 'men';
-        } else if (existingProfile) {
-          if (existingProfile.gender) initialGender = existingProfile.gender;
-          if (existingProfile.seeking) initialSeeking = existingProfile.seeking;
         }
 
         setGender(initialGender);
@@ -1035,49 +1026,7 @@ export default function App() {
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
   };
 
-  const handleHideAgeToggle = async () => {
-    
-  const handleHideAgeToggle = async () => {
-    if (!currentUser || !supabase) return;
-
-    let nextHide = !hideAge;
-    let newExpiry = hideAgeExpiry;
-
-    if (nextHide && !isAdmin) {
-      const now = new Date();
-      const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
-
-      if (isExpired) {
-        const confirmed = window.confirm(t('hideAgePrompt'));
-        if (!confirmed) return;
-
-        if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-            if (status === 'paid') {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              newExpiry = expiryDate.toISOString();
-              setHideAgeExpiry(newExpiry);
-              setHideAge(true);
-              await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
-            } else {
-              alert(t('paymentCancelled'));
-            }
-          });
-          return;
-        } else {
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30);
-          newExpiry = expiryDate.toISOString();
-          setHideAgeExpiry(newExpiry);
-        }
-      }
-    } else if (!nextHide) {
-      newExpiry = null;
-      setHideAgeExpiry(null);
-    }
-
-  const handleHideAgeToggle = async () => {
+   const handleHideAgeToggle = async () => {
     if (!currentUser || !supabase) return;
 
     let nextHide = !hideAge;
@@ -1124,7 +1073,6 @@ export default function App() {
   const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
-
   const handleStartChat = (targetUser: UserProfile) => {
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
@@ -1218,7 +1166,6 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
-      {/* INITIAL SETUP FULLSCREEN OVERLAY (FITS ENTIRE SCREEN WITHOUT SCROLLING) */}
       {(showProfileSetup || showProfileEditModal) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '12px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
@@ -1250,7 +1197,6 @@ export default function App() {
                 <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '6px 8px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', colorScheme: 'dark' }} required />
               </div>
 
-              {/* Orientation Selection with equal width selectors */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%' }}>
                   <span style={{ whiteSpace: 'nowrap' }}>{t('imA')}</span>
@@ -1278,7 +1224,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Height and weight above dividing line */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('height')}</label>
@@ -1296,10 +1241,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* DIVIDING LINE */}
               <div style={{ width: '100%', borderTop: '1px solid #444', margin: '4px 0' }} />
 
-              {/* Only visible if user chose man seeking men */}
               {isManSeekingManInput ? (
                 <>
                   <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>
@@ -1325,7 +1268,6 @@ export default function App() {
                   </div>
                 </>
               ) : (
-                /* Non-man seeking man mode selection below dividing line with smaller font */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>{t('mode')}</label>
                   <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '10px' }} required>
@@ -1344,7 +1286,6 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1374,7 +1315,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* MAIN VIEW */}
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
@@ -1445,8 +1385,7 @@ export default function App() {
 
       </main>
 
-      {/* PROFILE MODAL (SELF OR OTHER) */}
-      {activeProfile && (
+       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
@@ -1456,4 +1395,167 @@ export default function App() {
               
               <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
                 {activeProfile.avatar ? (
-                  <img src={activeProfile.
+                  <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{activeProfile.name ? activeProfile.name.charAt(0).toUpperCase() : 'U'}</span>
+                )}
+              </div>
+
+              <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
+                {!activeProfile.hide_age && calculateAge(activeProfile.dob) && <span>{calculateAge(activeProfile.dob)}yo</span>}
+                {getZodiacSignEmoji(activeProfile.dob)}
+                <span>•</span>
+                <span>{activeProfile.height}</span>
+                <span>•</span>
+                <span>{activeProfile.weight}</span>
+                <span>•</span>
+                <span>{isViewingSelf ? 'You' : `${formatDistanceBigUnit(activeProfile.distance)} away`}</span>
+                <span>•</span>
+                <span style={{ color: '#4ade80' }}>{formatLastSeenBigUnit(activeProfile.last_seen)}</span>
+              </div>
+
+              {isViewingSelf && (
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleHideAgeToggle}
+                    style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    {hideAge ? t('ageHidden') : t('ageShown')}
+                  </button>
+                  {hideAgeExpiry && (
+                    <span style={{ fontSize: '10px', color: '#888' }}>
+                      {t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
+
+              {targetIsManSeekingMan && (
+                <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.role_pref || 'Versatile'}
+                  </div>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.safety_pref || 'Safe'}
+                  </div>
+
+                  {isViewingSelf ? (
+                    <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const nextPlaystyle = playstylePref === 'Party✓' ? 'Party' : 'Party✓';
+                          setPlaystylePref(nextPlaystyle);
+                          const updated = { ...activeProfile, playstyle_pref: nextPlaystyle };
+                          setSelectedProfile(updated);
+                          await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });
+
+                          if (nextPlaystyle === 'Party✓') {
+                            setShowStuffBubble(true);
+                            setTimeout(() => {
+                              setShowStuffBubble(false);
+                            }, 3000);
+                          }
+                        }}
+                        style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                      >
+                        {playstylePref === 'Clean' ? 'Party' : playstylePref}
+                      </button>
+
+                      {showStuffBubble && (
+                        <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#ffffff', color: '#000000', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 20 }}>
+                          {t('iGotStuff')}
+                          <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', borderWidth: '4px', borderStyle: 'solid', borderColor: '#ffffff transparent transparent transparent' }} />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile.playstyle_pref || 'Clean'}
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>
+                    {activeProfile.how_many_pref || '1on1'}
+                  </div>
+                  
+                  {isViewingSelf ? (
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';
+                        setWherePref(nextWhere);
+                        const updated = { ...activeProfile, where_pref: nextWhere };
+                        setSelectedProfile(updated);
+                        await handleUpdateSelfField({ where_pref: nextWhere });
+                      }}
+                      style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      {wherePref}
+                    </button>
+                  ) : (
+                    <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                      {activeProfile.where_pref || 'Host'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isViewingSelf && (
+                <button 
+                  type="button" 
+                  onClick={() => handleStartChat(activeProfile)}
+                  style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  {t('sendMessage')}
+                </button>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
+        
+        <button 
+          onClick={handleToggleGrid}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('grid')}</span>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
+        </button>
+        
+        <button 
+          onClick={handleToggleMap}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <line x1="15" y1="3" x2="15" y2="21"></line>
+          </svg>
+          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('map')}</span>
+          <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
+        </button>
+
+      </footer>
+    </div>
+  );
+}
