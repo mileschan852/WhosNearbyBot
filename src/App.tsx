@@ -375,8 +375,6 @@ interface UserProfile {
   distance?: number;
   hide_age_expiry?: string | null;
   invisible_expiry?: string | null;
-  filter_sub_expiry?: string | null;
-  preference_unlocked?: boolean;
 }
 
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -528,30 +526,27 @@ export default function App() {
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
-  const [filterSubExpiry, setFilterSubExpiry] = useState<string | null>(null);
-  const [preferenceUnlocked, setPreferenceUnlocked] = useState<boolean>(false);
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
-  const [filterAgeEnabled, setFilterAgeEnabled] = useState<boolean>(false);
-  const [filterAgeMin, setFilterAgeMin] = useState<number>(0);
-  const [filterAgeMax, setFilterAgeMax] = useState<number>(99);
+  const filterAgeEnabled = false;
+  const filterAgeMin = 0;
+  const filterAgeMax = 99;
 
-  const [filterRoleEnabled, setFilterRoleEnabled] = useState<boolean>(true);
-  const [filterRoleVal, setFilterRoleVal] = useState<string>('Bottom');
+  const [filterRoleEnabled] = useState<boolean>(true);
+  const [filterRoleVal] = useState<string>('Bottom');
 
-  const [filterSafetyEnabled, setFilterSafetyEnabled] = useState<boolean>(true);
-  const [filterSafetyVal, setFilterSafetyVal] = useState<string>('Safe');
+  const [filterSafetyEnabled] = useState<boolean>(true);
+  const [filterSafetyVal] = useState<string>('Safe');
 
-  const [filterPlaystyleEnabled, setFilterPlaystyleEnabled] = useState<boolean>(true);
-  const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string>('Clean');
+  const [filterPlaystyleEnabled] = useState<boolean>(true);
+  const [filterPlaystyleVal] = useState<string>('Clean');
 
-  const [filterHowManyEnabled, setFilterHowManyEnabled] = useState<boolean>(true);
-  const [filterHowManyVal, setFilterHowManyVal] = useState<string>('1on1');
+  const [filterHowManyEnabled] = useState<boolean>(true);
+  const [filterHowManyVal] = useState<string>('1on1');
 
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
   const safetyCycleOptions = ['Safe', 'Raw'];
-  const playstyleCycleOptions = ['Clean', 'Party', 'Party✓'];
   const howManyCycleOptions = ['1on1', 'Group'];
   const whereCycleOptions = ['Host', 'Travel'];
 
@@ -607,8 +602,6 @@ export default function App() {
         distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
         hide_age_expiry: u.hide_age_expiry || null,
         invisible_expiry: u.invisible_expiry || null,
-        filter_sub_expiry: u.filter_sub_expiry || null,
-        preference_unlocked: u.preference_unlocked || false,
       })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
         .sort((a, b) => (a.distance || 0) - (b.distance || 0));
       
@@ -706,8 +699,8 @@ export default function App() {
           return;
         }
 
-        let initialGender = existingProfile?.gender || 'man';
-        let initialSeeking = existingProfile?.seeking || 'women';
+        let initialGender = 'man';
+        let initialSeeking = 'women';
 
         if (startParam === 'hkmod') {
           initialGender = 'man';
@@ -741,17 +734,8 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
-          if (existingProfile.filter_sub_expiry) setFilterSubExpiry(existingProfile.filter_sub_expiry);
-          if (typeof existingProfile.preference_unlocked === 'boolean') setPreferenceUnlocked(existingProfile.preference_unlocked);
           if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
-
-          if (isManSeekingMan) {
-            if (existingProfile.role_pref) setFilterRoleVal(existingProfile.role_pref);
-            if (existingProfile.safety_pref) setFilterSafetyVal(existingProfile.safety_pref);
-            if (existingProfile.playstyle_pref) setFilterPlaystyleVal(existingProfile.playstyle_pref);
-            if (existingProfile.how_many_pref) setFilterHowManyVal(existingProfile.how_many_pref);
-          }
         }
 
         const currentLoc = location;
@@ -782,8 +766,6 @@ export default function App() {
             map_visible: false,
             hide_age_expiry: null,
             invisible_expiry: null,
-            filter_sub_expiry: null,
-            preference_unlocked: false,
           };
           setCurrentUser(blankProfile);
         } else {
@@ -812,8 +794,6 @@ export default function App() {
             map_visible: existingProfile.map_visible ?? false,
             hide_age_expiry: existingProfile.hide_age_expiry || null,
             invisible_expiry: existingProfile.invisible_expiry || null,
-            filter_sub_expiry: existingProfile.filter_sub_expiry || null,
-            preference_unlocked: existingProfile.preference_unlocked || false,
           };
           setCurrentUser(myProfile);
           if (supabase) {
@@ -898,25 +878,6 @@ export default function App() {
     if (error) {
       setErrorMessage(`${t('errorSaving')} ${error.message}`);
       return;
-    }
-
-    if (isManSeekingMan) {
-      if (rolePref) {
-        setFilterRoleEnabled(true);
-        setFilterRoleVal(rolePref);
-      }
-      if (safetyPref) {
-        setFilterSafetyEnabled(true);
-        setFilterSafetyVal(safetyPref);
-      }
-      if (playstylePref) {
-        setFilterPlaystyleEnabled(true);
-        setFilterPlaystyleVal(playstylePref);
-      }
-      if (howManyPref) {
-        setFilterHowManyEnabled(true);
-        setFilterHowManyVal(howManyPref);
-      }
     }
 
     setCurrentUser(updatedProfile);
@@ -1026,7 +987,7 @@ export default function App() {
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
   };
 
-   const handleHideAgeToggle = async () => {
+  const handleHideAgeToggle = async () => {
     if (!currentUser || !supabase) return;
 
     let nextHide = !hideAge;
@@ -1385,7 +1346,7 @@ export default function App() {
 
       </main>
 
-       {activeProfile && (
+      {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             
