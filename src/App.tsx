@@ -489,7 +489,6 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
     iconAnchor: [18, 18],
   });
 };
-
 export default function App() {
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
@@ -526,6 +525,7 @@ export default function App() {
   const [hideAge, setHideAge] = useState<boolean>(false);
   const [hideAgeExpiry, setHideAgeExpiry] = useState<string | null>(null);
   const [invisibleExpiry, setInvisibleExpiry] = useState<string | null>(null);
+
   const [gridVisible, setGridVisible] = useState<boolean>(true);
   const [mapVisible, setMapVisible] = useState<boolean>(false);
 
@@ -571,6 +571,11 @@ export default function App() {
     const lbs = Math.round(kg * 2.20462);
     weightOptions.push(`${kg}kg (${lbs}lbs)`);
   }
+
+  const getActiveBotKey = () => {
+    const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || '';
+    return startParam === 'hkmod' ? 'botA' : 'botB';
+  };
 
   const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
     if (!supabase) return;
@@ -897,18 +902,35 @@ export default function App() {
     const confirmed = window.confirm(t('unlockPreferencePrompt'));
     if (!confirmed) return;
 
-    if (window.Telegram?.WebApp?.openInvoice) {
-      window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-        if (status === 'paid') {
-          setShowProfileEditModal(true);
-        } else {
-          alert(t('paymentCancelled'));
-        }
+    const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';
+
+    try {
+      const res = await fetch(`${workerUrl}/create-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: currentUser.id, 
+          type: 'change_preference', 
+          bot: getActiveBotKey() 
+        }),
       });
-      return;
-    } else {
-      setShowProfileEditModal(true);
+      const data = await res.json() as { invoiceLink?: string; error?: string };
+
+      if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
+        window.Telegram.WebApp.openInvoice(data.invoiceLink, async (status) => {
+          if (status === 'paid') {
+            setShowProfileEditModal(true);
+          } else {
+            alert(t('paymentCancelled'));
+          }
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('Invoice generation error:', err);
     }
+
+    setShowProfileEditModal(true);
   };
 
   const handleToggleGrid = async () => {
@@ -925,30 +947,42 @@ export default function App() {
         const confirmed = window.confirm(t('invisiblePrompt'));
         if (!confirmed) return;
 
-        if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-            if (status === 'paid') {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              newInvisibleExpiry = expiryDate.toISOString();
-              setInvisibleExpiry(newInvisibleExpiry);
-              
-              setGridVisible(false);
-              const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
-              setCurrentUser(updated);
-              await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-              setView('grid');
-              await handleRefresh();
-            } else {
-              alert(t('paymentCancelled'));
-            }
+        const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';
+
+        try {
+          const res = await fetch(`${workerUrl}/create-invoice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              userId: currentUser.id, 
+              type: 'invisible', 
+              bot: getActiveBotKey() 
+            }),
           });
-          return;
-        } else {
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30);
-          newInvisibleExpiry = expiryDate.toISOString();
-          setInvisibleExpiry(newInvisibleExpiry);
+          const data = await res.json() as { invoiceLink?: string };
+
+          if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
+            window.Telegram.WebApp.openInvoice(data.invoiceLink, async (status) => {
+              if (status === 'paid') {
+                const expiryDate = new Date();
+                expiryDate.setDate(expiryDate.getDate() + 30);
+                newInvisibleExpiry = expiryDate.toISOString();
+                setInvisibleExpiry(newInvisibleExpiry);
+                
+                setGridVisible(false);
+                const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
+                setCurrentUser(updated);
+                await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+                setView('grid');
+                await handleRefresh();
+              } else {
+                alert(t('paymentCancelled'));
+              }
+            });
+            return;
+          }
+        } catch (err) {
+          console.error('Invisible invoice error:', err);
         }
       }
     }
@@ -1001,25 +1035,37 @@ export default function App() {
         const confirmed = window.confirm(t('hideAgePrompt'));
         if (!confirmed) return;
 
-        if (window.Telegram?.WebApp?.openInvoice) {
-          window.Telegram.WebApp.openInvoice("https://t.me/$INVOICE_LINK_PLACEHOLDER", async (status) => {
-            if (status === 'paid') {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              newExpiry = expiryDate.toISOString();
-              setHideAgeExpiry(newExpiry);
-              setHideAge(true);
-              await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
-            } else {
-              alert(t('paymentCancelled'));
-            }
+        const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';
+
+        try {
+          const res = await fetch(`${workerUrl}/create-invoice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              userId: currentUser.id, 
+              type: 'hide_age', 
+              bot: getActiveBotKey() 
+            }),
           });
-          return;
-        } else {
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30);
-          newExpiry = expiryDate.toISOString();
-          setHideAgeExpiry(newExpiry);
+          const data = await res.json() as { invoiceLink?: string };
+
+          if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
+            window.Telegram.WebApp.openInvoice(data.invoiceLink, async (status) => {
+              if (status === 'paid') {
+                const expiryDate = new Date();
+                expiryDate.setDate(expiryDate.getDate() + 30);
+                newExpiry = expiryDate.toISOString();
+                setHideAgeExpiry(newExpiry);
+                setHideAge(true);
+                await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
+              } else {
+                alert(t('paymentCancelled'));
+              }
+            });
+            return;
+          }
+        } catch (err) {
+          console.error('Hide age invoice error:', err);
         }
       }
     } else if (!nextHide) {
@@ -1030,10 +1076,10 @@ export default function App() {
     setHideAge(nextHide);
     await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
-
-  const handleCardClick = (targetUser: UserProfile) => {
+1  const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
+
   const handleStartChat = (targetUser: UserProfile) => {
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
@@ -1346,6 +1392,7 @@ export default function App() {
 
       </main>
 
+      
       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
