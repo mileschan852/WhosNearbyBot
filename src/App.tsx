@@ -717,7 +717,7 @@ export default function App() {
 
         const isManSeekingMan = initialGender === 'man' && initialSeeking === 'men';
         const isFullySetup = existingProfile && 
-          existingProfile.dob && 
+          existingProfil0e.dob && 
           existingProfile.gender && 
           existingProfile.seeking && 
           existingProfile.height && 
@@ -1076,7 +1076,7 @@ export default function App() {
     setHideAge(nextHide);
     await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
-1  const handleCardClick = (targetUser: UserProfile) => {
+  const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
 
