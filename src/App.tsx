@@ -489,6 +489,7 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
     iconAnchor: [18, 18],
   });
 };
+
 export default function App() {
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
@@ -1076,6 +1077,7 @@ export default function App() {
     setHideAge(nextHide);
     await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
+
   const handleCardClick = (targetUser: UserProfile) => {
     setSelectedProfile(targetUser);
   };
@@ -1392,7 +1394,6 @@ export default function App() {
 
       </main>
 
-      
       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
