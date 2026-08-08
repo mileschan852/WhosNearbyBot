@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
+
 import { createClient } from '@supabase/supabase-js';
 
 declare global {
@@ -1362,7 +1364,7 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
+                <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
           <MapContainer 
             center={[location.lat, location.lng]} 
             zoom={15} 
@@ -1374,23 +1376,28 @@ export default function App() {
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            {mapFilteredUsers.map((user) => {
-              const isSelf = currentUser && user.id === currentUser.id;
-              const passesFilter = checkFilterPass(user);
-              const isEnabled = isSelf ? (mapVisible && gridVisible) : passesFilter;
-              return (
-                <Marker 
-                  key={user.id} 
-                  position={[user.lat || location.lat, user.lng || location.lng]} 
-                  icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
-                  eventHandlers={{
-                    click: () => handleCardClick(user),
-                  }}
-                />
-              );
-            })}
+            
+            <MarkerClusterGroup chunkedLoading>
+              {mapFilteredUsers.map((user) => {
+                const isSelf = currentUser && user.id === currentUser.id;
+                const passesFilter = checkFilterPass(user);
+                const isEnabled = isSelf ? (mapVisible && gridVisible) : passesFilter;
+                return (
+                  <Marker 
+                    key={user.id} 
+                    position={[user.lat || location.lat, user.lng || location.lng]} 
+                    icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
+                    eventHandlers={{
+                      click: () => handleCardClick(user),
+                    }}
+                  />
+                );
+              })}
+            </MarkerClusterGroup>
+
           </MapContainer>
         </div>
+
 
       </main>
 
