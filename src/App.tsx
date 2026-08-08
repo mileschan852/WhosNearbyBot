@@ -717,7 +717,7 @@ export default function App() {
 
         const isManSeekingMan = initialGender === 'man' && initialSeeking === 'men';
         const isFullySetup = existingProfile && 
-          existingProfil0e.dob && 
+          existingProfile.dob && 
           existingProfile.gender && 
           existingProfile.seeking && 
           existingProfile.height && 
