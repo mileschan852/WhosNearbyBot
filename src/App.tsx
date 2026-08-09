@@ -1425,7 +1425,6 @@ export default function App() {
             <MarkerClusterGroup chunkedLoading>
               {mapFilteredUsers.map((user) => {
                 const isSelf = currentUser && user.id === currentUser.id;
-                const passesFilter = checkFilterPass(user);
                 const isUserVisible = user.grid_visible !== false;
                 const isEnabled = isSelf ? (mapVisible && gridVisible) : isUserVisible;
                 const isOnline = isOnlineWithin15Min(user.last_seen);
@@ -1607,7 +1606,7 @@ export default function App() {
         
         <button 
           onClick={handleToggleMap}
-          style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
