@@ -1121,6 +1121,8 @@ export default function App() {
   };
 
   const handleStartChat = (targetUser: UserProfile) => {
+    if (!checkFilterPass(targetUser)) return;
+
     if (targetUser.username) {
       const chatUrl = `https://t.me/${targetUser.username}`;
       if (window.Telegram?.WebApp?.openTelegramLink) {
@@ -1209,6 +1211,7 @@ export default function App() {
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
   const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'hkmod';
+  const passesFilterForActive = activeProfile ? checkFilterPass(activeProfile) : true;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -1370,8 +1373,8 @@ export default function App() {
               const isSelf = currentUser && user.id === currentUser.id;
               const passesFilter = checkFilterPass(user);
               const isUserVisible = user.grid_visible !== false;
-              const opacity = (passesFilter && isUserVisible) ? 1 : 0.3;
-              const filterStyle = (passesFilter && isUserVisible) ? 'none' : 'grayscale(100%)';
+              const opacity = isUserVisible ? 1 : 0.3;
+              const filterStyle = passesFilter ? 'none' : 'grayscale(100%)';
               const bigDistanceText = formatDistanceBigUnit(user.distance);
               const online15 = isOnlineWithin15Min(user.last_seen);
 
@@ -1424,7 +1427,7 @@ export default function App() {
                 const isSelf = currentUser && user.id === currentUser.id;
                 const passesFilter = checkFilterPass(user);
                 const isUserVisible = user.grid_visible !== false;
-                const isEnabled = isSelf ? (mapVisible && gridVisible) : (passesFilter && isUserVisible);
+                const isEnabled = isSelf ? (mapVisible && gridVisible) : isUserVisible;
                 const isOnline = isOnlineWithin15Min(user.last_seen);
 
                 return (
@@ -1453,7 +1456,7 @@ export default function App() {
 
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               
-              <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+              <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px', filter: passesFilterForActive ? 'none' : 'grayscale(100%)' }}>
                 {activeProfile.avatar ? (
                   <img src={activeProfile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
@@ -1566,7 +1569,7 @@ export default function App() {
                 </div>
               )}
 
-              {!isViewingSelf && (
+              {!isViewingSelf && passesFilterForActive && (
                 <button 
                   type="button" 
                   onClick={() => handleStartChat(activeProfile)}
@@ -1604,7 +1607,7 @@ export default function App() {
         
         <button 
           onClick={handleToggleMap}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
+          style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
