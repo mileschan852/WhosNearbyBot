@@ -709,8 +709,6 @@ export default function App() {
           setLocation({ lat: 22.3193, lng: 114.1694 });
         }
 
-        const currentLoc = location;
-
         let existingProfile: any = null;
         if (supabase) {
           const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
@@ -748,6 +746,7 @@ export default function App() {
           (isManSeekingMan || existingProfile.non_man_mode)
         );
 
+        let initialGridVisible = true;
         if (existingProfile) {
           if (existingProfile.dob) setDob(existingProfile.dob);
           if (existingProfile.height) setHeight(existingProfile.height);
@@ -763,10 +762,13 @@ export default function App() {
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
           if (typeof existingProfile.grid_visible === 'boolean') {
-            setGridVisible(existingProfile.grid_visible);
+            initialGridVisible = existingProfile.grid_visible;
+            setGridVisible(initialGridVisible);
           }
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
         }
+
+        const currentLoc = location;
 
         if (!isFullySetup) {
           setShowProfileSetup(true);
@@ -819,7 +821,7 @@ export default function App() {
             non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode,
             is_underage: false,
             hide_age: existingProfile.hide_age || false,
-            grid_visible: existingProfile.grid_visible ?? true,
+            grid_visible: initialGridVisible,
             map_visible: existingProfile.map_visible ?? false,
             hide_age_expiry: existingProfile.hide_age_expiry || null,
             invisible_expiry: existingProfile.invisible_expiry || null,
@@ -831,7 +833,8 @@ export default function App() {
               ...myProfile,
               lat: currentLoc.lat,
               lng: currentLoc.lng,
-              last_seen: new Date().toISOString()
+              last_seen: new Date().toISOString(),
+              grid_visible: initialGridVisible
             }], { onConflict: 'id' });
 
             await fetchUsersData(currentLoc.lat, currentLoc.lng, userId);
@@ -1595,7 +1598,7 @@ export default function App() {
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }, { color: gridVisible ? '#007bff' : '#ff4d4d' }}>{t('grid')}</span>
+          <span style={{ fontSize: '12px', marginTop: '4px', color: gridVisible ? '#007bff' : '#ff4d4d' }}>{t('grid')}</span>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
         
@@ -1609,7 +1612,7 @@ export default function App() {
             <line x1="15" y1="3" x2="15" y2="21"></line>
           </svg>
           <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('map')}</span>
-          <div style={{ position: 'absolute', bottom: '0', left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
 
       </footer>
