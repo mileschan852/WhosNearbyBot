@@ -596,7 +596,7 @@ export default function App() {
     return startParam === 'hkmod' ? 'botA' : 'botB';
   };
 
-  const fetchUsersData = async (lat: number, lng: number) => {
+  const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
     if (!supabase) return;
     const { data, error } = await supabase.from('profiles').select('*');
     if (!error && data && Array.isArray(data)) {
@@ -626,7 +626,11 @@ export default function App() {
         distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
         hide_age_expiry: u.hide_age_expiry || null,
         invisible_expiry: u.invisible_expiry || null,
-      })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      })).sort((a, b) => {
+        if (a.id === currentUserId) return -1;
+        if (b.id === currentUserId) return 1;
+        return (a.distance || 0) - (b.distance || 0);
+      });
       
       setUsers(processed);
     }
@@ -705,6 +709,8 @@ export default function App() {
           setLocation({ lat: 22.3193, lng: 114.1694 });
         }
 
+        const currentLoc = location;
+
         let existingProfile: any = null;
         if (supabase) {
           const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
@@ -756,11 +762,12 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
-          if (typeof existingProfile.grid_visible === 'boolean') setGridVisible(existingProfile.grid_visible);
+          if (typeof existingProfile.grid_visible === 'boolean') {
+            setGridVisible(existingProfile.grid_visible);
+          }
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
         }
 
-        const currentLoc = location;
         if (!isFullySetup) {
           setShowProfileSetup(true);
           const blankProfile: UserProfile = {
@@ -818,8 +825,16 @@ export default function App() {
             invisible_expiry: existingProfile.invisible_expiry || null,
           };
           setCurrentUser(myProfile);
+
           if (supabase) {
-            await fetchUsersData(currentLoc.lat, currentLoc.lng);
+            await supabase.from('profiles').upsert([{
+              ...myProfile,
+              lat: currentLoc.lat,
+              lng: currentLoc.lng,
+              last_seen: new Date().toISOString()
+            }], { onConflict: 'id' });
+
+            await fetchUsersData(currentLoc.lat, currentLoc.lng, userId);
           }
         }
       } catch (err) {
@@ -843,7 +858,7 @@ export default function App() {
     }
 
     localStorage.setItem(lastRefreshKey, now.toString());
-    await fetchUsersData(currentUser.lat, currentUser.lng);
+    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
   };
 
   const handleSaveInitialProfile = async (e: React.FormEvent) => {
@@ -905,7 +920,7 @@ export default function App() {
     setCurrentUser(updatedProfile);
     setShowProfileSetup(false);
     setShowProfileEditModal(false);
-    await fetchUsersData(location.lat, location.lng);
+    await fetchUsersData(location.lat, location.lng, currentUser.id);
   };
 
   const handleOpenProfileEdit = async () => {
@@ -991,7 +1006,9 @@ export default function App() {
                 setCurrentUser(updated);
                 await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
                 setView('grid');
-                await handleRefresh();
+                if (currentUser.lat && currentUser.lng) {
+                  await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+                }
               } else {
                 alert(t('paymentCancelled'));
               }
@@ -1009,7 +1026,9 @@ export default function App() {
     setCurrentUser(updated);
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
     setView('grid');
-    await handleRefresh();
+    if (currentUser.lat && currentUser.lng) {
+      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+    }
   };
 
   const handleToggleMap = async () => {
@@ -1027,7 +1046,7 @@ export default function App() {
     }
     
     if (currentUser.lat && currentUser.lng) {
-      await fetchUsersData(currentUser.lat, currentUser.lng);
+      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
     }
   };
 
@@ -1576,7 +1595,7 @@ export default function App() {
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('grid')}</span>
+          <span style={{ fontSize: '12px', marginTop: '4px' }, { color: gridVisible ? '#007bff' : '#ff4d4d' }}>{t('grid')}</span>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '50%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
         
@@ -1590,7 +1609,7 @@ export default function App() {
             <line x1="15" y1="3" x2="15" y2="21"></line>
           </svg>
           <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('map')}</span>
-          <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
+          <div style={{ position: 'absolute', bottom: '0', left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
         </button>
 
       </footer>
