@@ -596,7 +596,7 @@ export default function App() {
     return startParam === 'hkmod' ? 'botA' : 'botB';
   };
 
-  const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {
+  const fetchUsersData = async (lat: number, lng: number) => {
     if (!supabase) return;
     const { data, error } = await supabase.from('profiles').select('*');
     if (!error && data && Array.isArray(data)) {
@@ -668,11 +668,8 @@ export default function App() {
 
         setIsAdmin(false);
 
-        const savedUserId = localStorage.getItem('whos_nearby_user_id');
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : (savedUserId || 'user_' + Math.random().toString(36).substring(2, 9));
-        if (!tgUser?.id && !savedUserId) {
-          localStorage.setItem('whos_nearby_user_id', userId);
-        }
+        const userId = tgUser?.id ? `tg_${tgUser.id}` : ('user_' + Math.random().toString(36).substring(2, 9));
+        localStorage.setItem('whos_nearby_user_id', userId);
 
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
         const userUsername = tgUser?.username || '';
@@ -722,10 +719,10 @@ export default function App() {
           return;
         }
 
-        let initialGender = 'man';
-        let initialSeeking = 'women';
+        let initialGender = existingProfile?.gender || 'man';
+        let initialSeeking = existingProfile?.seeking || 'women';
 
-        if (startParam === 'hkmod') {
+        if (!existingProfile && startParam === 'hkmod') {
           initialGender = 'man';
           initialSeeking = 'men';
         }
@@ -734,14 +731,16 @@ export default function App() {
         setSeeking(initialSeeking);
 
         const isManSeekingMan = initialGender === 'man' && initialSeeking === 'men';
-        const isFullySetup = existingProfile && 
+        const isFullySetup = Boolean(
+          existingProfile && 
           existingProfile.dob && 
           existingProfile.gender && 
           existingProfile.seeking && 
           existingProfile.height && 
           existingProfile.weight && 
           (!isManSeekingMan || (existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref)) &&
-          (isManSeekingMan || existingProfile.non_man_mode);
+          (isManSeekingMan || existingProfile.non_man_mode)
+        );
 
         if (existingProfile) {
           if (existingProfile.dob) setDob(existingProfile.dob);
@@ -820,7 +819,7 @@ export default function App() {
           };
           setCurrentUser(myProfile);
           if (supabase) {
-            await fetchUsersData(currentLoc.lat, currentLoc.lng, userId);
+            await fetchUsersData(currentLoc.lat, currentLoc.lng);
           }
         }
       } catch (err) {
@@ -844,7 +843,7 @@ export default function App() {
     }
 
     localStorage.setItem(lastRefreshKey, now.toString());
-    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+    await fetchUsersData(currentUser.lat, currentUser.lng);
   };
 
   const handleSaveInitialProfile = async (e: React.FormEvent) => {
@@ -906,7 +905,7 @@ export default function App() {
     setCurrentUser(updatedProfile);
     setShowProfileSetup(false);
     setShowProfileEditModal(false);
-    await fetchUsersData(location.lat, location.lng, currentUser.id);
+    await fetchUsersData(location.lat, location.lng);
   };
 
   const handleOpenProfileEdit = async () => {
@@ -1028,7 +1027,7 @@ export default function App() {
     }
     
     if (currentUser.lat && currentUser.lng) {
-      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);
+      await fetchUsersData(currentUser.lat, currentUser.lng);
     }
   };
 
