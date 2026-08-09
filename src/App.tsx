@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import L from 'leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
-
+import L from 'leaflet';
 import { createClient } from '@supabase/supabase-js';
 
 declare global {
@@ -460,6 +459,19 @@ const formatLastSeenBigUnit = (isoString?: string | null) => {
   }
 };
 
+const isOnlineWithin15Min = (isoString?: string | null) => {
+  if (!isoString) return false;
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = diffMs / 60000;
+    return diffMins <= 15 && diffMins >= 0;
+  } catch {
+    return false;
+  }
+};
+
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -471,7 +483,7 @@ function MapController({ center }: { center: [number, number] }) {
   return null;
 }
 
-const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolean) => {
+const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolean, isOnline: boolean) => {
   let innerHtml = '';
   if (user.avatar) {
     innerHtml = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;" />`;
@@ -484,9 +496,13 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
   const filter = isEnabled ? 'none' : 'grayscale(100%)';
   const borderColor = isSelf ? '#00ffff' : (isEnabled ? '#007bff' : '#555');
 
+  const greenDotHtml = isOnline 
+    ? `<div style="position: absolute; top: 0; right: 0; width: 10px; height: 10px; background-color: #4ade80; border-radius: 50%; border: 2px solid #121212; z-index: 10;"></div>` 
+    : '';
+
   return L.divIcon({
     className: 'custom-map-pin',
-    html: `<div style="width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.6); background-color: #222; opacity: ${opacity}; filter: ${filter}; display: flex; align-items: center; justify-content: center;">${innerHtml}</div>`,
+    html: `<div style="position: relative; width: 36px; height: 36px; border-radius: 50%; overflow: visible; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.6); background-color: #222; opacity: ${opacity}; filter: ${filter}; display: flex; align-items: center; justify-content: center;"><div style="width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;">${innerHtml}</div>${greenDotHtml}</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
   });
@@ -610,8 +626,7 @@ export default function App() {
         distance: calculateDistance(lat, lng, u.lat || lat, u.lng || lng),
         hide_age_expiry: u.hide_age_expiry || null,
         invisible_expiry: u.invisible_expiry || null,
-      })).filter((u) => u.id === currentUserId || u.grid_visible !== false)
-        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
       
       setUsers(processed);
     }
@@ -1168,8 +1183,8 @@ export default function App() {
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
   const activeProfile = selectedProfile;
 
-  const gridFilteredUsers = users.filter((u) => u.id === currentUser?.id || u.grid_visible !== false);
-  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true && u.grid_visible !== false)));
+  const gridFilteredUsers = users;
+  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
   const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'hkmod';
@@ -1333,9 +1348,11 @@ export default function App() {
             {gridFilteredUsers.map((user, index) => {
               const isSelf = currentUser && user.id === currentUser.id;
               const passesFilter = checkFilterPass(user);
-              const opacity = passesFilter ? 1 : 0.3;
-              const filterStyle = passesFilter ? 'none' : 'grayscale(100%)';
+              const isUserVisible = user.grid_visible !== false;
+              const opacity = (passesFilter && isUserVisible) ? 1 : 0.3;
+              const filterStyle = (passesFilter && isUserVisible) ? 'none' : 'grayscale(100%)';
               const bigDistanceText = formatDistanceBigUnit(user.distance);
+              const online15 = isOnlineWithin15Min(user.last_seen);
 
               return (
                 <div 
@@ -1355,6 +1372,10 @@ export default function App() {
                     </div>
                   )}
                   
+                  {online15 && (
+                    <div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />
+                  )}
+
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
                     {isSelf ? 'You' : bigDistanceText}
                   </div>
@@ -1364,7 +1385,7 @@ export default function App() {
           </div>
         </div>
 
-                <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
+        <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
           <MapContainer 
             center={[location.lat, location.lng]} 
             zoom={15} 
@@ -1381,12 +1402,15 @@ export default function App() {
               {mapFilteredUsers.map((user) => {
                 const isSelf = currentUser && user.id === currentUser.id;
                 const passesFilter = checkFilterPass(user);
-                const isEnabled = isSelf ? (mapVisible && gridVisible) : passesFilter;
+                const isUserVisible = user.grid_visible !== false;
+                const isEnabled = isSelf ? (mapVisible && gridVisible) : (passesFilter && isUserVisible);
+                const isOnline = isOnlineWithin15Min(user.last_seen);
+
                 return (
                   <Marker 
                     key={user.id} 
                     position={[user.lat || location.lat, user.lng || location.lng]} 
-                    icon={createProfileIcon(user, isEnabled, Boolean(isSelf))}
+                    icon={createProfileIcon(user, isEnabled, Boolean(isSelf), isOnline)}
                     eventHandlers={{
                       click: () => handleCardClick(user),
                     }}
@@ -1397,7 +1421,6 @@ export default function App() {
 
           </MapContainer>
         </div>
-
 
       </main>
 
