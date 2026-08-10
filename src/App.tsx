@@ -584,15 +584,16 @@ export default function App() {
     return startParam === 'hkmod' ? 'botA' : 'botB';  
   };  
   
-  // UPDATED SPATIAL RPC FETCH FUNCTION
-  const fetchUsersData = async (lat: number, lng: number, currentUserId: string) => {  
+  // UPDATED SPATIAL RPC FETCH FUNCTION WITH ADMIN OVERRIDE
+  const fetchUsersData = async (lat: number, lng: number, currentUserId: string, userIsAdmin: boolean) => {  
     if (!supabase) return;  
     
-    // Call our server-side PostGIS/earthdistance function in Supabase
     const { data, error } = await supabase.rpc('get_nearby_users', {
       p_lat: lat,
       p_lng: lng,
-      p_radius_meters: 50000 // 50km radius
+      p_radius_meters: 50000,
+      p_requesting_user_id: currentUserId,
+      p_is_admin: userIsAdmin
     });
 
     if (!error && data && Array.isArray(data)) {  
@@ -619,10 +620,11 @@ export default function App() {
         hide_age: u.hide_age || false,  
         grid_visible: u.grid_visible ?? true,  
         map_visible: u.map_visible ?? false,  
-        distance: Math.round(u.distance), // Distance in meters returned by PostgreSQL 
+        distance: Math.round(u.distance), 
         hide_age_expiry: u.hide_age_expiry || null,  
         invisible_expiry: u.invisible_expiry || null,  
       })).sort((a, b) => {  
+        // Ensures your profile is always the first one visible on the grid
         if (a.id === currentUserId) return -1;  
         if (b.id === currentUserId) return 1;  
         return (a.distance || 0) - (b.distance || 0);  
@@ -668,13 +670,15 @@ export default function App() {
           setLang('en');  
         }  
   
-        setIsAdmin(false);  
+        // Admin Validation Check
+        const userUsername = tgUser?.username || '';  
+        const checkIsAdmin = userUsername.toLowerCase() === 'mileschan852' || userUsername.toLowerCase() === 'hkmembersonly';
+        setIsAdmin(checkIsAdmin); 
   
         const userId = tgUser?.id ? `tg_${tgUser.id}` : ('user_' + Math.random().toString(36).substring(2, 9));  
         localStorage.setItem('whos_nearby_user_id', userId);  
   
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');  
-        const userUsername = tgUser?.username || '';  
         const userAvatar = tgUser?.photo_url || '';  
   
         if (!navigator.geolocation) {  
@@ -835,7 +839,8 @@ export default function App() {
               grid_visible: initialGridVisible  
             }], { onConflict: 'id' });  
   
-            await fetchUsersData(currentLoc.lat, currentLoc.lng, userId);  
+            // Note: Passing checkIsAdmin locally here for initialization
+            await fetchUsersData(currentLoc.lat, currentLoc.lng, userId, checkIsAdmin);  
           }  
         }  
       } catch (err) {  
@@ -859,7 +864,7 @@ export default function App() {
     }  
   
     localStorage.setItem(lastRefreshKey, now.toString());  
-    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);  
+    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);  
   };  
   
   const handleSaveInitialProfile = async (e: React.FormEvent) => {  
@@ -921,7 +926,7 @@ export default function App() {
     setCurrentUser(updatedProfile);  
     setShowProfileSetup(false);  
     setShowProfileEditModal(false);  
-    await fetchUsersData(location.lat, location.lng, currentUser.id);  
+    await fetchUsersData(location.lat, location.lng, currentUser.id, isAdmin);  
   };  
   
   const handleOpenProfileEdit = async () => {  
@@ -1008,7 +1013,7 @@ export default function App() {
                 await supabase.from('profiles').upsert([updated], { onConflict: 'id' });  
                 setView('grid');  
                 if (currentUser.lat && currentUser.lng) {  
-                  await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);  
+                  await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);  
                 }  
               } else {  
                 alert(t('paymentCancelled'));  
@@ -1028,7 +1033,7 @@ export default function App() {
     await supabase.from('profiles').upsert([updated], { onConflict: 'id' });  
     setView('grid');  
     if (currentUser.lat && currentUser.lng) {  
-      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);  
+      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);  
     }  
   };  
   
@@ -1047,7 +1052,7 @@ export default function App() {
     }  
       
     if (currentUser.lat && currentUser.lng) {  
-      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id);  
+      await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);  
     }  
   };  
   
@@ -1439,7 +1444,7 @@ export default function App() {
                 );  
               })}  
             </MarkerClusterGroup>  
-
+  
           </MapContainer>  
         </div>  
   
