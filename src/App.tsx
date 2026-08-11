@@ -41,52 +41,58 @@ type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
   
 const translations: Record<LangKey, Record<string, string>> = {  
   'en': {  
-    loading: 'Loading app...', locationRequired: 'Location Access Required', locationMessage: "Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.", accessDenied: 'Access Denied', underageMessage: 'The app is for adults only. Access has been locked for this account due to age restrictions.', completeProfile: 'Complete Your Profile', profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.', dob: 'Date of Birth:', imA: "I'm a", seeking: 'seeking', man: 'man', woman: 'woman', nonBinary: 'non-binary', men: 'men', women: 'women', everyone: 'everyone', height: 'Height:', selectHeight: 'Select height', weight: 'Weight:', selectWeight: 'Select weight', tapToChange: 'tap to change your preference:', mode: 'Mode:', browsingOnly: 'Browsing only - You cannot send not receive private message from others', onlineOnly: 'Online only - You are visible on grid but not on map, map is inaccessible', meetUp: 'Meet up - You are visible on grid and map', saveProfile: 'Save Profile & Continue', whosNearby: "Who's Nearby", filter: 'Filter', refresh: 'Refresh', grid: 'Grid', map: 'Map', filterUsers: 'Filter Users', ageRange: 'Age Range', rolePreference: 'Role Preference', safetyPreference: 'Safety Preference', playstylePreference: 'Playstyle Preference', groupSize: 'Group Size', applyFilters: 'Apply Filters', ageHidden: 'Age Hidden (Click to Show)', ageShown: 'Age Shown (Click to Hide)', expires: 'Expires:', sendMessage: 'Send Message', unlockPreference: 'Change Profile & Preferences', iGotStuff: 'I got stuff', unlockPreferencePrompt: 'Changing your profile/preferences requires a one-time payment of 1000 Telegram Stars. Proceed to payment?', invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?', hideAgePrompt: 'Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?', paymentCancelled: 'Payment cancelled or failed.', errorSaving: 'Error saving profile:', fillAll: 'Please fill out all required questions to continue.',
+    loading: 'Loading app...', locationRequired: 'Location Access Required', locationMessage: "Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.", accessDenied: 'Access Denied', underageMessage: 'The app is for adults only. Access has been locked for this account due to age restrictions.', completeProfile: 'Complete Your Profile', profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.', dob: 'Date of Birth:', imA: "I'm a", seeking: 'seeking', man: 'man', woman: 'woman', nonBinary: 'non-binary', men: 'men', women: 'women', everyone: 'everyone', height: 'Height:', selectHeight: 'Select height', weight: 'Weight:', selectWeight: 'Select weight', tapToChange: 'tap to change your preference:', mode: 'Mode:', browsingOnly: 'Browsing only - You cannot send not receive private message from others', onlineOnly: 'Online only - You are visible on grid but not on map, map is inaccessible', meetUp: 'Meet up - You are visible on grid and map', saveProfile: 'Save Profile & Continue', whosNearby: "Who's Nearby", filter: 'Filter', refresh: 'Refresh', grid: 'Grid', map: 'Map', filterUsers: 'Filter Users', ageRange: 'Age Range', rolePreference: 'Role Preference', safetyPreference: 'Safety Preference', playstylePreference: 'Playstyle Preference', groupSize: 'Group Size', applyFilters: 'Apply Filters', ageHidden: 'Age Hidden (Click to Show)', ageShown: 'Age Shown (Click to Hide)', expires: 'Expires:', sendMessage: 'Send Message', unlockPreference: 'Change Profile & Preferences', iGotStuff: 'I got stuff', unlockPreferencePrompt: 'Changing your profile/preferences requires a one-time payment of 1000 Telegram Stars. Proceed to payment?', invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?', hideAgePrompt: 'Hiding age requires a 30-day subscription for 1000 Telegram Stars. Proceed to payment?', filterSubPrompt: 'Customizing this filter requires a subscription. Proceed to payment?', paymentCancelled: 'Payment cancelled or failed.', errorSaving: 'Error saving profile:', fillAll: 'Please fill out all required questions to continue.',
     'Versatile': 'Versatile', 'Top': 'Top', 'Bottom': 'Bottom', 'Side': 'Side',
     'Safe': 'Safe (Condoms)', 'Raw': 'Raw (Bareback)',
     'Clean': 'Clean (No Drugs)', 'Party': 'Party (Chemsex)', 'Party✓': 'Party✓',
-    '1on1': '1-on-1', 'Group': 'Group',
-    'Host': 'Host', 'Travel': 'Travel'
+    '1on1_setup': '1-on-1 (only)', '1on1': '1-on-1',
+    'DoesntMatter_setup': "Doesn't matter (any)", 'DoesntMatter': "Doesn't matter",
+    'Host': 'Host', 'Travel': 'Travel', 'Off': 'Off'
   },  
   'zh-CN': {  
-    loading: '正在加载应用...', locationRequired: '需要位置权限', locationMessage: '使用“附近”功能必须获得位置权限。请在浏览器或 Telegram 设置中启用位置访问并重新启动应用。', accessDenied: '拒绝访问', underageMessage: '本应用仅限成年人使用。由于年龄限制，该账户已被锁定。', completeProfile: '完善您的个人资料', profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。', dob: '出生日期：', imA: '我是', seeking: '寻找', man: '男性', woman: '女性', nonBinary: '非二元性别', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '选择身高', weight: '体重：', selectWeight: '选择体重', tapToChange: '点击更改您的偏好：', mode: '模式：', browsingOnly: '仅浏览 - 您无法发送和接收来自他人的私信', onlineOnly: '仅在线 - 您在网格上可见但在地图上不可见，地图不可用', meetUp: '约会中 - 您在网格和地图上均可见', saveProfile: '保存资料并继续', whosNearby: '附近的人', filter: '筛选', refresh: '刷新', grid: '网格', map: '地图', filterUsers: '筛选用户', ageRange: '年龄范围', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '游戏风格偏好', groupSize: '群组人数', applyFilters: '应用筛选', ageHidden: '年龄已隐藏（点击显示）', ageShown: '年龄已显示（点击隐藏）', expires: '到期时间：', sendMessage: '发送消息', unlockPreference: '更改资料与偏好', iGotStuff: '我有货', unlockPreferencePrompt: '更改个人资料与偏好需要支付 1000 Telegram Stars。是否继续支付？', invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？', hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？', paymentCancelled: '支付已取消或失败。', errorSaving: '保存资料出错：', fillAll: '请填写所有必填问题以继续。',
+    loading: '正在加载应用...', locationRequired: '需要位置权限', locationMessage: '使用“附近”功能必须获得位置权限。请在浏览器或 Telegram 设置中启用位置访问并重新启动应用。', accessDenied: '拒绝访问', underageMessage: '本应用仅限成年人使用。由于年龄限制，该账户已被锁定。', completeProfile: '完善您的个人资料', profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。', dob: '出生日期：', imA: '我是', seeking: '寻找', man: '男性', woman: '女性', nonBinary: '非二元性别', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '选择身高', weight: '体重：', selectWeight: '选择体重', tapToChange: '点击更改您的偏好：', mode: '模式：', browsingOnly: '仅浏览', onlineOnly: '仅在线', meetUp: '约会中', saveProfile: '保存资料并继续', whosNearby: '附近的人', filter: '筛选', refresh: '刷新', grid: '网格', map: '地图', filterUsers: '筛选用户', ageRange: '年龄范围', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '游戏风格偏好', groupSize: '群组人数', applyFilters: '应用筛选', ageHidden: '年龄已隐藏', ageShown: '年龄已显示', expires: '到期时间：', sendMessage: '发送消息', unlockPreference: '更改资料与偏好', iGotStuff: '我有货', unlockPreferencePrompt: '更改个人资料与偏好需要支付 1000 Telegram Stars。是否继续支付？', invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？', hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？', filterSubPrompt: '自定义此筛选条件需要订阅。是否继续支付？', paymentCancelled: '支付已取消或失败。', errorSaving: '保存资料出错：', fillAll: '请填写所有必填问题以继续。',
     'Versatile': '0.5 (可攻可受)', 'Top': '1 (攻)', 'Bottom': '0 (受)', 'Side': 'Side (边缘)',
     'Safe': 'Safe (戴套)', 'Raw': 'Raw (无套)',
     'Clean': 'Clean (无药)', 'Party': 'Party (嗨药)', 'Party✓': 'Party✓',
-    '1on1': '单对单 (1on1)', 'Group': '多人 (Group)',
-    'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)'
+    '1on1_setup': '单对单 (仅限1on1)', '1on1': '单对单',
+    'DoesntMatter_setup': '无所谓 (均可)', 'DoesntMatter': '无所谓',
+    'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)', 'Off': '关闭'
   },  
   'zh-TW': {  
-    loading: '正在載入應用程式...', locationRequired: '需要位置權限', locationMessage: '使用「附近」功能必須獲得位置權限。請在瀏覽器或 Telegram 設定中啟用位置存取並重新啟動應用程式。', accessDenied: '存取被拒', underageMessage: '本應用程式僅限成年人使用。由於年齡限制，該帳戶已被鎖定。', completeProfile: '完善您的個人資料', profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。', dob: '出生日期：', imA: '我是', seeking: '尋找', man: '男性', woman: '女性', nonBinary: '非二元性別', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '選擇身高', weight: '體重：', selectWeight: '選擇體重', tapToChange: '點擊更改您的偏好：', mode: '模式：', browsingOnly: '僅瀏覽 - 您無法發送和接收來自他人的私訊', onlineOnly: '僅線上 - 您在網格上可見但在地圖上不可見，地圖不可用', meetUp: '見面中 - 您在網格和地圖上均可見', saveProfile: '儲存資料並繼續', whosNearby: '附近的人', filter: '篩選', refresh: '重新整理', grid: '網格', map: '地圖', filterUsers: '篩選使用者', ageRange: '年齡範圍', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '風格偏好', groupSize: '群組人數', applyFilters: '套用篩選', ageHidden: '年齡已隱藏（點擊顯示）', ageShown: '年齡已顯示（點擊隱藏）', expires: '到期時間：', sendMessage: '傳送訊息', unlockPreference: '更改資料與偏好', iGotStuff: '我有貨', unlockPreferencePrompt: '更改個人資料與偏好需要支付 1000 Telegram Stars。是否繼續支付？', invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？', hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？', paymentCancelled: '付款已取消或失敗。', errorSaving: '儲存資料出錯：', fillAll: '請填寫所有必填問題以繼續。',
+    loading: '正在載入應用程式...', locationRequired: '需要位置權限', locationMessage: '使用「附近」功能必須獲得位置權限。請在瀏覽器或 Telegram 設定中啟用位置存取並重新啟動應用程式。', accessDenied: '存取被拒', underageMessage: '本應用程式僅限成年人使用。由於年齡限制，該帳戶已被鎖定。', completeProfile: '完善您的個人資料', profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。', dob: '出生日期：', imA: '我是', seeking: '尋找', man: '男性', woman: '女性', nonBinary: '非二元性別', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '選擇身高', weight: '體重：', selectWeight: '選擇體重', tapToChange: '點擊更改您的偏好：', mode: '模式：', browsingOnly: '僅瀏覽', onlineOnly: '僅線上', meetUp: '見面中', saveProfile: '儲存資料並繼續', whosNearby: '附近的人', filter: '篩選', refresh: '重新整理', grid: '網格', map: '地圖', filterUsers: '篩選使用者', ageRange: '年齡範圍', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '風格偏好', groupSize: '群組人數', applyFilters: '套用篩選', ageHidden: '年齡已隱藏', ageShown: '年齡已顯示', expires: '到期時間：', sendMessage: '傳送訊息', unlockPreference: '更改資料與偏好', iGotStuff: '我有貨', unlockPreferencePrompt: '更改個人資料與偏好需要支付 1000 Telegram Stars。是否繼續支付？', invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？', hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？', filterSubPrompt: '自訂此篩選條件需要訂閱。是否繼續支付？', paymentCancelled: '付款已取消或失敗。', errorSaving: '儲存資料出錯：', fillAll: '請填寫所有必填問題以繼續。',
     'Versatile': '0.5 (不分)', 'Top': '1 (頂)', 'Bottom': '0 (底)', 'Side': 'Side (邊緣)',
     'Safe': 'Safe (戴套)', 'Raw': 'Raw (無套)',
     'Clean': 'Clean (無藥)', 'Party': 'Party (嗨藥/煙)', 'Party✓': 'Party✓',
-    '1on1': '單對單 (1on1)', 'Group': '多人 (Group)',
-    'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)'
+    '1on1_setup': '單對單 (僅限1on1)', '1on1': '單對單',
+    'DoesntMatter_setup': '無所謂 (均可)', 'DoesntMatter': '無所謂',
+    'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)', 'Off': '關閉'
   },  
   'ja': {  
-    loading: 'アプリを読み込んでいます...', locationRequired: '位置情報のアクセスが必要です', locationMessage: '「近くの人」機能を使用するには位置情報の許可が必須です。ブラウザまたはTelegramの設定で位置情報のアクセスを有効にして、アプリを再起動してください。', accessDenied: 'アクセスが拒否されました', underageMessage: 'このアプリは成人向けです。年齢制限によりこのアカウントへのアクセスがロックされました。', completeProfile: 'プロフィールを完成させる', profileWarning: '警告：これは後から変更できません。ここで入力した情報は、表示ややり取りできる相手に影響します。', dob: '生年月日：', imA: '私は', seeking: '探しています：', man: '男性', woman: '女性', nonBinary: 'ノンバイナリー', men: '男性', women: '女性', everyone: 'すべての人', height: '身長：', selectHeight: '身長を選択', weight: '体重：', selectWeight: '体重を選択', tapToChange: 'タップして好みを変更：', mode: 'モード：', browsingOnly: '閲覧のみ - 他の人からのプライベートメッセージの送受信ができません', onlineOnly: 'オンラインのみ - グリッドには表示されますがマップには表示されず、マップは利用できません', meetUp: 'ミートアップ - グリッドとマップの両方に表示されます', saveProfile: 'プロフィールを保存して続ける', whosNearby: '近くの人', filter: 'フィルター', refresh: '更新', grid: 'グリッド', map: 'マップ', filterUsers: 'ユーザーをフィルター', ageRange: '年齢層', rolePreference: 'ロールの好み', safetyPreference: '安全の好み', playstylePreference: 'プレイスタイルの好み', groupSize: 'グループサイズ', applyFilters: 'フィルターを適用', ageHidden: '年齢非表示（クリックして表示）', ageShown: '年齢表示（クリックして非表示）', expires: '有効期限：', sendMessage: 'メッセージを送る', unlockPreference: 'プロフィールと好みを変更', iGotStuff: '持ってるよ', unlockPreferencePrompt: 'プロフィールと好みの変更には1000 Telegram Starsの支払いが必要です。支払いに進みますか？', invisiblePrompt: '透明化には30日間のサブスクリプション（3000 Telegram Stars）が必要です。支払いに進みますか？', hideAgePrompt: '年齢非表示には30日間のサブスクリプション（1000 Telegram Stars）が必要です。支払いに進みますか？', paymentCancelled: '支払いがキャンセルされたか、失敗しました。', errorSaving: 'プロフィールの保存エラー：', fillAll: '続けるにはすべての必須項目を入力してください。',
+    loading: 'アプリを読み込んでいます...', locationRequired: '位置情報のアクセスが必要です', locationMessage: '位置情報の許可が必須です。', accessDenied: 'アクセスが拒否されました', underageMessage: 'このアプリは成人向けです。', completeProfile: 'プロフィールを完成させる', profileWarning: '警告：これは後から変更できません。', dob: '生年月日：', imA: '私は', seeking: '探しています：', man: '男性', woman: '女性', nonBinary: 'ノンバイナリー', men: '男性', women: '女性', everyone: 'すべての人', height: '身長：', selectHeight: '身長を選択', weight: '体重：', selectWeight: '体重を選択', tapToChange: 'タップして好みを変更：', mode: 'モード：', browsingOnly: '閲覧のみ', onlineOnly: 'オンラインのみ', meetUp: 'ミートアップ', saveProfile: 'プロフィールを保存して続ける', whosNearby: '近くの人', filter: 'フィルター', refresh: '更新', grid: 'グリッド', map: 'マップ', filterUsers: 'ユーザーをフィルター', ageRange: '年齢層', rolePreference: 'ロールの好み', safetyPreference: '安全の好み', playstylePreference: 'プレイスタイルの好み', groupSize: 'グループサイズ', applyFilters: 'フィルターを適用', ageHidden: '年齢非表示', ageShown: '年齢表示', expires: '有効期限：', sendMessage: 'メッセージを送る', unlockPreference: 'プロフィールと好みを変更', iGotStuff: '持ってるよ', unlockPreferencePrompt: 'プロフィールの変更には1000 Starsが必要です。', invisiblePrompt: '透明化には3000 Starsが必要です。', hideAgePrompt: '年齢非表示には1000 Starsが必要です。', filterSubPrompt: 'フィルターのカスタマイズにはサブスクリプションが必要です。', paymentCancelled: '支払いがキャンセルされました。', errorSaving: 'エラー：', fillAll: 'すべての必須項目を入力してください。',
     'Versatile': 'リバ (Vers)', 'Top': 'タチ (Top)', 'Bottom': 'ネコ (Btm)', 'Side': 'サイド (Side)',
     'Safe': 'ゴムあり (Safe)', 'Raw': '生/中出し (Raw)',
     'Clean': 'シラフ (Clean)', 'Party': 'ケミ (Party)', 'Party✓': 'Party✓',
-    '1on1': '1対1 (1on1)', 'Group': 'グループ (Group)',
-    'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)'
+    '1on1_setup': '1対1 (のみ)', '1on1': '1対1',
+    'DoesntMatter_setup': 'こだわらない', 'DoesntMatter': 'こだわらない',
+    'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)', 'Off': 'オフ'
   },  
   'ko': {  
-    loading: '앱 로딩 중...', locationRequired: '위치 접근 권한 필요', locationMessage: '주변 사용자 기능을 사용하려면 위치 권한이 필수입니다. 브라우저나 Telegram 설정에서 위치 접근을 활성화한 후 앱을 다시 시작해 주세요.', accessDenied: '접근 거 거부됨', underageMessage: '이 앱은 성인 전용입니다. 연령 제한으로 인해 이 계정의 접근이 잠겼습니다.', completeProfile: '프로필 완성하기', profileWarning: '경고: 이는 나중에 변경할 수 없습니다. 여기에 입력한 정보는 볼 수 있는 사용자와 상호작용에 영향을 줍니다.', dob: '생년월일:', imA: '나는', seeking: '찾는 대상:', man: '남성', woman: '여성', nonBinary: '논바이너리', men: '남성', women: '여성', everyone: '모두', height: '키:', selectHeight: '키 선택', weight: '체중:', selectWeight: '체중 선택', tapToChange: '탭하여 선호도 변경:', mode: '모드:', browsingOnly: '브라우징 전용 - 다른 사람의 비공개 메시지를 보내거나 받을 수 없습니다', onlineOnly: '온라인 전용 - 그리드에는 표시되지만 지도에는 표시되지 않으며 지도는 사용할 수 없습니다', meetUp: '만남 - 그리드와 지도 모두에 표시됩니다', saveProfile: '프로필 저장 및 계속', whosNearby: '내 주변', filter: '필터', refresh: '새로고침', grid: '그리드', map: '지도', filterUsers: '사용자 필터', ageRange: '연령대', rolePreference: '포지션 선호', safetyPreference: '안전 선호', playstylePreference: '플레이스타일 선호', groupSize: '그룹 인원', applyFilters: '필터 적용', ageHidden: '나이 숨김 (클릭하여 표시)', ageShown: '나이 표시 (클릭하여 숨김)', expires: '만료일:', sendMessage: '메시지 보내기', unlockPreference: '프로필 및 선호도 변경', iGotStuff: '나 있음', unlockPreferencePrompt: '프로필 및 선호도를 변경하려면 1000 Telegram Stars 결제가 필요합니다. 결제를 진행하시겠습니까?', invisiblePrompt: '숨김 모드는 30일 구독(3000 Telegram Stars)이 필요합니다. 결제를 진행하시겠습니까?', hideAgePrompt: '나이 숨기기는 30일 구독(1000 Telegram Stars)이 필요합니다. 결제를 진행하시겠습니까?', paymentCancelled: '결제가 취소되었거나 실패했습니다.', errorSaving: '프로필 저장 오류:', fillAll: '계속하려면 모든 필수 항목을 입력해주세요.',
+    loading: '앱 로딩 중...', locationRequired: '위치 접근 권한 필요', locationMessage: '위치 권한이 필수입니다.', accessDenied: '접근 거부됨', underageMessage: '이 앱은 성인 전용입니다.', completeProfile: '프로필 완성하기', profileWarning: '경고: 이는 나중에 변경할 수 없습니다.', dob: '생년월일:', imA: '나는', seeking: '찾는 대상:', man: '남성', woman: '여성', nonBinary: '논바이너리', men: '남성', women: '여성', everyone: '모두', height: '키:', selectHeight: '키 선택', weight: '체중:', selectWeight: '체중 선택', tapToChange: '탭하여 선호도 변경:', mode: '모드:', browsingOnly: '브라우징 전용', onlineOnly: '온라인 전용', meetUp: '만남', saveProfile: '프로필 저장 및 계속', whosNearby: '내 주변', filter: '필터', refresh: '새로고침', grid: '그리드', map: '지도', filterUsers: '사용자 필터', ageRange: '연령대', rolePreference: '포지션 선호', safetyPreference: '안전 선호', playstylePreference: '플레이스타일 선호', groupSize: '그룹 인원', applyFilters: '필터 적용', ageHidden: '나이 숨김', ageShown: '나이 표시', expires: '만료일:', sendMessage: '메시지 보내기', unlockPreference: '프로필 변경', iGotStuff: '나 있음', unlockPreferencePrompt: '프로필 변경 1000 Stars 결제?', invisiblePrompt: '숨김 모드 3000 Stars 결제?', hideAgePrompt: '나이 숨기기 1000 Stars 결제?', filterSubPrompt: '필터 변경 구독 필요.', paymentCancelled: '결제 취소됨.', errorSaving: '오류:', fillAll: '필수 항목을 입력해주세요.',
     'Versatile': '올 (Vers)', 'Top': '탑 (Top)', 'Bottom': '바텀 (Btm)', 'Side': '사이드 (Side)',
     'Safe': '안전/콘돔 (Safe)', 'Raw': '노콘 (Raw)',
     'Clean': '노약 (Clean)', 'Party': '파티/약 (Party)', 'Party✓': 'Party✓',
-    '1on1': '1대1', 'Group': '그룹',
-    'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)'
+    '1on1_setup': '1대1 (전용)', '1on1': '1대1',
+    'DoesntMatter_setup': '상관없음', 'DoesntMatter': '상관없음',
+    'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)', 'Off': '꺼짐'
   },  
   'ru': {  
-    loading: 'Загрузка приложения...', locationRequired: 'Требуется доступ к геолокации', locationMessage: 'Разрешение на геолокацию обязательно для использования функции «Рядом». Включите геолокацию в настройках браузера или Telegram и перезапустите приложение.', accessDenied: 'Доступ запрещен', underageMessage: 'Приложение только для взрослых. Доступ для этой учетной записи заблокирован из-за возрастных ограничений.', completeProfile: 'Заполните профиль', profileWarning: 'Предупреждение: это нельзя будет изменить в будущем. Указанная здесь информация влияет на то, кого вы видите и с кем взаимодействуете.', dob: 'Дата рождения:', imA: 'Я', seeking: 'ищу', man: 'мужчину', woman: 'женщину', nonBinary: 'небинарную персону', men: 'мужчин', women: 'женщин', everyone: 'всех', height: 'Рост:', selectHeight: 'Выберите рост', weight: 'Вес:', selectWeight: 'Выберите вес', tapToChange: 'нажмите, чтобы изменить предпочтение:', mode: 'Режим:', browsingOnly: 'Только просмотр - вы не можете отправлять и получать личные сообщения от других', onlineOnly: 'Только онлайн - вы видны в сетке, но не на карте, карта недоступна', meetUp: 'Встреча - вы видны в сетке и на карте', saveProfile: 'Сохранить профиль и продолжить', whosNearby: 'Рядом', filter: 'Фильтр', refresh: 'Обновить', grid: 'Сетка', map: 'Карта', filterUsers: 'Фильтровать пользователей', ageRange: 'Возрастной диапазон', rolePreference: 'Роль', safetyPreference: 'Безопасность', playstylePreference: 'Стиль', groupSize: 'Размер группы', applyFilters: 'Применить фильтры', ageHidden: 'Возраст скрыт (Нажмите, чтобы показать)', ageShown: 'Возраст виден (Нажмите, чтобы скрыть)', expires: 'И истекает:', sendMessage: 'Отправить сообщение', unlockPreference: 'Изменить профиль и предпочтения', iGotStuff: 'У меня есть стафф', unlockPreferencePrompt: 'Изменение профиля и предпочтений требует разового платежа в размере 1000 Telegram Stars. Перейти к оплате?', invisiblePrompt: 'Переход в режим невидимки требует подписки на 30 дней за 3000 Telegram Stars. Перейти к оплате?', hideAgePrompt: 'Сокрытие возраста требует подписки на 30 дней за 1000 Telegram Stars. Перейти к оплате?', paymentCancelled: 'Оплата отменена или не удалась.', errorSaving: 'Ошибка сохранения профиля:', fillAll: 'Пожалуйста, заполните все обязательные поля для продолжения.',
+    loading: 'Загрузка...', locationRequired: 'Требуется геолокация', locationMessage: 'Разрешение обязательно.', accessDenied: 'Доступ запрещен', underageMessage: 'Только для взрослых.', completeProfile: 'Заполните профиль', profileWarning: 'Предупреждение: это нельзя изменить.', dob: 'Дата рождения:', imA: 'Я', seeking: 'ищу', man: 'мужчину', woman: 'женщину', nonBinary: 'небинарную', men: 'мужчин', women: 'женщин', everyone: 'всех', height: 'Рост:', selectHeight: 'Выберите рост', weight: 'Вес:', selectWeight: 'Выберите вес', tapToChange: 'нажмите, чтобы изменить:', mode: 'Режим:', browsingOnly: 'Только просмотр', onlineOnly: 'Только онлайн', meetUp: 'Встреча', saveProfile: 'Сохранить', whosNearby: 'Рядом', filter: 'Фильтр', refresh: 'Обновить', grid: 'Сетка', map: 'Карта', filterUsers: 'Фильтры', ageRange: 'Возраст', rolePreference: 'Роль', safetyPreference: 'Безопасность', playstylePreference: 'Стиль', groupSize: 'Размер группы', applyFilters: 'Применить', ageHidden: 'Возраст скрыт', ageShown: 'Возраст виден', expires: 'Истекает:', sendMessage: 'Сообщение', unlockPreference: 'Изменить профиль', iGotStuff: 'У меня есть стафф', unlockPreferencePrompt: 'Изменить профиль за 1000 Stars?', invisiblePrompt: 'Невидимка за 3000 Stars?', hideAgePrompt: 'Скрыть возраст за 1000 Stars?', filterSubPrompt: 'Требуется подписка на фильтры.', paymentCancelled: 'Оплата отменена.', errorSaving: 'Ошибка:', fillAll: 'Заполните все поля.',
     'Versatile': 'Универсал (Vers)', 'Top': 'Актив (Top)', 'Bottom': 'Пассив (Btm)', 'Side': 'Без пенетрации (Side)',
     'Safe': 'С резинкой (Safe)', 'Raw': 'Без резинки (Raw)',
     'Clean': 'Без наркотиков (Clean)', 'Party': 'Химсекс (Party)', 'Party✓': 'Party✓',
-    '1on1': '1 на 1', 'Group': 'Групповой',
-    'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)'
+    '1on1_setup': '1 на 1 (только)', '1on1': '1 на 1',
+    'DoesntMatter_setup': 'Неважно', 'DoesntMatter': 'Неважно',
+    'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)', 'Off': 'Выкл'
   }  
 };  
   
@@ -247,6 +253,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');  
   const [isAdmin, setIsAdmin] = useState<boolean>(false);  
   const [showStuffBubble, setShowStuffBubble] = useState<boolean>(false);  
+  const [hasFilterSub, setHasFilterSub] = useState<boolean>(false);  
   
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);  
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);  
@@ -272,25 +279,15 @@ export default function App() {
   const [gridVisible, setGridVisible] = useState<boolean>(true);  
   const [mapVisible, setMapVisible] = useState<boolean>(false);  
   
-  const filterAgeEnabled = false;  
-  const filterAgeMin = 0;  
-  const filterAgeMax = 99;  
-  
-  const [filterRoleEnabled] = useState<boolean>(true);  
-  const [filterRoleVal] = useState<string>('Bottom');  
-  
-  const [filterSafetyEnabled] = useState<boolean>(true);  
-  const [filterSafetyVal] = useState<string>('Safe');  
-  
-  const [filterPlaystyleEnabled] = useState<boolean>(true);  
-  const [filterPlaystyleVal] = useState<string>('Clean');  
-  
-  const [filterHowManyEnabled] = useState<boolean>(true);  
-  const [filterHowManyVal] = useState<string>('1on1');  
+  // ACTIVE DYNAMIC FILTERS  
+  const [filterRoleVal, setFilterRoleVal] = useState<string | null>(null);  
+  const [filterSafetyVal, setFilterSafetyVal] = useState<string | null>(null);  
+  const [filterPlaystyleVal, setFilterPlaystyleVal] = useState<string | null>(null);  
+  const [filterHowManyVal, setFilterHowManyVal] = useState<string | null>(null);  
   
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];  
   const safetyCycleOptions = ['Safe', 'Raw'];  
-  const howManyCycleOptions = ['1on1', 'Group'];  
+  const howManyCycleOptions = ['1on1', 'DoesntMatter'];  
   const whereCycleOptions = ['Host', 'Travel'];  
   
   const cycleNext = (current: string, options: string[]) => {  
@@ -320,7 +317,26 @@ export default function App() {
     return startParam === 'hkmod' ? 'botA' : 'botB';  
   };  
   
-  // UPDATED SPATIAL RPC FETCH FUNCTION WITH ADMIN OVERRIDE
+  // CALCULATE DEFAULT FILTERS STRICTLY BASED ON PREFERENCE MAPPING
+  const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
+    // 1. Role Logic
+    if (pRole === 'Top') setFilterRoleVal('Bottom');
+    else if (pRole === 'Bottom') setFilterRoleVal('Top');
+    else if (pRole === 'Side') setFilterRoleVal('Side');
+    else setFilterRoleVal(null); // Versatile -> OFF
+
+    // 2. Safety Logic
+    setFilterSafetyVal(pSafety); // Safe -> Safe, Raw -> Raw
+
+    // 3. How Many Logic
+    if (pHowMany === '1on1') setFilterHowManyVal('1on1');
+    else setFilterHowManyVal(null); // Doesn't matter -> OFF
+
+    // 4. Playstyle Logic
+    if (pPlaystyle === 'Party' || pPlaystyle === 'Party✓') setFilterPlaystyleVal('Party');
+    else setFilterPlaystyleVal('Clean');
+  };
+
   const fetchUsersData = async (lat: number, lng: number, currentUserId: string, userIsAdmin: boolean) => {  
     if (!supabase) return;  
     
@@ -360,7 +376,6 @@ export default function App() {
         hide_age_expiry: u.hide_age_expiry || null,  
         invisible_expiry: u.invisible_expiry || null,  
       })).sort((a, b) => {  
-        // Ensures your profile is always the first one visible on the grid
         if (a.id === currentUserId) return -1;  
         if (b.id === currentUserId) return 1;  
         return (a.distance || 0) - (b.distance || 0);  
@@ -406,7 +421,6 @@ export default function App() {
           setLang('en');  
         }  
   
-        // Admin Validation Check
         const userUsername = tgUser?.username || '';  
         const checkIsAdmin = userUsername.toLowerCase() === 'mileschan852' || userUsername.toLowerCase() === 'hkmembersonly';
         setIsAdmin(checkIsAdmin); 
@@ -504,6 +518,15 @@ export default function App() {
             setGridVisible(initialGridVisible);  
           }  
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);  
+
+          if (isManSeekingMan) {
+            applyDefaultFiltersFromPreferences(
+              existingProfile.role_pref || 'Versatile',
+              existingProfile.safety_pref || 'Safe',
+              existingProfile.playstyle_pref || 'Clean',
+              existingProfile.how_many_pref || '1on1'
+            );
+          }
         }  
   
         const currentLoc = location;  
@@ -575,7 +598,6 @@ export default function App() {
               grid_visible: initialGridVisible  
             }], { onConflict: 'id' });  
   
-            // Passing checkIsAdmin locally here for initialization
             await fetchUsersData(currentLoc.lat, currentLoc.lng, userId, checkIsAdmin);  
           }  
         }  
@@ -659,11 +681,53 @@ export default function App() {
       return;  
     }  
   
+    if (isManSeekingMan) {
+      applyDefaultFiltersFromPreferences(rolePref, safetyPref, playstylePref, howManyPref);
+    }
+
     setCurrentUser(updatedProfile);  
     setShowProfileSetup(false);  
     setShowProfileEditModal(false);  
     await fetchUsersData(location.lat, location.lng, currentUser.id, isAdmin);  
   };  
+
+  const verifyFilterSubscription = async (): Promise<boolean> => {
+    if (isAdmin || hasFilterSub) return true;
+
+    const confirmed = window.confirm(t('filterSubPrompt'));
+    if (!confirmed) return false;
+
+    const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';
+    try {
+      const res = await fetch(`${workerUrl}/create-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: currentUser?.id, 
+          type: 'change_filter', 
+          bot: getActiveBotKey() 
+        }),
+      });
+      const data = await res.json() as { invoiceLink?: string };
+
+      if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
+        return new Promise((resolve) => {
+          window.Telegram!.WebApp!.openInvoice!(data.invoiceLink!, (status) => {
+            if (status === 'paid') {
+              setHasFilterSub(true);
+              resolve(true);
+            } else {
+              alert(t('paymentCancelled'));
+              resolve(false);
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.error('Invoice error:', err);
+    }
+    return false;
+  };
   
   const handleOpenProfileEdit = async () => {  
     if (!currentUser || !supabase) return;  
@@ -886,25 +950,26 @@ export default function App() {
   const checkFilterPass = (user: UserProfile) => {  
     if (currentUser && user.id === currentUser.id) return true;  
   
-    if (filterAgeEnabled) {  
-      const uAge = calculateAge(user.dob);  
-      if (uAge !== null) {  
-        if (uAge < filterAgeMin || uAge > filterAgeMax) return false;  
-      }  
-    }  
-  
     const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';  
     if (userIsManSeekingMan) {  
-      if (filterRoleEnabled && filterRoleVal) {  
+      // ROLE FILTER  
+      if (filterRoleVal) {  
         if (user.role_pref !== filterRoleVal) return false;  
       }  
-      if (filterSafetyEnabled && filterSafetyVal) {  
+      // SAFETY FILTER  
+      if (filterSafetyVal) {  
         if (user.safety_pref !== filterSafetyVal) return false;  
       }  
-      if (filterPlaystyleEnabled && filterPlaystyleVal) {  
-        if (user.playstyle_pref !== filterPlaystyleVal) return false;  
+      // PLAYSTYLE FILTER  
+      if (filterPlaystyleVal) {  
+        if (filterPlaystyleVal === 'Party') {
+          if (user.playstyle_pref !== 'Party' && user.playstyle_pref !== 'Party✓') return false;
+        } else if (user.playstyle_pref !== filterPlaystyleVal) {
+          return false;  
+        }
       }  
-      if (filterHowManyEnabled && filterHowManyVal) {  
+      // HOW MANY FILTER  
+      if (filterHowManyVal) {  
         if (user.how_many_pref !== filterHowManyVal) return false;  
       }  
     }  
@@ -1045,11 +1110,11 @@ export default function App() {
                     <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
                       {t(safetyPref)}  
                     </button>  
-                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Party', 'Party✓']))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
-                      {playstylePref === 'Clean' ? t('Party') : t(playstylePref)}  
+                    <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Clean', 'Party']))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
+                      {t(playstylePref)}  
                     </button>  
                     <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
-                      {t(howManyPref)}  
+                      {t(`${howManyPref}_setup`)}  
                     </button>  
                     <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
                       {t(wherePref)}  
@@ -1238,20 +1303,39 @@ export default function App() {
   
               {targetIsManSeekingMan && (  
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>  
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>  
+                  
+                  {/* ROLE DISPLAY / GREYED OUT & UNCHANGEABLE HERE */}
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>  
                     {t(activeProfile.role_pref || 'Versatile')}  
                   </div>  
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>  
-                    {t(activeProfile.safety_pref || 'Safe')}  
-                  </div>  
+
+                  {/* SAFETY DISPLAY / SUBSCRIPTION-PROTECTED FILTER OVERRIDE */}
+                  <button   
+                    type="button"   
+                    onClick={async () => {  
+                      if (!isViewingSelf) return;  
+                      const allowed = await verifyFilterSubscription();  
+                      if (!allowed) return;  
+
+                      const nextSafety = filterSafetyVal === 'Safe' ? 'Raw' : 'Safe';  
+                      setFilterSafetyVal(nextSafety);  
+                    }}  
+                    style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
+                  >  
+                    {t(isViewingSelf ? (filterSafetyVal || activeProfile.safety_pref || 'Safe') : (activeProfile.safety_pref || 'Safe'))}  
+                  </button>  
   
+                  {/* PLAYSTYLE DISPLAY / PARTY✓ TOGGLE (No preference purchase required) */}
                   {isViewingSelf ? (  
                     <div style={{ flex: 1, position: 'relative', display: 'flex' }}>  
                       <button   
                         type="button"   
                         onClick={async () => {  
+                          if (currentUser?.playstyle_pref !== 'Party' && currentUser?.playstyle_pref !== 'Party✓') return;  
+
                           const nextPlaystyle = playstylePref === 'Party✓' ? 'Party' : 'Party✓';  
                           setPlaystylePref(nextPlaystyle);  
+                          setFilterPlaystyleVal(nextPlaystyle);  
                           const updated = { ...activeProfile, playstyle_pref: nextPlaystyle };  
                           setSelectedProfile(updated);  
                           await handleUpdateSelfField({ playstyle_pref: nextPlaystyle });  
@@ -1263,9 +1347,9 @@ export default function App() {
                             }, 3000);  
                           }  
                         }}  
-                        style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}  
+                        style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 1 : 0.4 }}  
                       >  
-                        {playstylePref === 'Clean' ? t('Party') : t(playstylePref)}  
+                        {t(playstylePref)}  
                       </button>  
   
                       {showStuffBubble && (  
@@ -1281,10 +1365,23 @@ export default function App() {
                     </div>  
                   )}  
   
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: isViewingSelf ? 0.3 : 1, filter: isViewingSelf ? 'grayscale(100%)' : 'none' }}>  
-                    {t(activeProfile.how_many_pref || '1on1')}  
-                  </div>  
+                  {/* HOW MANY DISPLAY / SUBSCRIPTION-PROTECTED FILTER OVERRIDE */}
+                  <button   
+                    type="button"   
+                    onClick={async () => {  
+                      if (!isViewingSelf) return;  
+                      const allowed = await verifyFilterSubscription();  
+                      if (!allowed) return;  
+
+                      const nextHowMany = filterHowManyVal === '1on1' ? null : '1on1';  
+                      setFilterHowManyVal(nextHowMany);  
+                    }}  
+                    style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
+                  >  
+                    {t(isViewingSelf ? (filterHowManyVal || 'DoesntMatter') : (activeProfile.how_many_pref || 'DoesntMatter'))}  
+                  </button>  
                     
+                  {/* WHERE DISPLAY / TOGGLE HOST <-> TRAVEL (No preference purchase required) */}
                   {isViewingSelf ? (  
                     <button   
                       type="button"   
@@ -1295,7 +1392,7 @@ export default function App() {
                         setSelectedProfile(updated);  
                         await handleUpdateSelfField({ where_pref: nextWhere });  
                       }}  
-                      style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}  
+                      style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}  
                     >  
                       {t(wherePref)}  
                     </button>  
@@ -1304,6 +1401,7 @@ export default function App() {
                       {t(activeProfile.where_pref || 'Host')}  
                     </div>  
                   )}  
+
                 </div>  
               )}  
   
