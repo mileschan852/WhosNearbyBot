@@ -45,54 +45,54 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Versatile': 'Versatile', 'Top': 'Top', 'Bottom': 'Bottom', 'Side': 'Side',
     'Safe': 'Safe (Condoms)', 'Raw': 'Raw (Bareback)',
     'Clean': 'Clean (No Drugs)', 'Party': 'Party (Chemsex)', 'Party✓': 'Party✓',
-    '1on1_setup': '1-on-1 (only)', '1on1': '1-on-1',
-    'DoesntMatter_setup': "Doesn't matter (any)", 'DoesntMatter': "Doesn't matter",
-    'Host': 'Host', 'Travel': 'Travel', 'Off': 'Off'
+    '1on1_setup': '1-on-1 (only)', 'group_setup': 'group (only)', 'DoesntMatter_setup': "Doesn't matter",
+    '1on1': '1-on-1', 'group': 'group', 'DoesntMatter': "Doesn't matter",
+    'Host': 'Host', 'Travel': 'Travel', 'Off': 'Off', 'Anywhere': 'Anywhere'
   },  
   'zh-CN': {  
     loading: '正在加载应用...', locationRequired: '需要位置权限', locationMessage: '使用“附近”功能必须获得位置权限。请在浏览器或 Telegram 设置中启用位置访问并重新启动应用。', accessDenied: '拒绝访问', underageMessage: '本应用仅限成年人使用。由于年龄限制，该账户已被锁定。', completeProfile: '完善您的个人资料', profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。', dob: '出生日期：', imA: '我是', seeking: '寻找', man: '男性', woman: '女性', nonBinary: '非二元性别', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '选择身高', weight: '体重：', selectWeight: '选择体重', tapToChange: '点击更改您的偏好：', mode: '模式：', browsingOnly: '仅浏览', onlineOnly: '仅在线', meetUp: '约会中', saveProfile: '保存资料并继续', whosNearby: '附近的人', filter: '筛选', refresh: '刷新', grid: '网格', map: '地图', filterUsers: '筛选用户', ageRange: '年龄范围', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '游戏风格偏好', groupSize: '群组人数', applyFilters: '应用筛选', ageHidden: '年龄已隐藏', ageShown: '年龄已显示', expires: '到期时间：', sendMessage: '发送消息', unlockPreference: '更改资料与偏好', iGotStuff: '我有货', unlockPreferencePrompt: '更改个人资料与偏好需要支付 1000 Telegram Stars。是否继续支付？', invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？', hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？', filterSubPrompt: '自定义此筛选条件需要订阅。是否继续支付？', paymentCancelled: '支付已取消或失败。', errorSaving: '保存资料出错：', fillAll: '请填写所有必填问题以继续。',
     'Versatile': '0.5 (可攻可受)', 'Top': '1 (攻)', 'Bottom': '0 (受)', 'Side': 'Side (边缘)',
     'Safe': 'Safe (戴套)', 'Raw': 'Raw (无套)',
     'Clean': 'Clean (无药)', 'Party': 'Party (嗨药)', 'Party✓': 'Party✓',
-    '1on1_setup': '单对单 (仅限1on1)', '1on1': '单对单',
-    'DoesntMatter_setup': '无所谓 (均可)', 'DoesntMatter': '无所谓',
-    'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)', 'Off': '关闭'
+    '1on1_setup': '单对单 (仅限1on1)', 'group_setup': '群组 (仅限群组)', 'DoesntMatter_setup': '无所谓',
+    '1on1': '单对单', 'group': '群组', 'DoesntMatter': '无所谓',
+    'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)', 'Off': '关闭', 'Anywhere': '任意'
   },  
   'zh-TW': {  
     loading: '正在載入應用程式...', locationRequired: '需要位置權限', locationMessage: '使用「附近」功能必須獲得位置權限。請在瀏覽器或 Telegram 設定中啟用位置存取並重新啟動應用程式。', accessDenied: '存取被拒', underageMessage: '本應用程式僅限成年人使用。由於年齡限制，該帳戶已被鎖定。', completeProfile: '完善您的個人資料', profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。', dob: '出生日期：', imA: '我是', seeking: '尋找', man: '男性', woman: '女性', nonBinary: '非二元性別', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '選擇身高', weight: '體重：', selectWeight: '選擇體重', tapToChange: '點擊更改您的偏好：', mode: '模式：', browsingOnly: '僅瀏覽', onlineOnly: '僅線上', meetUp: '見面中', saveProfile: '儲存資料並繼續', whosNearby: '附近的人', filter: '篩選', refresh: '重新整理', grid: '網格', map: '地圖', filterUsers: '篩選使用者', ageRange: '年齡範圍', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '風格偏好', groupSize: '群組人數', applyFilters: '套用篩選', ageHidden: '年齡已隱藏', ageShown: '年齡已顯示', expires: '到期時間：', sendMessage: '傳送訊息', unlockPreference: '更改資料與偏好', iGotStuff: '我有貨', unlockPreferencePrompt: '更改個人資料與偏好需要支付 1000 Telegram Stars。是否繼續支付？', invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？', hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？', filterSubPrompt: '自訂此篩選條件需要訂閱。是否繼續支付？', paymentCancelled: '付款已取消或失敗。', errorSaving: '儲存資料出錯：', fillAll: '請填寫所有必填問題以繼續。',
     'Versatile': '0.5 (不分)', 'Top': '1 (頂)', 'Bottom': '0 (底)', 'Side': 'Side (邊緣)',
     'Safe': 'Safe (戴套)', 'Raw': 'Raw (無套)',
     'Clean': 'Clean (無藥)', 'Party': 'Party (嗨藥/煙)', 'Party✓': 'Party✓',
-    '1on1_setup': '單對單 (僅限1on1)', '1on1': '單對單',
-    'DoesntMatter_setup': '無所謂 (均可)', 'DoesntMatter': '無所謂',
-    'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)', 'Off': '關閉'
+    '1on1_setup': '單對單 (僅限1on1)', 'group_setup': '群組 (僅限群組)', 'DoesntMatter_setup': '無所謂',
+    '1on1': '單對單', 'group': '群組', 'DoesntMatter': '無所謂',
+    'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)', 'Off': '關閉', 'Anywhere': '任意'
   },  
   'ja': {  
     loading: 'アプリを読み込んでいます...', locationRequired: '位置情報のアクセスが必要です', locationMessage: '位置情報の許可が必須です。', accessDenied: 'アクセスが拒否されました', underageMessage: 'このアプリは成人向けです。', completeProfile: 'プロフィールを完成させる', profileWarning: '警告：これは後から変更できません。', dob: '生年月日：', imA: '私は', seeking: '探しています：', man: '男性', woman: '女性', nonBinary: 'ノンバイナリー', men: '男性', women: '女性', everyone: 'すべての人', height: '身長：', selectHeight: '身長を選択', weight: '体重：', selectWeight: '体重を選択', tapToChange: 'タップして好みを変更：', mode: 'モード：', browsingOnly: '閲覧のみ', onlineOnly: 'オンラインのみ', meetUp: 'ミートアップ', saveProfile: 'プロフィールを保存して続ける', whosNearby: '近くの人', filter: 'フィルター', refresh: '更新', grid: 'グリッド', map: 'マップ', filterUsers: 'ユーザーをフィルター', ageRange: '年齢層', rolePreference: 'ロールの好み', safetyPreference: '安全の好み', playstylePreference: 'プレイスタイルの好み', groupSize: 'グループサイズ', applyFilters: 'フィルターを適用', ageHidden: '年齢非表示', ageShown: '年齢表示', expires: '有効期限：', sendMessage: 'メッセージを送る', unlockPreference: 'プロフィールと好みを変更', iGotStuff: '持ってるよ', unlockPreferencePrompt: 'プロフィールの変更には1000 Starsが必要です。', invisiblePrompt: '透明化には3000 Starsが必要です。', hideAgePrompt: '年齢非表示には1000 Starsが必要です。', filterSubPrompt: 'フィルターのカスタマイズにはサブスクリプションが必要です。', paymentCancelled: '支払いがキャンセルされました。', errorSaving: 'エラー：', fillAll: 'すべての必須項目を入力してください。',
     'Versatile': 'リバ (Vers)', 'Top': 'タチ (Top)', 'Bottom': 'ネコ (Btm)', 'Side': 'サイド (Side)',
     'Safe': 'ゴムあり (Safe)', 'Raw': '生/中出し (Raw)',
     'Clean': 'シラフ (Clean)', 'Party': 'ケミ (Party)', 'Party✓': 'Party✓',
-    '1on1_setup': '1対1 (のみ)', '1on1': '1対1',
-    'DoesntMatter_setup': 'こだわらない', 'DoesntMatter': 'こだわらない',
-    'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)', 'Off': 'オフ'
+    '1on1_setup': '1対1 (のみ)', 'group_setup': 'グループ (のみ)', 'DoesntMatter_setup': 'こだわらない',
+    '1on1': '1対1', 'group': 'グループ', 'DoesntMatter': 'こだわらない',
+    'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)', 'Off': 'オフ', 'Anywhere': 'どこでも'
   },  
   'ko': {  
     loading: '앱 로딩 중...', locationRequired: '위치 접근 권한 필요', locationMessage: '위치 권한이 필수입니다.', accessDenied: '접근 거부됨', underageMessage: '이 앱은 성인 전용입니다.', completeProfile: '프로필 완성하기', profileWarning: '경고: 이는 나중에 변경할 수 없습니다.', dob: '생년월일:', imA: '나는', seeking: '찾는 대상:', man: '남성', woman: '여성', nonBinary: '논바이너리', men: '남성', women: '여성', everyone: '모두', height: '키:', selectHeight: '키 선택', weight: '체중:', selectWeight: '체중 선택', tapToChange: '탭하여 선호도 변경:', mode: '모드:', browsingOnly: '브라우징 전용', onlineOnly: '온라인 전용', meetUp: '만남', saveProfile: '프로필 저장 및 계속', whosNearby: '내 주변', filter: '필터', refresh: '새로고침', grid: '그리드', map: '지도', filterUsers: '사용자 필터', ageRange: '연령대', rolePreference: '포지션 선호', safetyPreference: '안전 선호', playstylePreference: '플레이스타일 선호', groupSize: '그룹 인원', applyFilters: '필터 적용', ageHidden: '나이 숨김', ageShown: '나이 표시', expires: '만료일:', sendMessage: '메시지 보내기', unlockPreference: '프로필 변경', iGotStuff: '나 있음', unlockPreferencePrompt: '프로필 변경 1000 Stars 결제?', invisiblePrompt: '숨김 모드 3000 Stars 결제?', hideAgePrompt: '나이 숨기기 1000 Stars 결제?', filterSubPrompt: '필터 변경 구독 필요.', paymentCancelled: '결제 취소됨.', errorSaving: '오류:', fillAll: '필수 항목을 입력해주세요.',
     'Versatile': '올 (Vers)', 'Top': '탑 (Top)', 'Bottom': '바텀 (Btm)', 'Side': '사이드 (Side)',
     'Safe': '안전/콘돔 (Safe)', 'Raw': '노콘 (Raw)',
     'Clean': '노약 (Clean)', 'Party': '파티/약 (Party)', 'Party✓': 'Party✓',
-    '1on1_setup': '1대1 (전용)', '1on1': '1대1',
-    'DoesntMatter_setup': '상관없음', 'DoesntMatter': '상관없음',
-    'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)', 'Off': '꺼짐'
+    '1on1_setup': '1대1 (전용)', 'group_setup': '그룹 (전용)', 'DoesntMatter_setup': '상관없음',
+    '1on1': '1대1', 'group': '그룹', 'DoesntMatter': '상관없음',
+    'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)', 'Off': '꺼짐', 'Anywhere': '상관없음'
   },  
   'ru': {  
     loading: 'Загрузка...', locationRequired: 'Требуется геолокация', locationMessage: 'Разрешение обязательно.', accessDenied: 'Доступ запрещен', underageMessage: 'Только для взрослых.', completeProfile: 'Заполните профиль', profileWarning: 'Предупреждение: это нельзя изменить.', dob: 'Дата рождения:', imA: 'Я', seeking: 'ищу', man: 'мужчину', woman: 'женщину', nonBinary: 'небинарную', men: 'мужчин', women: 'женщин', everyone: 'всех', height: 'Рост:', selectHeight: 'Выберите рост', weight: 'Вес:', selectWeight: 'Выберите вес', tapToChange: 'нажмите, чтобы изменить:', mode: 'Режим:', browsingOnly: 'Только просмотр', onlineOnly: 'Только онлайн', meetUp: 'Встреча', saveProfile: 'Сохранить', whosNearby: 'Рядом', filter: 'Фильтр', refresh: 'Обновить', grid: 'Сетка', map: 'Карта', filterUsers: 'Фильтры', ageRange: 'Возраст', rolePreference: 'Роль', safetyPreference: 'Безопасность', playstylePreference: 'Стиль', groupSize: 'Размер группы', applyFilters: 'Применить', ageHidden: 'Возраст скрыт', ageShown: 'Возраст виден', expires: 'Истекает:', sendMessage: 'Сообщение', unlockPreference: 'Изменить профиль', iGotStuff: 'У меня есть стафф', unlockPreferencePrompt: 'Изменить профиль за 1000 Stars?', invisiblePrompt: 'Невидимка за 3000 Stars?', hideAgePrompt: 'Скрыть возраст за 1000 Stars?', filterSubPrompt: 'Требуется подписка на фильтры.', paymentCancelled: 'Оплата отменена.', errorSaving: 'Ошибка:', fillAll: 'Заполните все поля.',
     'Versatile': 'Универсал (Vers)', 'Top': 'Актив (Top)', 'Bottom': 'Пассив (Btm)', 'Side': 'Без пенетрации (Side)',
     'Safe': 'С резинкой (Safe)', 'Raw': 'Без резинки (Raw)',
     'Clean': 'Без наркотиков (Clean)', 'Party': 'Химсекс (Party)', 'Party✓': 'Party✓',
-    '1on1_setup': '1 на 1 (только)', '1on1': '1 на 1',
-    'DoesntMatter_setup': 'Неважно', 'DoesntMatter': 'Неважно',
-    'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)', 'Off': 'Выкл'
+    '1on1_setup': '1 на 1 (только)', 'group_setup': 'группа (только)', 'DoesntMatter_setup': 'Неважно',
+    '1on1': '1 на 1', 'group': 'группа', 'DoesntMatter': 'Неважно',
+    'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)', 'Off': 'Выкл', 'Anywhere': 'Везде'
   }  
 };  
   
@@ -264,11 +264,12 @@ export default function App() {
   const [height, setHeight] = useState<string>('');  
   const [weight, setWeight] = useState<string>('');  
     
+  // INITIAL VALUES SET TO: versatile(off), safe, clean, doesn't matter(off), anywhere(off)
   const [rolePref, setRolePref] = useState<string>('Versatile');  
   const [safetyPref, setSafetyPref] = useState<string>('Safe');  
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');  
-  const [howManyPref, setHowManyPref] = useState<string>('1on1');  
-  const [wherePref, setWherePref] = useState<string>('Host');  
+  const [howManyPref, setHowManyPref] = useState<string>('DoesntMatter');  
+  const [wherePref, setWherePref] = useState<string | null>(null);  
   
   const [nonManMode, setNonManMode] = useState<string>('Meet up - You are visible on grid and map');  
   
@@ -287,14 +288,20 @@ export default function App() {
   
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];  
   const safetyCycleOptions = ['Safe', 'Raw'];  
-  const howManyCycleOptions = ['1on1', 'DoesntMatter'];  
-  const whereCycleOptions = ['Host', 'Travel'];  
+  const howManyCycleOptions = ['1on1', 'group', 'DoesntMatter'];  
+  const whereCycleOptions = ['Host', 'Travel', null];  
   
   const cycleNext = (current: string, options: string[]) => {  
     const idx = options.indexOf(current);  
     if (idx === -1 || idx === options.length - 1) return options[0];  
     return options[idx + 1];  
   };  
+
+  const cycleWhere = (current: string | null, options: (string | null)[]) => {
+    const idx = options.indexOf(current);
+    if (idx === -1 || idx === options.length - 1) return options[0];
+    return options[idx + 1];
+  };
   
   const heightOptions = [];  
   for (let i = 10; i <= 30; i++) {  
@@ -330,6 +337,7 @@ export default function App() {
 
     // 3. How Many Logic
     if (pHowMany === '1on1') setFilterHowManyVal('1on1');
+    else if (pHowMany === 'group') setFilterHowManyVal('group');
     else setFilterHowManyVal(null); // Doesn't matter -> OFF
 
     // 4. Playstyle Logic
@@ -494,7 +502,7 @@ export default function App() {
           existingProfile.seeking &&   
           existingProfile.height &&   
           existingProfile.weight &&   
-          (!isManSeekingMan || (existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref)) &&  
+          (!isManSeekingMan || (existingProfile.role_pref && existingProfile.safety_pref && existingProfile.playstyle_pref && existingProfile.how_many_pref && existingProfile.where_pref !== undefined)) &&  
           (isManSeekingMan || existingProfile.non_man_mode)  
         );  
   
@@ -507,7 +515,7 @@ export default function App() {
           if (existingProfile.safety_pref) setSafetyPref(existingProfile.safety_pref);  
           if (existingProfile.playstyle_pref) setPlaystylePref(existingProfile.playstyle_pref);  
           if (existingProfile.how_many_pref) setHowManyPref(existingProfile.how_many_pref);  
-          if (existingProfile.where_pref) setWherePref(existingProfile.where_pref);  
+          if (existingProfile.where_pref !== undefined && existingProfile.where_pref !== null) setWherePref(existingProfile.where_pref);  
           if (existingProfile.non_man_mode) setNonManMode(existingProfile.non_man_mode);  
   
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);  
@@ -524,7 +532,7 @@ export default function App() {
               existingProfile.role_pref || 'Versatile',
               existingProfile.safety_pref || 'Safe',
               existingProfile.playstyle_pref || 'Clean',
-              existingProfile.how_many_pref || '1on1'
+              existingProfile.how_many_pref || 'DoesntMatter'
             );
           }
         }  
@@ -631,7 +639,7 @@ export default function App() {
   
     const isManSeekingMan = gender === 'man' && seeking === 'men';  
   
-    if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || !wherePref)) || (!isManSeekingMan && !nonManMode)) {  
+    if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || wherePref === undefined)) || (!isManSeekingMan && !nonManMode)) {  
       setErrorMessage(t('fillAll'));  
       return;  
     }  
@@ -1116,8 +1124,8 @@ export default function App() {
                     <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
                       {t(`${howManyPref}_setup`)}  
                     </button>  
-                    <button type="button" onClick={() => setWherePref(cycleNext(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
-                      {t(wherePref)}  
+                    <button type="button" onClick={() => setWherePref(cycleWhere(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>  
+                      {wherePref === null ? t('Anywhere') : t(wherePref)}  
                     </button>  
                   </div>  
                 </>  
@@ -1325,7 +1333,7 @@ export default function App() {
                     {t(isViewingSelf ? (filterSafetyVal || activeProfile.safety_pref || 'Safe') : (activeProfile.safety_pref || 'Safe'))}  
                   </button>  
   
-                  {/* PLAYSTYLE DISPLAY / PARTY✓ TOGGLE (No preference purchase required) */}
+                  {/* PLAYSTYLE DISPLAY / PARTY✓ TOGGLE */}
                   {isViewingSelf ? (  
                     <div style={{ flex: 1, position: 'relative', display: 'flex' }}>  
                       <button   
@@ -1373,7 +1381,7 @@ export default function App() {
                       const allowed = await verifyFilterSubscription();  
                       if (!allowed) return;  
 
-                      const nextHowMany = filterHowManyVal === '1on1' ? null : '1on1';  
+                      const nextHowMany = filterHowManyVal === '1on1' ? 'group' : (filterHowManyVal === 'group' ? null : '1on1');  
                       setFilterHowManyVal(nextHowMany);  
                     }}  
                     style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
@@ -1381,12 +1389,12 @@ export default function App() {
                     {t(isViewingSelf ? (filterHowManyVal || 'DoesntMatter') : (activeProfile.how_many_pref || 'DoesntMatter'))}  
                   </button>  
                     
-                  {/* WHERE DISPLAY / TOGGLE HOST <-> TRAVEL (No preference purchase required) */}
+                  {/* WHERE DISPLAY / TOGGLE HOST <-> TRAVEL */}
                   {isViewingSelf ? (  
                     <button   
                       type="button"   
                       onClick={async () => {  
-                        const nextWhere = wherePref === 'Host' ? 'Travel' : 'Host';  
+                        const nextWhere = wherePref === 'Host' ? 'Travel' : (wherePref === 'Travel' ? null : 'Host');  
                         setWherePref(nextWhere);  
                         const updated = { ...activeProfile, where_pref: nextWhere };  
                         setSelectedProfile(updated);  
@@ -1394,11 +1402,11 @@ export default function App() {
                       }}  
                       style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}  
                     >  
-                      {t(wherePref)}  
+                      {wherePref === null ? t('Anywhere') : t(wherePref)}  
                     </button>  
                   ) : (  
                     <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>  
-                      {t(activeProfile.where_pref || 'Host')}  
+                      {activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere')}  
                     </div>  
                   )}  
 
