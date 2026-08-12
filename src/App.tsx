@@ -960,9 +960,9 @@ export default function App() {
   
     const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';  
     if (userIsManSeekingMan) {  
-      // ROLE FILTER  
+      // ROLE FILTER (Versatile always matches any role)
       if (filterRoleVal) {  
-        if (user.role_pref !== filterRoleVal) return false;  
+        if (user.role_pref !== filterRoleVal && user.role_pref !== 'Versatile') return false;  
       }  
       // SAFETY FILTER  
       if (filterSafetyVal) {  
