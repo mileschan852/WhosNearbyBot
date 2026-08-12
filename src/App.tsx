@@ -26,6 +26,7 @@ declare global {
         ready?: () => void;  
         expand?: () => void;  
         openTelegramLink?: (url: string) => void;  
+        openLink?: (url: string) => void;
         showAlert?: (message: string) => void;  
         openInvoice?: (url: string, callback?: (status: string) => void) => void;  
       };  
@@ -257,6 +258,7 @@ export default function App() {
   
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);  
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);  
+  const [isGamesMenuOpen, setIsGamesMenuOpen] = useState<boolean>(false);
   
   const [dob, setDob] = useState<string>('');  
   const [gender, setGender] = useState<string>('man');  
@@ -984,6 +986,17 @@ export default function App() {
   
     return true;  
   };  
+
+  // Utility to handle opening external app/game links
+  const handleOpenExternalApp = (url: string) => {
+    if (url.includes('t.me') && window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(url);
+    } else if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
   
   if (!isReady) {  
     return (  
@@ -1432,6 +1445,76 @@ export default function App() {
           </div>  
         </div>  
       )}  
+
+      {/* GAMES AND APPS FLOATING MENU */}
+      <div style={{
+        position: 'fixed',
+        right: 0,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 5000,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px',
+        backgroundColor: 'rgba(30, 30, 30, 0.85)',
+        borderTopLeftRadius: '16px',
+        borderBottomLeftRadius: '16px',
+        boxShadow: '-2px 0px 8px rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(4px)'
+      }}>
+        <button 
+          onClick={() => setIsGamesMenuOpen(!isGamesMenuOpen)}
+          style={{
+            background: 'none', 
+            border: 'none', 
+            fontSize: '32px', 
+            cursor: 'pointer',
+            padding: 0,
+            lineHeight: 1,
+            filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.6))',
+            transition: 'transform 0.2s ease',
+            transform: isGamesMenuOpen ? 'scale(0.9)' : 'scale(1)'
+          }}
+          title="Games & Apps"
+        >
+          ⭐
+        </button>
+
+        {isGamesMenuOpen && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+            {/* Wallet */}
+            <img 
+              src="13660.jpg" 
+              alt="Wallet" 
+              onClick={() => handleOpenExternalApp('https://t.me/wallet')}
+              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+            />
+            {/* Busta */}
+            <img 
+              src="13659.jpg" 
+              alt="Busta" 
+              onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')}
+              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+            />
+            {/* TonFlip */}
+            <img 
+              src="13657.jpg" 
+              alt="TonFlip" 
+              onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')}
+              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+            />
+            {/* Photify */}
+            <img 
+              src="13658.jpg" 
+              alt="Photify" 
+              onClick={() => handleOpenExternalApp('https://t.me/PhotifyOfficialBot?start=referral_1231127407')}
+              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+            />
+          </div>
+        )}
+      </div>
   
       <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>  
           
