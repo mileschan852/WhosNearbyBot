@@ -1,6 +1,10 @@
 // ==========================================  
 // Telegram Web App Frontend Code (App.tsx)  
 // ==========================================  
+import walletIcon from './assets/wallet.jpg';
+import bustaIcon from './assets/bustagames.jpg';
+import tonflipIcon from './assets/tonflip.jpg';
+import photifyIcon from './assets/photify.jpg';
   
 import { useState, useEffect } from 'react';  
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';  
@@ -1479,29 +1483,30 @@ export default function App() {
         {isGamesMenuOpen && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
             <img 
-              src="/src/assets/wallet.jpg" 
-              alt="Wallet" 
-              onClick={() => handleOpenExternalApp('https://t.me/wallet')}
-              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
-            />
-            <img 
-              src="/src/assets/bustagames.jpg" 
-              alt="Busta" 
-              onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')}
-              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
-            />
-            <img 
-              src="/src/assets/tonflip.jpg" 
-              alt="TonFlip" 
-              onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')}
-              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
-            />
-            <img 
-              src="/src/assets/photify.jpg" 
-              alt="Photify" 
-              onClick={() => handleOpenExternalApp('https://t.me/PhotifyOfficialBot?start=referral_1231127407')}
-              style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
-            />
+  src={walletIcon} 
+  alt="Wallet" 
+  onClick={() => handleOpenExternalApp('https://t.me/wallet')}
+  style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+/>
+<img 
+  src={bustaIcon} 
+  alt="Busta" 
+  onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')}
+  style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+/>
+<img 
+  src={tonflipIcon} 
+  alt="TonFlip" 
+  onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')}
+  style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+/>
+<img 
+  src={photifyIcon} 
+  alt="Photify" 
+  onClick={() => handleOpenExternalApp('https://t.me/PhotifyOfficialBot?start=referral_1231127407')}
+  style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
+/>
+
           </div>
         )}
       </div>
