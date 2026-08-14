@@ -1,10 +1,10 @@
 // ==========================================  
 // Telegram Web App Frontend Code (App.tsx)  
 // ==========================================  
-import walletIcon from './assets/wallet.jpg';
-import bustaIcon from './assets/bustagames.jpg';
-import tonflipIcon from './assets/tonflip.jpg';
-import photifyIcon from './assets/photify.jpg';
+import walletIcon from './assets/Wallet.jpg';
+import bustaIcon from './assets/Bustagames.jpg';
+import tonflipIcon from './assets/Tonflip.jpg';
+import photifyIcon from './assets/Photify.jpg';
   
 import { useState, useEffect } from 'react';  
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';  
