@@ -132,6 +132,11 @@ const formatDistanceBigUnit = (meters?: number) => {
   }  
   return `${meters}m`;  
 };  
+
+const formatTagText = (str: string) => {
+  if (!str) return '';
+  return str.replace(/\s*[\(（][^)）]*[\)）]/g, '').trim();
+};
   
 const calculateAge = (dobString?: string | null) => {  
   if (!dobString) return null;  
@@ -266,7 +271,6 @@ export default function App() {
   const [height, setHeight] = useState<string>('');  
   const [weight, setWeight] = useState<string>('');  
     
-  // INITIAL VALUES SET TO: versatile(off), safe, clean, doesn't matter(off), anywhere(off)
   const [rolePref, setRolePref] = useState<string>('Versatile');  
   const [safetyPref, setSafetyPref] = useState<string>('Safe');  
   const [playstylePref, setPlaystylePref] = useState<string>('Clean');  
@@ -326,23 +330,18 @@ export default function App() {
     return startParam === 'hkmod' ? 'botA' : 'botB';  
   };  
   
-  // CALCULATE DEFAULT FILTERS STRICTLY BASED ON PREFERENCE MAPPING
   const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
-    // 1. Role Logic
     if (pRole === 'Top') setFilterRoleVal('Bottom');
     else if (pRole === 'Bottom') setFilterRoleVal('Top');
     else if (pRole === 'Side') setFilterRoleVal('Side');
-    else setFilterRoleVal(null); // Versatile -> OFF
+    else setFilterRoleVal(null); 
 
-    // 2. Safety Logic
-    setFilterSafetyVal(pSafety); // Safe -> Safe, Raw -> Raw
+    setFilterSafetyVal(pSafety); 
 
-    // 3. How Many Logic
     if (pHowMany === '1on1') setFilterHowManyVal('1on1');
     else if (pHowMany === 'group') setFilterHowManyVal('group');
-    else setFilterHowManyVal(null); // Doesn't matter -> OFF
+    else setFilterHowManyVal(null); 
 
-    // 4. Playstyle Logic
     if (pPlaystyle === 'Party' || pPlaystyle === 'Party✓') setFilterPlaystyleVal('Party');
     else setFilterPlaystyleVal('Clean');
   };
@@ -962,15 +961,12 @@ export default function App() {
   
     const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';  
     if (userIsManSeekingMan) {  
-      // ROLE FILTER (Versatile always matches any role)
       if (filterRoleVal) {  
         if (user.role_pref !== filterRoleVal && user.role_pref !== 'Versatile') return false;  
       }  
-      // SAFETY FILTER  
       if (filterSafetyVal) {  
         if (user.safety_pref !== filterSafetyVal) return false;  
       }  
-      // PLAYSTYLE FILTER  
       if (filterPlaystyleVal) {  
         if (filterPlaystyleVal === 'Party') {
           if (user.playstyle_pref !== 'Party' && user.playstyle_pref !== 'Party✓') return false;
@@ -978,7 +974,6 @@ export default function App() {
           return false;  
         }
       }  
-      // HOW MANY FILTER  
       if (filterHowManyVal) {  
         if (user.how_many_pref !== filterHowManyVal) return false;  
       }  
@@ -987,7 +982,6 @@ export default function App() {
     return true;  
   };  
 
-  // Utility to handle opening external app/game links
   const handleOpenExternalApp = (url: string) => {
     if (url.includes('t.me') && window.Telegram?.WebApp?.openTelegramLink) {
       window.Telegram.WebApp.openTelegramLink(url);
@@ -1327,7 +1321,7 @@ export default function App() {
                   
                   {/* ROLE DISPLAY / GREYED OUT & UNCHANGEABLE HERE */}
                   <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>  
-                    {t(activeProfile.role_pref || 'Versatile')}  
+                    {formatTagText(t(activeProfile.role_pref || 'Versatile'))}  
                   </div>  
 
                   {/* SAFETY DISPLAY / SUBSCRIPTION-PROTECTED FILTER OVERRIDE */}
@@ -1343,7 +1337,7 @@ export default function App() {
                     }}  
                     style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
                   >  
-                    {t(isViewingSelf ? (filterSafetyVal || activeProfile.safety_pref || 'Safe') : (activeProfile.safety_pref || 'Safe'))}  
+                    {formatTagText(t(isViewingSelf ? (filterSafetyVal || activeProfile.safety_pref || 'Safe') : (activeProfile.safety_pref || 'Safe')))}  
                   </button>  
   
                   {/* PLAYSTYLE DISPLAY / PARTY✓ TOGGLE */}
@@ -1370,7 +1364,7 @@ export default function App() {
                         }}  
                         style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 1 : 0.4 }}  
                       >  
-                        {t(playstylePref)}  
+                        {formatTagText(t(playstylePref))}  
                       </button>  
   
                       {showStuffBubble && (  
@@ -1382,7 +1376,7 @@ export default function App() {
                     </div>  
                   ) : (  
                     <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>  
-                      {t(activeProfile.playstyle_pref || 'Clean')}  
+                      {formatTagText(t(activeProfile.playstyle_pref || 'Clean'))}  
                     </div>  
                   )}  
   
@@ -1399,7 +1393,7 @@ export default function App() {
                     }}  
                     style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
                   >  
-                    {t(isViewingSelf ? (filterHowManyVal || 'DoesntMatter') : (activeProfile.how_many_pref || 'DoesntMatter'))}  
+                    {formatTagText(t(isViewingSelf ? (filterHowManyVal || 'DoesntMatter') : (activeProfile.how_many_pref || 'DoesntMatter')))}  
                   </button>  
                     
                   {/* WHERE DISPLAY / TOGGLE HOST <-> TRAVEL */}
@@ -1415,11 +1409,11 @@ export default function App() {
                       }}  
                       style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}  
                     >  
-                      {wherePref === null ? t('Anywhere') : t(wherePref)}  
+                      {formatTagText(wherePref === null ? t('Anywhere') : t(wherePref))}  
                     </button>  
                   ) : (  
                     <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>  
-                      {activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere')}  
+                      {formatTagText(activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere'))}  
                     </div>  
                   )}  
 
@@ -1484,30 +1478,26 @@ export default function App() {
 
         {isGamesMenuOpen && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-            {/* Wallet */}
             <img 
-              src="13660.jpg" 
+              src="/src/assets/wallet.jpg" 
               alt="Wallet" 
               onClick={() => handleOpenExternalApp('https://t.me/wallet')}
               style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
             />
-            {/* Busta */}
             <img 
-              src="13659.jpg" 
+              src="/src/assets/bustagames.jpg" 
               alt="Busta" 
               onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')}
               style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
             />
-            {/* TonFlip */}
             <img 
-              src="13657.jpg" 
+              src="/src/assets/tonflip.jpg" 
               alt="TonFlip" 
               onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')}
               style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
             />
-            {/* Photify */}
             <img 
-              src="13658.jpg" 
+              src="/src/assets/photify.jpg" 
               alt="Photify" 
               onClick={() => handleOpenExternalApp('https://t.me/PhotifyOfficialBot?start=referral_1231127407')}
               style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
