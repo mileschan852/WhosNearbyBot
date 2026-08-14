@@ -1485,9 +1485,10 @@ export default function App() {
             <img 
   src={walletIcon} 
   alt="Wallet" 
-  onClick={() => handleOpenExternalApp('https://t.me/wallet')}
+  onClick={() => handleOpenExternalApp('https://t.me/wallet?startattach')}
   style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }}
 />
+
 <img 
   src={bustaIcon} 
   alt="Busta" 
