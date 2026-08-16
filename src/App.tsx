@@ -39,9 +39,10 @@ declare global {
   }  
 }  
   
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';  
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';  
-const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;  
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const PAYMENT_WORKER_URL = import.meta.env.VITE_PAYMENT_WORKER_URL || '';
+const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
   
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';  
   
@@ -332,7 +333,7 @@ export default function App() {
   
   const getActiveBotKey = () => {  
     const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || '';  
-    return startParam === 'hkmod' ? 'botA' : 'botB';  
+    return startParam === 'gaymode' ? 'botA' : 'botB';  
   };  
   
   const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
@@ -492,7 +493,7 @@ export default function App() {
         let initialGender = existingProfile?.gender || 'man';  
         let initialSeeking = existingProfile?.seeking || 'women';  
 
-        if (!existingProfile && startParam === 'hkmod') {  
+        if (!existingProfile && startParam === 'gaymode') {  
           initialGender = 'man';  
           initialSeeking = 'men';  
         }  
@@ -711,9 +712,13 @@ export default function App() {
     const confirmed = window.confirm(t('filterSubPrompt'));
     if (!confirmed) return false;
 
-    const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';
+    if (!PAYMENT_WORKER_URL) {
+      console.error('VITE_PAYMENT_WORKER_URL is not set');
+      return false;
+    }
+
     try {
-      const res = await fetch(`${workerUrl}/create-invoice`, {
+      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -751,13 +756,16 @@ export default function App() {
       return;  
     }  
   
-    const confirmed = window.confirm(t('unlockPreferencePrompt'));  
-    if (!confirmed) return;  
-  
-    const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';  
-  
-    try {  
-      const res = await fetch(`${workerUrl}/create-invoice`, {  
+    const confirmed = window.confirm(t('unlockPreferencePrompt'));
+    if (!confirmed) return;
+
+    if (!PAYMENT_WORKER_URL) {
+      console.error('VITE_PAYMENT_WORKER_URL is not set');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
         method: 'POST',  
         headers: { 'Content-Type': 'application/json' },  
         body: JSON.stringify({   
@@ -795,14 +803,17 @@ export default function App() {
       const now = new Date();  
       const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();  
         
-      if (isExpired) {  
-        const confirmed = window.confirm(t('invisiblePrompt'));  
-        if (!confirmed) return;  
-  
-        const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';  
-  
-        try {  
-          const res = await fetch(`${workerUrl}/create-invoice`, {  
+      if (isExpired) {
+        const confirmed = window.confirm(t('invisiblePrompt'));
+        if (!confirmed) return;
+
+        if (!PAYMENT_WORKER_URL) {
+          console.error('VITE_PAYMENT_WORKER_URL is not set');
+          return;
+        }
+
+        try {
+          const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
             method: 'POST',  
             headers: { 'Content-Type': 'application/json' },  
             body: JSON.stringify({   
@@ -887,14 +898,17 @@ export default function App() {
       const now = new Date();  
       const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();  
   
-      if (isExpired) {  
-        const confirmed = window.confirm(t('hideAgePrompt'));  
-        if (!confirmed) return;  
-  
-        const workerUrl = 'https://WhosNearbyBot.mileschan853.workers.dev';  
-  
-        try {  
-          const res = await fetch(`${workerUrl}/create-invoice`, {  
+      if (isExpired) {
+        const confirmed = window.confirm(t('hideAgePrompt'));
+        if (!confirmed) return;
+
+        if (!PAYMENT_WORKER_URL) {
+          console.error('VITE_PAYMENT_WORKER_URL is not set');
+          return;
+        }
+
+        try {
+          const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
             method: 'POST',  
             headers: { 'Content-Type': 'application/json' },  
             body: JSON.stringify({   
@@ -1034,7 +1048,7 @@ export default function App() {
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true)));  
   const isManSeekingManInput = gender === 'man' && seeking === 'men';  
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';  
-  const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'hkmod';  
+  const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode';  
   const passesFilterForActive = activeProfile ? checkFilterPass(activeProfile) : true;  
   
   return (  
