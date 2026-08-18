@@ -704,17 +704,19 @@ export default function App() {
   };
 
   const handleToggleFilterItem = async (key: 'age' | 'height' | 'prefMatcher') => {
+    // ALL filter changes require a filter subscription (admin free).
+    // If the user has no active subscription, create an invoice at the current
+    // price and only apply the change after payment.
+    if (!isAdmin && !(filterSubUntil > Date.now()) && !hasFilterSub) {
+      const ok = await verifyFilterSubscription();
+      if (!ok) return;
+    }
+
     if (key === 'prefMatcher') {
       const next = !filterPrefMatcherOn;
       setFilterPrefMatcherOn(next);
       persistFilterPrefs({ prefMatcherOn: next });
       return;
-    }
-
-    // Age / Height require a filter subscription (admin free)
-    if (!isAdmin && !(filterSubUntil > Date.now()) && !hasFilterSub) {
-      const ok = await verifyFilterSubscription();
-      if (!ok) return;
     }
 
     if (key === 'age') {
