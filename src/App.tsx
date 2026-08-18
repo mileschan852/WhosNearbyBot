@@ -327,7 +327,7 @@ export default function App() {
   
   const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];  
   const safetyCycleOptions = ['Safe', 'Raw'];  
-  const howManyCycleOptions = ['1on1', 'group', 'DoesntMatter'];  
+  const howManyCycleOptions = ['1on1', 'DoesntMatter'];  
   const whereCycleOptions = ['Host', 'Travel', null];  
 
   // Full toggle cycles for the filter tags (each ends with Off = no filtering on that tag)
@@ -335,7 +335,7 @@ export default function App() {
   const filterRoleCycleOptions = ['Top', 'VT', 'Versatile', 'VB', 'Bottom', 'Side', 'Off'];
   const filterSafetyCycleOptions = ['Safe', 'Raw', 'Off'];
   const filterPlaystyleCycleOptions = ['Clean', 'Party', 'Off'];
-  const filterHowManyCycleOptions = ['1on1', 'group', 'DoesntMatter', 'Off'];
+  const filterHowManyCycleOptions = ['1on1', 'DoesntMatter', 'Off'];
   const filterWhereCycleOptions = ['Host', 'Travel', 'Off'];
   
   const cycleNext = (current: string, options: string[]) => {  
@@ -380,7 +380,6 @@ export default function App() {
     setFilterSafetyVal(pSafety); 
 
     if (pHowMany === '1on1') setFilterHowManyVal('1on1');
-    else if (pHowMany === 'group') setFilterHowManyVal('group');
     else setFilterHowManyVal(null); 
 
     if (pPlaystyle === 'Party' || pPlaystyle === 'Party✓') setFilterPlaystyleVal('Party');
@@ -1174,9 +1173,7 @@ export default function App() {
           return false;  
         }
       }  
-      if (filterHowManyVal && filterHowManyVal !== 'Off') {  
-        if (user.how_many_pref !== filterHowManyVal) return false;  
-      }  
+      // How Many is intentionally not used for matching (group size no longer applies).
       if (filterWhereVal && filterWhereVal !== 'Off') {  
         if (user.where_pref !== filterWhereVal) return false;  
       }  
@@ -1451,14 +1448,12 @@ export default function App() {
                     >
                       {filterPlaystyleVal ? formatTagText(t(filterPlaystyleVal)) : t('Off')}
                     </button>
-                    {/* How Many */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggleFilterValue('howMany')}
-                      style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterHowManyVal ? '#9333ea' : '#2a2a2a', color: '#fff', border: filterHowManyVal ? '1px solid #9333ea' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterHowManyVal ? 1 : 0.45, filter: filterHowManyVal ? 'none' : 'grayscale(100%)' }}
+                    {/* How Many — locked: no group matching anymore, tag shown greyed out and not changeable */}
+                    <div
+                      style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: '#2a2a2a', color: '#fff', border: '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', textAlign: 'center', opacity: 0.45, filter: 'grayscale(100%)', cursor: 'not-allowed' }}
                     >
-                      {filterHowManyVal ? formatTagText(t(filterHowManyVal)) : t('Off')}
-                    </button>
+                      {t('Off')}
+                    </div>
                     {/* Where */}
                     <button
                       type="button"
@@ -1622,21 +1617,10 @@ export default function App() {
                     {formatTagText(t(activeProfile.role_pref || 'Versatile'))}  
                   </div>  
 
-                  {/* SAFETY DISPLAY / SUBSCRIPTION-PROTECTED FILTER OVERRIDE */}
-                  <button   
-                    type="button"   
-                    onClick={async () => {  
-                      if (!isViewingSelf) return;  
-                      const allowed = await verifyFilterSubscription();  
-                      if (!allowed) return;  
-
-                      const nextSafety = filterSafetyVal === 'Safe' ? 'Raw' : 'Safe';  
-                      setFilterSafetyVal(nextSafety);  
-                    }}  
-                    style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
-                  >  
-                    {formatTagText(t(isViewingSelf ? (filterSafetyVal || activeProfile.safety_pref || 'Safe') : (activeProfile.safety_pref || 'Safe')))}  
-                  </button>  
+                  {/* SAFETY DISPLAY / GREYED OUT & UNCHANGEABLE HERE */}
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>
+                    {formatTagText(t(activeProfile.safety_pref || 'Safe'))}
+                  </div>
   
                   {/* PLAYSTYLE DISPLAY / PARTY✓ TOGGLE */}
                   {isViewingSelf ? (  
@@ -1678,22 +1662,10 @@ export default function App() {
                     </div>  
                   )}  
   
-                  {/* HOW MANY DISPLAY / SUBSCRIPTION-PROTECTED FILTER OVERRIDE */}
-                  <button   
-                    type="button"   
-                    onClick={async () => {  
-                      if (!isViewingSelf) return;  
-                      const allowed = await verifyFilterSubscription();  
-                      if (!allowed) return;  
-
-                      const nextHowMany = filterHowManyVal === '1on1' ? 'group' : (filterHowManyVal === 'group' ? null : '1on1');  
-                      setFilterHowManyVal(nextHowMany);  
-                    }}  
-                    style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isViewingSelf ? 'pointer' : 'default', textAlign: 'center', opacity: isViewingSelf ? 0.9 : 1 }}  
-                  >  
-                    {formatTagText(t(isViewingSelf ? (filterHowManyVal || 'DoesntMatter') : (activeProfile.how_many_pref || 'DoesntMatter')))}  
-                  </button>  
-                    
+                  {/* HOW MANY DISPLAY / GREYED OUT & UNCHANGEABLE HERE */}
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>
+                    {formatTagText(t(activeProfile.how_many_pref || 'DoesntMatter'))}
+                  </div>
                   {/* WHERE DISPLAY / TOGGLE HOST <-> TRAVEL */}
                   {isViewingSelf ? (  
                     <button   
