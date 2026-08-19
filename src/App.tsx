@@ -396,9 +396,11 @@ export default function App() {
   };  
   
   const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
-    if (pRole === 'Top') setFilterRoleVal('Bottom');
-    else if (pRole === 'Bottom') setFilterRoleVal('Top');
-    else if (pRole === 'Side') setFilterRoleVal('Side');
+    // M2M default role tag: a Bottom user defaults to VT (Vers/Top, i.e. looks for
+    // Versatile or Top partners), a Top defaults to VB (Vers/Bottom, i.e. looks for
+    // Versatile or Bottom partners), Versatile/Side default to off.
+    if (pRole === 'Bottom') setFilterRoleVal('VT');
+    else if (pRole === 'Top') setFilterRoleVal('VB');
     else setFilterRoleVal(null); 
 
     setFilterSafetyVal(pSafety); 
