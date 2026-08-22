@@ -1,7 +1,5 @@
-node_modules
-dist
-.DS_Store
-*.local
-.env
-.env.*
-!.env.example
+.hermes/
+.teleclaw/
+chats/
+deploy/
+node_modules/
