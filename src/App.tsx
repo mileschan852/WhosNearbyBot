@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import styled, { createGlobalStyle } from 'styled-components'
 import { TonConnectUIProvider, useTonConnectUI, useTonAddress } from '@tonconnect/ui-react'
 
