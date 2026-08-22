@@ -1,6 +1,7 @@
 // WhosNearbyBot Worker — Stars invoices + TON NFT mint payments.
 // Plain fetch, no client libs. Secrets come from env:
-//   TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY
+//   TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//   WORKER_SECRET — shared key for /create-invoice and /mint auth
 //
 // Endpoints:
 //   POST /create-invoice     — Telegram Stars invoice (legacy subscriptions)
@@ -8,6 +9,25 @@
 //   GET  /mint-state         — current NFT tier prices + remaining supply
 //   POST /mint               — verify TON payment tx on-chain, then record mint + apply entitlement
 //   GET  /health
+
+// Simple in-memory rate limiter (~1 req/s per IP burst smoothed over 10s window).
+const RATE_WINDOW_MS = 10_000;
+const RATE_MAX = 30;           // max requests per window per IP
+const rateBuckets = new Map();
+function checkRateLimit(ip) {
+  const now = Date.now();
+  if (!rateBuckets.has(ip)) rateBuckets.set(ip, []);
+  const bucket = rateBuckets.get(ip);
+  while (bucket.length && bucket[0] <= now - RATE_WINDOW_MS) bucket.shift();
+  if (bucket.length >= RATE_MAX) return false;
+  bucket.push(now);
+  return true;
+}
+
+function requireSecret(request, env) {
+  const provided = request.headers.get('X-Worker-Key') || '';
+  return provided === (env.WORKER_SECRET || '');
+}
 
 const ALLOWED_TYPES = {
   hide_age:          { title: 'Hide Age (30 Days)',        description: 'Hide your age on your profile for 30 days.',        amount: 1000 },
@@ -25,7 +45,6 @@ const EXPIRY_DAYS = {
   change_preference: 1,
 };
 
-// --- TON NFT mint config ---
 const TON_RECEIVER = 'EQBYY0vv7FoRuPTeCs6ht7kMM-tab8SRAZy14Ye8AS46SLVZ';
 const TON_SUPPLY = 500;
 const TON_BASE_PRICE = {
@@ -49,8 +68,8 @@ function json(body, status = 200, cors = false) {
 async function supabase(env, path, opts = {}) {
   const headers = {
     'Content-Type': 'application/json',
-    'apikey': env.SUPABASE_ANON_KEY,
-    'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+    'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+    'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
   };
   if (opts.prefer) headers['Prefer'] = opts.prefer;
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
@@ -61,7 +80,6 @@ async function supabase(env, path, opts = {}) {
   return res;
 }
 
-// GET /mint-state — compute prices/supply from recorded mints (transactions table).
 async function mintState(env) {
   let counts = { invisible: 0, unlock_filter: 0, hide_name: 0 };
   try {
@@ -88,9 +106,8 @@ async function mintState(env) {
   return json({ receiver: TON_RECEIVER, tiers }, 200, true);
 }
 
-// POST /mint { userId, tier, txHash, amount } — verify the TON tx paid the
-// current price to TON_RECEIVER, then record + apply the entitlement.
 async function doMint(request, env) {
+  if (!requireSecret(request, env)) return json({ error: 'Unauthorized' }, 401, true);
   let body;
   try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400, true); }
 
@@ -103,7 +120,6 @@ async function doMint(request, env) {
   const tierState = (await state.json()).tiers[tier];
   if (tierState.soldOut) return json({ error: 'Sold out' }, 409, true);
   const expectedNano = Math.round(tierState.price * 1e9);
-  const receivedNano = Math.round(Number(amount || 0) * 1e9);
 
   let verified = false;
   try {
@@ -125,7 +141,6 @@ async function doMint(request, env) {
       if (txHashHex !== hash.toLowerCase()) continue;
       const inMsg = tx.in_msg || {};
       const value = Number(inMsg.value || 0);
-      const src = inMsg.source || '';
       if (value >= expectedNano * 0.99 && value <= expectedNano * 1.05) {
         verified = true;
         break;
@@ -157,7 +172,6 @@ async function doMint(request, env) {
     return json({ error: 'Failed to record mint' }, 500, true);
   }
 
-  // Apply entitlement to the profile (permanent: far-future expiry).
   const farFuture = '2099-12-31T23:59:59Z';
   let updateData = {};
   if (tier === 'invisible') updateData = { grid_visible: false, invisible_expiry: farFuture };
@@ -179,8 +193,8 @@ async function doMint(request, env) {
   return json({ ok: true, tier, price: tierState.price, remaining: tierState.supply - 1 }, 200, true);
 }
 
-// Legacy: Telegram Stars invoice.
 async function createInvoice(request, env) {
+  if (!requireSecret(request, env)) return json({ error: 'Unauthorized' }, 401, true);
   const body = await request.json().catch(() => null);
   if (!body || !body.userId || !body.type) {
     return json({ error: 'userId and type are required' }, 400, true);
@@ -205,8 +219,11 @@ async function createInvoice(request, env) {
   return json({ invoiceLink: tgData.result }, 200, true);
 }
 
-// Legacy: Stars webhook.
 async function telegramWebhook(request, env) {
+  const expectedToken = env.TELEGRAM_WEBHOOK_SECRET || '';
+  if (expectedToken && request.headers.get('X-Telegram-Bot-Api-Secret-Token') !== expectedToken) {
+    return json({ error: 'Unauthorized' }, 401, true);
+  }
   let update;
   try { update = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
   if (!update.message || !update.message.successful_payment) return json({ ok: true });
@@ -218,54 +235,37 @@ async function telegramWebhook(request, env) {
   if (!userId || !subType || !ALLOWED_TYPES[subType]) return json({ error: 'Invalid invoice payload' }, 400);
 
   const chargeIds = [payment.provider_payment_charge_id, payment.telegram_payment_charge_id].filter(Boolean);
-  try {
-    const tgRes = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getUpdates`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 100 }),
-    });
-    const tgData = await tgRes.json();
-    const verified = Array.isArray(tgData.result) && tgData.result.some((u) => {
-      const p = u && u.message && u.message.successful_payment;
-      if (!p) return false;
-      if (p.provider_payment_charge_id && chargeIds.includes(p.provider_payment_charge_id)) return true;
-      if (p.telegram_payment_charge_id && chargeIds.includes(p.telegram_payment_charge_id)) return true;
-      return false;
-    });
-    if (!verified) return json({ error: 'Payment could not be verified via Telegram' }, 403);
 
-    const idemRes = await supabase(env, 'transactions', {
-      method: 'POST',
-      prefer: 'return=minimal',
-      body: {
-        tg_id: userId,
-        item_type: subType,
-        base_amount: payment.total_amount || ALLOWED_TYPES[subType].amount,
-        final_charged: payment.total_amount || ALLOWED_TYPES[subType].amount,
-        status: 'paid',
-        note: payment.telegram_payment_charge_id || '',
-      },
-    });
-    if (idemRes.status !== 201 && idemRes.status !== 200) {
-      if (idemRes.status === 409) return json({ ok: true, skipped: 'already processed' });
-      return json({ error: 'Failed to record payment' }, 500);
-    }
-
-    const expiry = new Date(Date.now() + (EXPIRY_DAYS[subType] || 30) * 86400000).toISOString();
-    let updateData = {};
-    if (subType === 'hide_age') updateData = { hide_age: true, hide_age_expiry: expiry };
-    else if (subType === 'invisible') updateData = { grid_visible: false, invisible_expiry: expiry };
-    else if (subType === 'edit_profile') updateData = { edit_profile_pass: true, edit_profile_expiry: expiry };
-
-    if (Object.keys(updateData).length > 0) {
-      const sbRes = await supabase(env, `profiles?id=eq.${encodeURIComponent(userId)}`, {
-        method: 'PATCH', prefer: 'return=minimal', body: updateData,
-      });
-      if (!sbRes.ok) return json({ error: 'Failed to update profile' }, 500);
-    }
-    return json({ ok: true });
-  } catch (err) {
-    console.error('Webhook error:', err);
-    return json({ error: 'Webhook Error' }, 500);
+  const idemRes = await supabase(env, 'transactions', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: {
+      tg_id: userId,
+      item_type: subType,
+      base_amount: payment.total_amount || ALLOWED_TYPES[subType].amount,
+      final_charged: payment.total_amount || ALLOWED_TYPES[subType].amount,
+      status: 'paid',
+      note: payment.telegram_payment_charge_id || '',
+    },
+  });
+  if (idemRes.status !== 201 && idemRes.status !== 200) {
+    if (idemRes.status === 409) return json({ ok: true, skipped: 'already processed' });
+    return json({ error: 'Failed to record payment' }, 500);
   }
+
+  const expiry = new Date(Date.now() + (EXPIRY_DAYS[subType] || 30) * 86400000).toISOString();
+  let updateData = {};
+  if (subType === 'hide_age') updateData = { hide_age: true, hide_age_expiry: expiry };
+  else if (subType === 'invisible') updateData = { grid_visible: false, invisible_expiry: expiry };
+  else if (subType === 'edit_profile') updateData = { edit_profile_pass: true, edit_profile_expiry: expiry };
+
+  if (Object.keys(updateData).length > 0) {
+    const sbRes = await supabase(env, `profiles?id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH', prefer: 'return=minimal', body: updateData,
+    });
+    if (!sbRes.ok) return json({ error: 'Failed to update profile' }, 500);
+  }
+  return json({ ok: true });
 }
 
 export default {
@@ -276,10 +276,14 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Worker-Key',
         },
       });
     }
+
+    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+    if (!checkRateLimit(ip)) return json({ error: 'Too Many Requests' }, 429, true);
+
     if (url.pathname === '/create-invoice' && request.method === 'POST') return createInvoice(request, env);
     if (url.pathname === '/telegram-webhook' && request.method === 'POST') return telegramWebhook(request, env);
     if (url.pathname === '/mint-state' && request.method === 'GET') return mintState(env);
@@ -287,4 +291,4 @@ export default {
     if (url.pathname === '/health') return json({ ok: true });
     return json({ error: 'Not Found' }, 404);
   },
-};
+}
