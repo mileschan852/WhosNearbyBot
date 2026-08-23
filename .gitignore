@@ -2,10 +2,7 @@ node_modules
 dist
 .DS_Store
 *.local
-.env
-.env.*
-!.env.example
-.hermes/
-.teleclaw/
-.browser-profile/
-chats/
+whos-nearby
+.browser-profile
+chats
+assets
