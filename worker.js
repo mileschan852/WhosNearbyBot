@@ -1,14 +1,59 @@
-// WhosNearbyBot Payment Worker — Cloudflare Worker (plain fetch, no client libs).
+// WhosNearbyBot — Canonical Cloudflare Worker (API-only, < 1MB)
+// Static assets are served by Cloudflare Pages / KV Asset Binding.
+// Supabase is the backend database.
 //
-// Secrets come from env (wrangler secrets / hosting-provided vars):
-//   TELEGRAM_BOT_TOKEN  — bot token for @WhosNearbyBot
-//   SUPABASE_URL        — https://<ref>.supabase.co
-//   SUPABASE_ANON_KEY   — anon (or service) key used for REST calls
-//
-// Endpoints:
-//   POST /create-invoice  — create a Telegram Stars invoice
-//   POST /telegram-webhook — verify + apply successful Stars payments (idempotent)
-//   GET  /health          — liveness probe
+// Secrets (wrangler secret put / env vars):
+//   TELEGRAM_BOT_TOKEN     — bot token for @WhosNearbyBot
+//   SUPABASE_URL           — https://<ref>.supabase.co
+//   SUPABASE_ANON_KEY      — anon key for Supabase REST
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*" },
+  });
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function sbHeaders(env) {
+  return {
+    "Content-Type": "application/json",
+    "apikey": env.SUPABASE_ANON_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_ANON_KEY}`,
+  };
+}
+
+async function sbGet(env, path) {
+  const res = await fetch(`${env.SUPABASE_URL}/${path}`, { headers: sbHeaders(env) });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function sbPost(env, path, body) {
+  const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
+    method: "POST",
+    headers: { ...sbHeaders(env), "Prefer": "return=representation" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function sbPatch(env, path, body) {
+  const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
+    method: "PATCH",
+    headers: { ...sbHeaders(env), "Prefer": "return=minimal" },
+    body: JSON.stringify(body),
+  });
+  return res.ok;
+}
 
 const ALLOWED_TYPES = {
   hide_age:          { title: 'Hide Age (30 Days)',        description: 'Hide your age on your profile for 30 days.',        amount: 1000 },
@@ -16,204 +61,202 @@ const ALLOWED_TYPES = {
   edit_profile:      { title: 'Edit Profile Pass',        description: 'Unlock profile editing permissions.',               amount: 1000 },
   change_filter:     { title: 'Filter Subscription (30 Days)', description: 'Custom filter override for 30 days.',            amount: 1000 },
   change_preference: { title: 'Change Profile & Preferences', description: 'One-time unlock to edit profile and preferences.', amount: 1000 },
+  extra_row:         { title: 'Extra Row',                 description: 'Unlock an extra row of nearby users.',               amount: 1000 },
+  unlock_profile:    { title: 'Unlock Profile',            description: 'Unlock your profile for editing.',                   amount: 1000 },
+  raffle_ticket:     { title: 'Raffle Ticket',             description: 'Buy a raffle ticket.',                               amount: 100 },
 };
-
-const EXPIRY_DAYS = {
-  hide_age: 30,
-  invisible: 30,
-  edit_profile: 30,
-  change_filter: 30,
-  change_preference: 1, // one-time pass, no long entitlement needed
-};
-
-function json(body, status = 200, cors = false) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (cors) {
-    headers['Access-Control-Allow-Origin'] = '*';
-    headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type';
-  }
-  return new Response(JSON.stringify(body), { status, headers });
-}
-
-// POST /create-invoice
-async function createInvoice(request, env) {
-  const body = await request.json().catch(() => null);
-  if (!body || !body.userId || !body.type) {
-    return json({ error: 'userId and type are required' }, 400, true);
-  }
-
-  const cfg = ALLOWED_TYPES[body.type];
-  if (!cfg) {
-    return json({ error: 'Invalid subscription type' }, 400, true);
-  }
-
-  const payload = {
-    title: cfg.title,
-    description: cfg.description,
-    payload: JSON.stringify({ userId: body.userId, type: body.type }),
-    currency: 'XTR',
-    prices: [{ label: cfg.title, amount: cfg.amount }],
-  };
-
-  const tgRes = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/createInvoiceLink`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const tgData = await tgRes.json().catch(() => ({}));
-
-  if (!tgData.ok) {
-    return json({ error: tgData.description || 'Telegram invoice creation failed' }, 500, true);
-  }
-
-  return json({ invoiceLink: tgData.result }, 200, true);
-}
-
-// POST /telegram-webhook
-async function telegramWebhook(request, env) {
-  let update;
-  try {
-    update = await request.json();
-  } catch {
-    return json({ error: 'Invalid JSON' }, 400);
-  }
-
-  // Telegram bots must acknowledge every update; not a payment -> ack.
-  if (!update.message || !update.message.successful_payment) {
-    return json({ ok: true });
-  }
-
-  const payment = update.message.successful_payment;
-  const invoicePayload = JSON.parse(payment.invoice_payload || '{}');
-  const userId = invoicePayload.userId;
-  const subType = invoicePayload.type;
-
-  if (!userId || !subType || !ALLOWED_TYPES[subType]) {
-    return json({ error: 'Invalid invoice payload' }, 400);
-  }
-
-  // Verify the charge actually exists on Telegram's side (getUpdates),
-  // and that this charge has not been applied already (idempotency).
-  const chargeIds = [payment.provider_payment_charge_id, payment.telegram_payment_charge_id].filter(Boolean);
-
-  try {
-    const tgRes = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getUpdates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ limit: 100 }),
-    });
-    const tgData = await tgRes.json();
-
-    const verified = Array.isArray(tgData.result) && tgData.result.some((u) => {
-      const p = u && u.message && u.message.successful_payment;
-      if (!p) return false;
-      if (p.provider_payment_charge_id && chargeIds.includes(p.provider_payment_charge_id)) return true;
-      if (p.telegram_payment_charge_id && chargeIds.includes(p.telegram_payment_charge_id)) return true;
-      return false;
-    });
-
-    if (!verified) {
-      return json({ error: 'Payment could not be verified via Telegram' }, 403);
-    }
-
-    // Idempotency: insert the charge id first; if it already exists, skip.
-    const idemRes = await fetch(`${env.SUPABASE_URL}/rest/v1/transactions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': env.SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        type: subType,
-        amount: payment.total_amount || ALLOWED_TYPES[subType].amount,
-        currency: payment.currency || 'XTR',
-        provider_payment_charge_id: payment.provider_payment_charge_id || null,
-        telegram_payment_charge_id: payment.telegram_payment_charge_id || null,
-      }),
-    });
-
-    // 201 = newly recorded; 409 (unique violation) = already processed.
-    if (idemRes.status !== 201 && idemRes.status !== 200) {
-      if (idemRes.status === 409) {
-        return json({ ok: true, skipped: 'already processed' });
-      }
-      const errText = await idemRes.text().catch(() => '');
-      console.error('Idempotency insert failed:', idemRes.status, errText);
-      return json({ error: 'Failed to record payment' }, 500);
-    }
-
-    // Apply the entitlement.
-    const expiry = new Date(Date.now() + (EXPIRY_DAYS[subType] || 30) * 86400000).toISOString();
-    let updateData = {};
-
-    if (subType === 'hide_age') {
-      updateData = { hide_age: true, hide_age_expiry: expiry };
-    } else if (subType === 'invisible') {
-      updateData = { grid_visible: false, invisible_expiry: expiry };
-    } else if (subType === 'edit_profile') {
-      updateData = { edit_profile_pass: true, edit_profile_expiry: expiry };
-    } else if (subType === 'change_filter' || subType === 'change_preference') {
-      // Frontend applies these immediately after openInvoice('paid'); the
-      // webhook just records the transaction (idempotency + audit).
-      updateData = {};
-    }
-
-    if (Object.keys(updateData).length > 0) {
-      const sbRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': env.SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      if (!sbRes.ok) {
-        const errText = await sbRes.text().catch(() => '');
-        console.error('Supabase update failed:', sbRes.status, errText);
-        return json({ error: 'Failed to update profile' }, 500);
-      }
-    }
-
-    return json({ ok: true });
-  } catch (err) {
-    console.error('Webhook error:', err);
-    return json({ error: 'Webhook Error' }, 500);
-  }
-}
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname;
 
-    if (request.method === 'OPTIONS') {
+    if (request.method === "OPTIONS") {
       return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
+        headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" },
       });
     }
 
-    if (url.pathname === '/create-invoice' && request.method === 'POST') {
-      return createInvoice(request, env);
+    // POST /api/auth
+    if (path === "/api/auth" && request.method === "POST") {
+      try {
+        const { initData } = await request.json();
+        if (!initData) return json({ error: "Missing initData" }, 400);
+        const params = new URLSearchParams(initData);
+        const userStr = params.get("user");
+        if (!userStr) return json({ error: "No user data" }, 400);
+        const tgUser = JSON.parse(userStr);
+        const tgId = `tg_${tgUser.id}`;
+        const profileData = { id: tgId, name: tgUser.first_name || "", username: tgUser.username || null, avatar: tgUser.photo_url || null, last_seen: new Date().toISOString() };
+        const created = await sbPost(env, "rest/v1/profiles", profileData);
+        if (!created) await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(tgId)}`, profileData);
+        const user = await sbGet(env, `rest/v1/profiles?id=eq.${encodeURIComponent(tgId)}`);
+        return json(Array.isArray(user) ? user[0] : user);
+      } catch (e) { return json({ error: e.message }, 500); }
     }
 
-    if (url.pathname === '/telegram-webhook' && request.method === 'POST') {
-      return telegramWebhook(request, env);
+    // GET /api/nearby
+    if (path === "/api/nearby" && request.method === "GET") {
+      try {
+        const tgId = url.searchParams.get("tg_id") || "0";
+        const lat = parseFloat(url.searchParams.get("lat") || "0");
+        const lng = parseFloat(url.searchParams.get("lng") || "0");
+        const profileId = `tg_${tgId}`;
+        const radius = parseInt(url.searchParams.get("radius") || "50000");
+        const users = await sbGet(env, `rest/v1/profiles?select=*&id=neq.${encodeURIComponent(profileId)}&lat=not.is.null&lng=not.is.null&is_underage=is.false&order=last_seen.desc`);
+        if (!users) return json([]);
+        const result = (Array.isArray(users) ? users : [])
+          .map(u => { const dist = haversineKm(lat, lng, u.lat, u.lng); let age = null; if (u.dob) { const b = new Date(u.dob); age = new Date().getFullYear() - b.getFullYear(); } return { ...u, distance_km: Math.round(dist * 10) / 10, age }; })
+          .filter(u => u.distance_km <= radius / 1000)
+          .sort((a, b) => a.distance_km - b.distance_km);
+        return json(result);
+      } catch (e) { return json({ error: e.message }, 500); }
     }
 
-    if (url.pathname === '/health') {
-      return json({ ok: true });
+    // GET /api/profile
+    if (path === "/api/profile" && request.method === "GET") {
+      try {
+        const tgId = url.searchParams.get("tg_id") || "0";
+        const user = await sbGet(env, `rest/v1/profiles?id=eq.${encodeURIComponent(`tg_${tgId}`)}`);
+        const u = Array.isArray(user) ? user[0] : user;
+        if (!u) return json({ error: "Not found" }, 404);
+        return json(u);
+      } catch (e) { return json({ error: e.message }, 500); }
     }
 
-    return json({ error: 'Not Found' }, 404);
+    // POST /api/profile
+    if (path === "/api/profile" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const { tg_id, dob, gender_identity, seeking_gender, lat, lng, name, username, avatar, height, weight, role_pref, safety_pref, playstyle_pref, where_pref, how_many_pref, hide_age, grid_visible, map_visible } = body;
+        if (!tg_id) return json({ error: "Missing tg_id" }, 400);
+        const profileId = `tg_${tg_id}`;
+        const updates = { last_seen: new Date().toISOString() };
+        if (dob !== undefined) updates.dob = dob;
+        if (gender_identity !== undefined) updates.gender = gender_identity;
+        if (seeking_gender !== undefined) updates.seeking = seeking_gender;
+        if (lat !== undefined) updates.lat = lat;
+        if (lng !== undefined) updates.lng = lng;
+        if (name !== undefined) updates.name = name;
+        if (username !== undefined) updates.username = username;
+        if (avatar !== undefined) updates.avatar = avatar;
+        if (height !== undefined) updates.height = height;
+        if (weight !== undefined) updates.weight = weight;
+        if (role_pref !== undefined) updates.role_pref = role_pref;
+        if (safety_pref !== undefined) updates.safety_pref = safety_pref;
+        if (playstyle_pref !== undefined) updates.playstyle_pref = playstyle_pref;
+        if (where_pref !== undefined) updates.where_pref = where_pref;
+        if (how_many_pref !== undefined) updates.how_many_pref = how_many_pref;
+        if (hide_age !== undefined) updates.hide_age = hide_age;
+        if (grid_visible !== undefined) updates.grid_visible = grid_visible;
+        if (map_visible !== undefined) updates.map_visible = map_visible;
+        await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, updates);
+        return json({ updated: true });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
+    // POST /api/invoice
+    if (path === "/api/invoice" && request.method === "POST") {
+      try {
+        const { tg_id, type, base_amount } = await request.json();
+        const cfg = ALLOWED_TYPES[type];
+        if (!cfg) return json({ error: "Invalid type" }, 400);
+        const finalAmount = base_amount || cfg.amount;
+        const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/createInvoiceLink`, {
+          method: "POST",
+          body: JSON.stringify({ title: cfg.title, description: cfg.description, payload: JSON.stringify({ tg_id, type, finalAmount }), provider_token: "", currency: "XTR", prices: [{ label: cfg.title, amount: finalAmount }] }),
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        if (!data.ok) return json({ error: data.description || "Telegram error" }, 500);
+        return json({ invoiceLink: data.result });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
+    // POST /api/webhook
+    if (path === "/api/webhook" && request.method === "POST") {
+      try {
+        const update = await request.json();
+        if (update.pre_checkout_query) {
+          await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerPreCheckoutQuery`, {
+            method: "POST", body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true }),
+            headers: { "Content-Type": "application/json" },
+          });
+          return new Response("OK");
+        }
+        if (update.message?.successful_payment) {
+          const payload = JSON.parse(update.message.successful_payment.invoice_payload);
+          const expiry = new Date(Date.now() + 30 * 86400000).toISOString();
+          await sbPost(env, "rest/v1/transactions", {
+            user_id: payload.tg_id, type: payload.type, amount: payload.finalAmount, currency: "XTR",
+            provider_payment_charge_id: update.message.successful_payment.provider_payment_charge_id || null,
+            telegram_payment_charge_id: update.message.successful_payment.telegram_payment_charge_id || null,
+          }).catch(() => {});
+          const profileId = `tg_${payload.tg_id}`;
+          if (payload.type === "hide_age") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { hide_age: true, hide_age_expiry: expiry });
+          else if (payload.type === "invisible") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { grid_visible: false, invisible_expiry: expiry });
+          else if (payload.type === "edit_profile") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { edit_profile_pass: true, edit_profile_expiry: expiry });
+        }
+        return new Response("OK");
+      } catch (e) { return new Response("OK"); }
+    }
+
+    // GET/POST /api/messages
+    if (path === "/api/messages" && request.method === "GET") {
+      try {
+        const limit = parseInt(url.searchParams.get("limit") || "10");
+        return json(await sbGet(env, `rest/v1/flying_messages?order=created_at.desc&limit=${limit}`) || []);
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+    if (path === "/api/messages" && request.method === "POST") {
+      try {
+        const { tg_id, text, from_name } = await request.json();
+        if (!text || !text.trim()) return json({ error: "Missing text" }, 400);
+        await sbPost(env, "rest/v1/flying_messages", { id: crypto.randomUUID(), tg_id: tg_id || 0, text: text.trim().slice(0, 200), from_name: from_name || "Anonymous" });
+        return json({ ok: true });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
+    // GET /api/raffle
+    if (path === "/api/raffle" && request.method === "GET") {
+      const state = await sbGet(env, "rest/v1/raffle_state?id=eq.1");
+      return json(Array.isArray(state) ? state[0] : state || { prize_name: "Ultimate Bundle", tickets_sold: 0 });
+    }
+
+    // GET/POST /api/private-notes
+    if (path === "/api/private-notes" && request.method === "GET") {
+      const callerId = parseInt(url.searchParams.get("caller_id") || "0");
+      const targetId = parseInt(url.searchParams.get("target_id") || "0");
+      if (!callerId || !targetId) return json({ error: "Missing params" }, 400);
+      if (callerId !== 1231127407) return json({ error: "Forbidden" }, 403);
+      const u = await sbGet(env, `rest/v1/profiles?select=private_notes&id=eq.${encodeURIComponent(`tg_${targetId}`)}`);
+      return json({ notes: (Array.isArray(u) ? u[0] : u)?.private_notes || "" });
+    }
+    if (path === "/api/private-notes" && request.method === "POST") {
+      const { caller_id, target_id, notes } = await request.json();
+      if (!caller_id || !target_id) return json({ error: "Missing params" }, 400);
+      if (caller_id !== 1231127407) return json({ error: "Forbidden" }, 403);
+      await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(`tg_${target_id}`)}`, { private_notes: notes || "" });
+      return json({ updated: true });
+    }
+
+    // POST /api/reset-profile
+    if (path === "/api/reset-profile" && request.method === "POST") {
+      const { caller_id, target_id } = await request.json();
+      if (!caller_id || !target_id) return json({ error: "Missing params" }, 400);
+      if (caller_id !== 1231127407) return json({ error: "Forbidden" }, 403);
+      await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(`tg_${target_id}`)}`, {
+        name: null, username: null, avatar: null, dob: null, height: null, weight: null,
+        gender: "Male", seeking: "Male", role_pref: null, safety_pref: null, playstyle_pref: null,
+        where_pref: null, how_many_pref: null, hide_age: false, grid_visible: true, map_visible: false,
+        is_underage: false, hide_age_expiry: null, invisible_expiry: null,
+      });
+      return json({ reset: true });
+    }
+
+    // GET /api/health
+    if (path === "/api/health" || path === "/health") return json({ ok: true, version: "monolithic-1.0" });
+
+    return json({ error: "Not found" }, 404);
   },
 };
