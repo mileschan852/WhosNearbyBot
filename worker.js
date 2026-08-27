@@ -196,6 +196,12 @@ export default {
           if (payload.type === "hide_age") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { hide_age: true, hide_age_expiry: expiry });
           else if (payload.type === "invisible") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { grid_visible: false, invisible_expiry: expiry });
           else if (payload.type === "edit_profile") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { edit_profile_pass: true, edit_profile_expiry: expiry });
+          else if (payload.type === "change_filter") {
+            const existing = await sbGet(env, `rest/v1/profiles?select=filter_sub_expiry&id=eq.${encodeURIComponent(profileId)}`);
+            const prev = (Array.isArray(existing) ? existing[0] : existing)?.filter_sub_expiry;
+            const base = prev && new Date(prev).getTime() > Date.now() ? new Date(prev).getTime() : Date.now();
+            await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { filter_sub_expiry: new Date(base + 30 * 86400000).toISOString() });
+          }
         }
         return new Response("OK");
       } catch (e) { return new Response("OK"); }
@@ -223,22 +229,10 @@ export default {
       return json(Array.isArray(state) ? state[0] : state || { prize_name: "Ultimate Bundle", tickets_sold: 0 });
     }
 
-    // GET/POST /api/private-notes
-    if (path === "/api/private-notes" && request.method === "GET") {
-      const callerId = parseInt(url.searchParams.get("caller_id") || "0");
-      const targetId = parseInt(url.searchParams.get("target_id") || "0");
-      if (!callerId || !targetId) return json({ error: "Missing params" }, 400);
-      if (callerId !== 1231127407) return json({ error: "Forbidden" }, 403);
-      const u = await sbGet(env, `rest/v1/profiles?select=private_notes&id=eq.${encodeURIComponent(`tg_${targetId}`)}`);
-      return json({ notes: (Array.isArray(u) ? u[0] : u)?.private_notes || "" });
-    }
-    if (path === "/api/private-notes" && request.method === "POST") {
-      const { caller_id, target_id, notes } = await request.json();
-      if (!caller_id || !target_id) return json({ error: "Missing params" }, 400);
-      if (caller_id !== 1231127407) return json({ error: "Forbidden" }, 403);
-      await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(`tg_${target_id}`)}`, { private_notes: notes || "" });
-      return json({ updated: true });
-    }
+    // Private notes are NOT stored in Supabase. They live only in the user's
+    // Telegram WebApp CloudStorage (per-user, device-independent, bot-scoped),
+    // keyed whos_nearby_private_note_<viewer>_<target>, 100 char max.
+    // Expiry is driven by the existing profiles.filter_sub_expiry column.
 
     // POST /api/reset-profile
     if (path === "/api/reset-profile" && request.method === "POST") {

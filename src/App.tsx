@@ -133,6 +133,7 @@ interface UserProfile {
   distance?: number;
   hide_age_expiry?: string | null;
   invisible_expiry?: string | null;
+  filter_sub_expiry?: string | null;
 }
 
 const formatDistanceBigUnit = (meters?: number) => {
@@ -400,6 +401,7 @@ export default function App() {
         grid_visible: u.grid_visible ?? true, map_visible: u.map_visible ?? false,
         distance: Math.round(u.distance),
         hide_age_expiry: u.hide_age_expiry || null, invisible_expiry: u.invisible_expiry || null,
+        filter_sub_expiry: u.filter_sub_expiry || null,
       })).sort((a, b) => {
         if (a.id === currentUserId) return -1;
         if (b.id === currentUserId) return 1;
@@ -483,6 +485,7 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
+          if (existingProfile.filter_sub_expiry) { const ts = new Date(existingProfile.filter_sub_expiry).getTime(); if (!isNaN(ts) && ts > filterSubUntil) { setFilterSubUntil(ts); try { localStorage.setItem(FILTER_SUB_KEY, String(ts)); } catch (e) {} } }
           if (typeof existingProfile.grid_visible === 'boolean') { initialGridVisible = existingProfile.grid_visible; setGridVisible(initialGridVisible); }
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
           if (isManSeekingMan) {
@@ -600,7 +603,7 @@ export default function App() {
       if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
         return new Promise((resolve) => {
           window.Telegram!.WebApp!.openInvoice!(data.invoiceLink!, (status) => {
-            if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch (e) {} resolve(true); }
+            if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch (e) {} if (currentUser && supabase) { const newExpiry = new Date(subUntil).toISOString(); supabase.from('profiles').update({ filter_sub_expiry: newExpiry }).eq('id', currentUser.id).then(() => {}); setCurrentUser((p: any) => p ? { ...p, filter_sub_expiry: newExpiry } : p); } resolve(true); }
             else { alert(t('paymentCancelled')); resolve(false); }
           });
         });
@@ -786,16 +789,35 @@ export default function App() {
     return `whos_nearby_private_note_${viewerId}_${targetId}`;
   };
 
+  // Private notes are stored ONLY in Telegram CloudStorage (bot-scoped, per-user)
+  // with a localStorage cache. They are never written to Supabase.
+  // Stored payload: JSON { t: text, x: expiryEpochMs|null } (expiry = 30 days
+  // from last save, using the same 30-day window as other subscriptions).
+  const NOTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+  const parseNotePayload = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    try {
+      const p = JSON.parse(raw);
+      if (p && typeof p.t === 'string') {
+        if (p.x && Number(p.x) < Date.now()) return null; // expired
+        return (p.t || '').slice(0, 100);
+      }
+    } catch (e) {}
+    return raw.slice(0, 100); // legacy plain-text value
+  };
+
   const loadPrivateNote = (targetId: string | undefined) => {
     if (!targetId || targetId === currentUser?.id) { setNoteDraft(''); return; }
     const key = noteKeyFor(targetId);
+    const apply = (val: string | null | undefined) => { const text = parseNotePayload(val); if (text !== null) setNoteDraft(text); };
     try {
       const local = localStorage.getItem(key);
-      if (local !== null) { setNoteDraft(local.slice(0, 100)); return; }
+      if (local !== null) apply(local);
     } catch (e) {}
     try {
       const cs = window.Telegram?.WebApp?.CloudStorage;
-      cs?.getItem?.(key, (err, val) => { if (!err && val != null) setNoteDraft(val.slice(0, 100)); });
+      cs?.getItem?.(key, (err, val) => { if (!err) apply(val); });
     } catch (e) {}
   };
 
@@ -804,8 +826,9 @@ export default function App() {
     const text = (value || '').slice(0, 100);
     setNoteDraft(text);
     const key = noteKeyFor(targetId);
-    try { localStorage.setItem(key, text); } catch (e) {}
-    try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, text); } catch (e) {}
+    const payload = JSON.stringify({ t: text, x: text ? Date.now() + NOTE_TTL_MS : null });
+    try { localStorage.setItem(key, payload); } catch (e) {}
+    try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch (e) {}
   };
 
   const handleForceReset = async () => {
@@ -913,7 +936,7 @@ export default function App() {
           </button>
           {showFilterDropdown && (
             <div style={{ position: 'absolute', top: '44px', right: '0', zIndex: 2000, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '12px', width: '280px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: filterSubStatusInfo.color }}>{isAdmin ? 'Admin' : filterSubStatusInfo.label}</span></div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: filterSubStatusInfo.color }}>{isAdmin ? 'Admin' : `${filterSubStatusInfo.label}${filterSubUntil > Date.now() ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
               <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => handleToggleFilterItem('age')}>
                   <input type="checkbox" checked={filterAgeOn} onChange={() => {}} style={{ width: '16px', height: '16px', accentColor: '#007bff', cursor: 'pointer' }} />
