@@ -776,6 +776,44 @@ export default function App() {
     else window.open(url, '_blank');
   };
 
+  // On app load: read ALL existing private notes from Telegram CloudStorage
+  // (falling back to localStorage) so each profile card shows its saved note.
+  const NOTE_PREFIX = 'whos_nearby_private_note_';
+  useEffect(() => {
+    const hydrate = (k: string, val: string | null | undefined) => {
+      const text = parseNotePayload(val);
+      if (text === null) return;
+      const targetId = k.slice(NOTE_PREFIX.length).split('_').slice(1).join('_');
+      if (!targetId) return;
+      setNotesMap((m) => (m[targetId] === text ? m : { ...m, [targetId]: text }));
+    };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(NOTE_PREFIX)) hydrate(k, localStorage.getItem(k));
+      }
+    } catch (e) {}
+    const cs: any = window.Telegram?.WebApp?.CloudStorage;
+    if (cs?.getItems) {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(NOTE_PREFIX)) keys.push(k);
+        }
+        cs.getItems(keys, (err: any, val: any) => { if (!err && val) Object.entries(val).forEach(([k, v]) => hydrate(k, v as string)); });
+      } catch (e) {}
+    } else if (cs?.getItem) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(NOTE_PREFIX)) cs.getItem(k, (err: any, val: any) => { if (!err) hydrate(k, val); });
+        }
+      } catch (e) {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
   if (!isReady) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}><p>{t('loading')}</p></div>;
   }
@@ -836,44 +874,6 @@ export default function App() {
     try { localStorage.setItem(key, payload); } catch (e) {}
     try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch (e) {}
   };
-
-  // On app load: read ALL existing private notes from Telegram CloudStorage
-  // (falling back to localStorage) so each profile card shows its saved note.
-  const NOTE_PREFIX = 'whos_nearby_private_note_';
-  useEffect(() => {
-    const hydrate = (k: string, val: string | null | undefined) => {
-      const text = parseNotePayload(val);
-      if (text === null) return;
-      const targetId = k.slice(NOTE_PREFIX.length).split('_').slice(1).join('_');
-      if (!targetId) return;
-      setNotesMap((m) => (m[targetId] === text ? m : { ...m, [targetId]: text }));
-    };
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(NOTE_PREFIX)) hydrate(k, localStorage.getItem(k));
-      }
-    } catch (e) {}
-    const cs: any = window.Telegram?.WebApp?.CloudStorage;
-    if (cs?.getItems) {
-      try {
-        const keys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith(NOTE_PREFIX)) keys.push(k);
-        }
-        cs.getItems(keys, (err: any, val: any) => { if (!err && val) Object.entries(val).forEach(([k, v]) => hydrate(k, v as string)); });
-      } catch (e) {}
-    } else if (cs?.getItem) {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith(NOTE_PREFIX)) cs.getItem(k, (err: any, val: any) => { if (!err) hydrate(k, val); });
-        }
-      } catch (e) {}
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id]);
 
   const handleForceReset = async () => {
     if (!selectedProfile || !PAYMENT_WORKER_URL) return;
