@@ -923,7 +923,8 @@ export default function App() {
   const activeProfile = selectedProfile;
   const gridFilteredUsers = users;
   // Self is excluded from the shared list; your own pin is rendered separately
-  // at your live GPS location and is visible ONLY to you (greyed out when not green).
+  // at your live GPS location and is visible ONLY to you (greyed out only when
+  // actually invisible, i.e. grid toggle off - NOT when the map toggle is off).
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? false : (u.map_visible === true)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
@@ -1086,7 +1087,7 @@ export default function App() {
                 <Marker
                   key="self-pin"
                   position={[location.lat, location.lng]}
-                  icon={createProfileIcon(currentUser, mapVisible && gridVisible, true, isOnlineWithin15Min(currentUser.last_seen))}
+                  icon={createProfileIcon(currentUser, gridVisible, true, isOnlineWithin15Min(currentUser.last_seen))}
                   eventHandlers={{ click: () => handleCardClick(currentUser) }}
                 />
               )}
