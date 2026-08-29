@@ -304,6 +304,8 @@ export default function App() {
   const [filterPrefMatcherOn, setFilterPrefMatcherOn] = useState<boolean>(true);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [noteDraft, setNoteDraft] = useState<string>('');
+  const [showNoteBox, setShowNoteBox] = useState<boolean>(false);
+  const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState<boolean>(false);
   const [dob, setDob] = useState<string>('');
@@ -730,7 +732,7 @@ export default function App() {
     setHideAge(nextHide); await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
 
-  const handleCardClick = (targetUser: UserProfile) => { setShowFilterDropdown(false); setSelectedProfile(targetUser); if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id); else { setNoteDraft(''); } };
+  const handleCardClick = (targetUser: UserProfile) => { setShowFilterDropdown(false); setSelectedProfile(targetUser); if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id); else { setNoteDraft(''); setShowNoteBox(false); } };
 
   const handleStartChat = (targetUser: UserProfile) => {
     if (!checkFilterPass(targetUser)) return;
@@ -808,9 +810,11 @@ export default function App() {
   };
 
   const loadPrivateNote = (targetId: string | undefined) => {
-    if (!targetId || targetId === currentUser?.id) { setNoteDraft(''); return; }
+    if (!targetId || targetId === currentUser?.id) { setNoteDraft(''); setShowNoteBox(false); return; }
     const key = noteKeyFor(targetId);
-    const apply = (val: string | null | undefined) => { const text = parseNotePayload(val); if (text !== null) setNoteDraft(text); };
+    const apply = (val: string | null | undefined) => { const text = parseNotePayload(val); if (text !== null) { setNoteDraft(text); setNotesMap((m) => ({ ...m, [targetId]: text })); setShowNoteBox(text.trim().length > 0); } };
+    setNoteDraft(notesMap[targetId] || '');
+    setShowNoteBox((notesMap[targetId] || '').trim().length > 0);
     try {
       const local = localStorage.getItem(key);
       if (local !== null) apply(local);
@@ -825,11 +829,51 @@ export default function App() {
     if (!targetId || targetId === currentUser?.id) return;
     const text = (value || '').slice(0, 100);
     setNoteDraft(text);
+    setShowNoteBox(text.trim().length > 0);
+    setNotesMap((m) => ({ ...m, [targetId]: text }));
     const key = noteKeyFor(targetId);
     const payload = JSON.stringify({ t: text, x: text ? Date.now() + NOTE_TTL_MS : null });
     try { localStorage.setItem(key, payload); } catch (e) {}
     try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch (e) {}
   };
+
+  // On app load: read ALL existing private notes from Telegram CloudStorage
+  // (falling back to localStorage) so each profile card shows its saved note.
+  const NOTE_PREFIX = 'whos_nearby_private_note_';
+  useEffect(() => {
+    const hydrate = (k: string, val: string | null | undefined) => {
+      const text = parseNotePayload(val);
+      if (text === null) return;
+      const targetId = k.slice(NOTE_PREFIX.length).split('_').slice(1).join('_');
+      if (!targetId) return;
+      setNotesMap((m) => (m[targetId] === text ? m : { ...m, [targetId]: text }));
+    };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(NOTE_PREFIX)) hydrate(k, localStorage.getItem(k));
+      }
+    } catch (e) {}
+    const cs: any = window.Telegram?.WebApp?.CloudStorage;
+    if (cs?.getItems) {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(NOTE_PREFIX)) keys.push(k);
+        }
+        cs.getItems(keys, (err: any, val: any) => { if (!err && val) Object.entries(val).forEach(([k, v]) => hydrate(k, v as string)); });
+      } catch (e) {}
+    } else if (cs?.getItem) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(NOTE_PREFIX)) cs.getItem(k, (err: any, val: any) => { if (!err) hydrate(k, val); });
+        }
+      } catch (e) {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const handleForceReset = async () => {
     if (!selectedProfile || !PAYMENT_WORKER_URL) return;
@@ -1038,10 +1082,15 @@ export default function App() {
                 {hideAgeExpiry && <span style={{ fontSize: '10px', color: '#888' }}>{t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}</span>}
               </div>)}
               {!isViewingSelf && (
-                <div style={{ position: 'relative', width: '100%', marginBottom: '8px' }}>
-                  <button type="button" onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: '-36px', right: '0', zIndex: 5, padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Private note">📝</button>
-                  <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder="Private note (100 chars max)" rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
-                  <div style={{ fontSize: '10px', color: '#666', textAlign: 'right' }}>{noteDraft.length}/100</div>
+                <div style={{ position: 'relative', width: '100%', marginTop: '-42px', marginBottom: '8px', minHeight: '0' }}>
+                  <div style={{ position: 'absolute', top: '-6px', right: '0', zIndex: 5, display: 'flex', gap: '6px' }}>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Private note">📝</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Force reset">🔁</button>
+                  </div>
+                  {showNoteBox && (<>
+                    <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder="Private note (100 chars max)" rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
+                    <div style={{ fontSize: '10px', color: '#666', textAlign: 'right' }}>{noteDraft.length}/100</div>
+                  </>)}
                 </div>
               )}
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
@@ -1057,7 +1106,6 @@ export default function App() {
                   {isViewingSelf ? (<button type="button" onClick={async () => { const nextWhere = wherePref === 'Host' ? 'Travel' : (wherePref === 'Travel' ? null : 'Host'); setWherePref(nextWhere); const updated = { ...activeProfile, where_pref: nextWhere }; setSelectedProfile(updated); await handleUpdateSelfField({ where_pref: nextWhere }); }} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}>{formatTagText(wherePref === null ? t('Anywhere') : t(wherePref))}</button>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>{formatTagText(activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere'))}</div>)}
                 </div>
               )}
-              {!isViewingSelf && isAdmin && (<button type="button" onClick={handleForceReset} style={{ marginTop: '20px', width: '100%', padding: '10px', backgroundColor: '#7f1d1d', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>🔁 Force Reset</button>)}
               {!isViewingSelf && passesFilterForActive && (<button type="button" onClick={() => handleStartChat(activeProfile)} style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 {t('sendMessage')}
