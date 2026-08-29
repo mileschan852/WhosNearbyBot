@@ -3,8 +3,9 @@ MONOLITHIC SOURCE — Who's Nearby Bot
 ================================================================================
 Single file for Gemini. Contains: Frontend (React SPA), Backend (CF Worker),
 Database schema (Supabase), Build config, Deploy pipeline.
-================================================================================
-
+Regenerated from live source. Map toggle: turning the map footer button off
+(green to red) hides the user's map pin from others and switches to the grid
+view; that behavior is intentional and unchanged.
 
 ================================================================================
 SECTION 1: index.html (entry point)
@@ -16,6 +17,8 @@ SECTION 1: index.html (entry point)
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Who's Nearby</title>
+
+    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script type="module" crossorigin src="./src/main.tsx"></script>
   </head>
@@ -34,8 +37,11 @@ import ReactDOM from 'react-dom/client';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import App from './App.tsx';
 import 'leaflet/dist/leaflet.css';
-import './index.css';
+import './index.css'; // Assuming you have a basic reset here
 
+// Official Telegram Wallet is the ONLY wallet allowed to connect (per owner spec).
+// The single-wallet modal only offers the Telegram Wallet entry from the
+// canonical TON Connect registry — no other wallet can be picked.
 const TONCONNECT_MANIFEST_URL = 'https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/f6710d69cb37/tonconnect-manifest.json';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -88,9 +94,10 @@ SECTION 4: vite.config.ts (Vite build config)
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// I am forcing relative paths here so GitHub Pages can actually find your files.
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: './', 
 })
 
 
@@ -137,7 +144,8 @@ SECTION 5: package.json (dependencies)
 SECTION 6: tsconfig.json + tsconfig.app.json + tsconfig.node.json
 ================================================================================
 
-// tsconfig.json
+--- tsconfig.json ---
+
 {
   "files": [],
   "references": [
@@ -146,7 +154,9 @@ SECTION 6: tsconfig.json + tsconfig.app.json + tsconfig.node.json
   ]
 }
 
-// tsconfig.app.json
+
+--- tsconfig.app.json ---
+
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
@@ -156,12 +166,16 @@ SECTION 6: tsconfig.json + tsconfig.app.json + tsconfig.node.json
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+
+    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+
+    /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
@@ -170,7 +184,9 @@ SECTION 6: tsconfig.json + tsconfig.app.json + tsconfig.node.json
   "include": ["src"]
 }
 
-// tsconfig.node.json
+
+--- tsconfig.node.json ---
+
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
@@ -178,11 +194,15 @@ SECTION 6: tsconfig.json + tsconfig.app.json + tsconfig.node.json
     "lib": ["ES2023"],
     "types": ["node"],
     "skipLibCheck": true,
+
+    /* Bundler mode */
     "module": "nodenext",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+
+    /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
@@ -201,8 +221,8 @@ main = "worker.js"
 compatibility_date = "2026-08-04"
 compatibility_flags = ["nodejs_compat"]
 
-# Secrets set via wrangler secret put / hosting env vars:
-# TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY
+# All secrets are injected at deploy time (wrangler secret put / hosting env vars).
+# NEVER commit real values here. See .env.example for the variable names.
 
 
 ================================================================================
@@ -210,7 +230,10 @@ SECTION 8: worker.js (Cloudflare Worker — API backend)
 ================================================================================
 
 // WhosNearbyBot — Canonical Cloudflare Worker (API-only, < 1MB)
-// Secrets:
+// Static assets are served by Cloudflare Pages / KV Asset Binding.
+// Supabase is the backend database.
+//
+// Secrets (wrangler secret put / env vars):
 //   TELEGRAM_BOT_TOKEN     — bot token for @WhosNearbyBot
 //   SUPABASE_URL           — https://<ref>.supabase.co
 //   SUPABASE_ANON_KEY      — anon key for Supabase REST
@@ -404,9 +427,15 @@ export default {
           if (payload.type === "hide_age") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { hide_age: true, hide_age_expiry: expiry });
           else if (payload.type === "invisible") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { grid_visible: false, invisible_expiry: expiry });
           else if (payload.type === "edit_profile") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { edit_profile_pass: true, edit_profile_expiry: expiry });
+          else if (payload.type === "change_filter") {
+            const existing = await sbGet(env, `rest/v1/profiles?select=filter_sub_expiry&id=eq.${encodeURIComponent(profileId)}`);
+            const prev = (Array.isArray(existing) ? existing[0] : existing)?.filter_sub_expiry;
+            const base = prev && new Date(prev).getTime() > Date.now() ? new Date(prev).getTime() : Date.now();
+            await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { filter_sub_expiry: new Date(base + 30 * 86400000).toISOString() });
+          }
         }
         return new Response("OK");
-      } catch (e) { return new Response("OK"); }
+      } catch { return new Response("OK"); }
     }
 
     // GET/POST /api/messages
@@ -431,22 +460,10 @@ export default {
       return json(Array.isArray(state) ? state[0] : state || { prize_name: "Ultimate Bundle", tickets_sold: 0 });
     }
 
-    // GET/POST /api/private-notes
-    if (path === "/api/private-notes" && request.method === "GET") {
-      const callerId = parseInt(url.searchParams.get("caller_id") || "0");
-      const targetId = parseInt(url.searchParams.get("target_id") || "0");
-      if (!callerId || !targetId) return json({ error: "Missing params" }, 400);
-      if (callerId !== 1231127407) return json({ error: "Forbidden" }, 403);
-      const u = await sbGet(env, `rest/v1/profiles?select=private_notes&id=eq.${encodeURIComponent(`tg_${targetId}`)}`);
-      return json({ notes: (Array.isArray(u) ? u[0] : u)?.private_notes || "" });
-    }
-    if (path === "/api/private-notes" && request.method === "POST") {
-      const { caller_id, target_id, notes } = await request.json();
-      if (!caller_id || !target_id) return json({ error: "Missing params" }, 400);
-      if (caller_id !== 1231127407) return json({ error: "Forbidden" }, 403);
-      await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(`tg_${target_id}`)}`, { private_notes: notes || "" });
-      return json({ updated: true });
-    }
+    // Private notes are NOT stored in Supabase. They live only in the user's
+    // Telegram WebApp CloudStorage (per-user, device-independent, bot-scoped),
+    // keyed whos_nearby_private_note_<viewer>_<target>, 100 char max.
+    // Expiry is driven by the existing profiles.filter_sub_expiry column.
 
     // POST /api/reset-profile
     if (path === "/api/reset-profile" && request.method === "POST") {
@@ -471,7 +488,7 @@ export default {
 
 
 ================================================================================
-SECTION 9: App.tsx (React frontend — 1843 lines, main component)
+SECTION 9: App.tsx (React frontend — main component)
 ================================================================================
 
 // App.tsx — Main React SPA component for Who's Nearby
@@ -510,6 +527,10 @@ declare global {
         openLink?: (url: string) => void;
         showAlert?: (message: string) => void;
         openInvoice?: (url: string, callback?: (status: string) => void) => void;
+        CloudStorage?: {
+          setItem?: (key: string, value: string, callback?: (error?: string) => void) => void;
+          getItem?: (key: string, callback?: (error?: string, value?: string) => void) => void;
+        };
       };
     };
   }
@@ -605,6 +626,7 @@ interface UserProfile {
   distance?: number;
   hide_age_expiry?: string | null;
   invisible_expiry?: string | null;
+  filter_sub_expiry?: string | null;
 }
 
 const formatDistanceBigUnit = (meters?: number) => {
@@ -617,7 +639,7 @@ const formatDistanceBigUnit = (meters?: number) => {
 
 const formatTagText = (str: string) => {
   if (!str) return '';
-  return str.replace(/\s*[\(（][^)）]*[\)）]/g, '').trim();
+  return str.replace(/\s*[(（][^)）]*[)）]/g, '').trim();
 };
 
 const calculateAge = (dobString?: string | null) => {
@@ -715,6 +737,28 @@ function MapController({ center }: { center: [number, number] }) {
   return null;
 }
 
+// Fallback tile source: if the CartoDB dark tiles fail (e.g. rate-limited with
+// an "API key required" error tile), swap to the free OSM standard tiles.
+const FALLBACK_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+let tileFallbackUsed = false;
+function TileFallbackController() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const onTileError = () => {
+      if (tileFallbackUsed) return;
+      tileFallbackUsed = true;
+      map.eachLayer((layer: any) => {
+        if (layer instanceof L.TileLayer) { map.removeLayer(layer); }
+      });
+      L.tileLayer(FALLBACK_TILE_URL, { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    };
+    map.on('tileerror', onTileError);
+    return () => { map.off('tileerror', onTileError); };
+  }, [map]);
+  return null;
+}
+
 const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolean, isOnline: boolean) => {
   let innerHtml = '';
   if (user.avatar) {
@@ -774,6 +818,9 @@ export default function App() {
   const [filterHeightMax, setFilterHeightMax] = useState<number>(200);
   const [filterPrefMatcherOn, setFilterPrefMatcherOn] = useState<boolean>(true);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
+  const [noteDraft, setNoteDraft] = useState<string>('');
+  const [showNoteBox, setShowNoteBox] = useState<boolean>(false);
+  const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState<boolean>(false);
   const [dob, setDob] = useState<string>('');
@@ -871,6 +918,7 @@ export default function App() {
         grid_visible: u.grid_visible ?? true, map_visible: u.map_visible ?? false,
         distance: Math.round(u.distance),
         hide_age_expiry: u.hide_age_expiry || null, invisible_expiry: u.invisible_expiry || null,
+        filter_sub_expiry: u.filter_sub_expiry || null,
       })).sort((a, b) => {
         if (a.id === currentUserId) return -1;
         if (b.id === currentUserId) return 1;
@@ -909,19 +957,22 @@ export default function App() {
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
         const userAvatar = tgUser?.photo_url || '';
         if (!navigator.geolocation) { setIsLocationDenied(true); setIsReady(true); return; }
-        const hasLocation = await new Promise<boolean>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(true); },
-            () => {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(true); },
-                () => resolve(false),
-                { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-              );
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-          );
-        });
+        // Try hard for a fix: high accuracy (WiFi hotspot triangulation can be
+        // slow), then cached/low-accuracy, then a last low-accuracy retry with
+        // a long timeout. maximumAge allows cached fixes so WiFi-only devices
+        // aren't failed out on a 10s timer.
+        const tryGeolocation = (opts: PositionOptions): Promise<boolean> =>
+          new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(true); },
+              () => resolve(false),
+              opts
+            );
+          });
+        const hasLocation =
+          (await tryGeolocation({ enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 })) ||
+          (await tryGeolocation({ enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 })) ||
+          (await tryGeolocation({ enableHighAccuracy: false, timeout: 20000, maximumAge: Infinity }));
         if (!hasLocation) { setLocation({ lat: 22.3193, lng: 114.1694 }); }
         let existingProfile: any = null;
         if (supabase) {
@@ -954,6 +1005,7 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
+          if (existingProfile.filter_sub_expiry) { const ts = new Date(existingProfile.filter_sub_expiry).getTime(); if (!isNaN(ts) && ts > filterSubUntil) { setFilterSubUntil(ts); try { localStorage.setItem(FILTER_SUB_KEY, String(ts)); } catch {} } }
           if (typeof existingProfile.grid_visible === 'boolean') { initialGridVisible = existingProfile.grid_visible; setGridVisible(initialGridVisible); }
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
           if (isManSeekingMan) {
@@ -980,6 +1032,7 @@ export default function App() {
       finally { setIsReady(true); }
     };
     initApp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount; deps are intentionally frozen at init
   }, []);
 
   const handleRefresh = async () => {
@@ -1071,7 +1124,7 @@ export default function App() {
       if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
         return new Promise((resolve) => {
           window.Telegram!.WebApp!.openInvoice!(data.invoiceLink!, (status) => {
-            if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch (e) {} resolve(true); }
+            if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch {} if (currentUser && supabase) { const newExpiry = new Date(subUntil).toISOString(); supabase.from('profiles').update({ filter_sub_expiry: newExpiry }).eq('id', currentUser.id).then(() => {}); setCurrentUser((p: any) => p ? { ...p, filter_sub_expiry: newExpiry } : p); } resolve(true); }
             else { alert(t('paymentCancelled')); resolve(false); }
           });
         });
@@ -1198,7 +1251,7 @@ export default function App() {
     setHideAge(nextHide); await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
 
-  const handleCardClick = (targetUser: UserProfile) => { setShowFilterDropdown(false); setSelectedProfile(targetUser); };
+  const handleCardClick = (targetUser: UserProfile) => { setShowFilterDropdown(false); setSelectedProfile(targetUser); if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id); else { setNoteDraft(''); setShowNoteBox(false); } };
 
   const handleStartChat = (targetUser: UserProfile) => {
     if (!checkFilterPass(targetUser)) return;
@@ -1242,6 +1295,44 @@ export default function App() {
     else window.open(url, '_blank');
   };
 
+  // On app load: read ALL existing private notes from Telegram CloudStorage
+  // (falling back to localStorage) so each profile card shows its saved note.
+  const NOTE_PREFIX = 'whos_nearby_private_note_';
+  useEffect(() => {
+    const hydrate = (k: string, val: string | null | undefined) => {
+      const text = parseNotePayload(val);
+      if (text === null) return;
+      const targetId = k.slice(NOTE_PREFIX.length).split('_').slice(1).join('_');
+      if (!targetId) return;
+      setNotesMap((m) => (m[targetId] === text ? m : { ...m, [targetId]: text }));
+    };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(NOTE_PREFIX)) hydrate(k, localStorage.getItem(k));
+      }
+    } catch {}
+    const cs: any = window.Telegram?.WebApp?.CloudStorage;
+    if (cs?.getItems) {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(NOTE_PREFIX)) keys.push(k);
+        }
+        cs.getItems(keys, (err: any, val: any) => { if (!err && val) Object.entries(val).forEach(([k, v]) => hydrate(k, v as string)); });
+      } catch {}
+    } else if (cs?.getItem) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(NOTE_PREFIX)) cs.getItem(k, (err: any, val: any) => { if (!err) hydrate(k, val); });
+        }
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
   if (!isReady) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}><p>{t('loading')}</p></div>;
   }
@@ -1252,10 +1343,82 @@ export default function App() {
     return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('accessDenied')}</h2><p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>{t('underageMessage')}</p></div>;
   }
 
+  const noteKeyFor = (targetId: string | undefined) => {
+    const viewerId = currentUser?.id || localStorage.getItem('whos_nearby_user_id') || 'anon';
+    return `whos_nearby_private_note_${viewerId}_${targetId}`;
+  };
+
+  // Private notes are stored ONLY in Telegram CloudStorage (bot-scoped, per-user)
+  // with a localStorage cache. They are never written to Supabase.
+  // Stored payload: JSON { t: text, x: expiryEpochMs|null } (expiry = 30 days
+  // from last save, using the same 30-day window as other subscriptions).
+  const NOTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+  const parseNotePayload = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    try {
+      const p = JSON.parse(raw);
+      if (p && typeof p.t === 'string') {
+        if (p.x && Number(p.x) < Date.now()) return null; // expired
+        return (p.t || '').slice(0, 100);
+      }
+    } catch {}
+    return raw.slice(0, 100); // legacy plain-text value
+  };
+
+  const loadPrivateNote = (targetId: string | undefined) => {
+    if (!targetId || targetId === currentUser?.id) { setNoteDraft(''); setShowNoteBox(false); return; }
+    const key = noteKeyFor(targetId);
+    const apply = (val: string | null | undefined) => { const text = parseNotePayload(val); if (text !== null) { setNoteDraft(text); setNotesMap((m) => ({ ...m, [targetId]: text })); setShowNoteBox(text.trim().length > 0); } };
+    setNoteDraft(notesMap[targetId] || '');
+    setShowNoteBox((notesMap[targetId] || '').trim().length > 0);
+    try {
+      const local = localStorage.getItem(key);
+      if (local !== null) apply(local);
+    } catch {}
+    try {
+      const cs = window.Telegram?.WebApp?.CloudStorage;
+      cs?.getItem?.(key, (err, val) => { if (!err) apply(val); });
+    } catch {}
+  };
+
+  const savePrivateNote = (targetId: string | undefined, value: string) => {
+    if (!targetId || targetId === currentUser?.id) return;
+    const text = (value || '').slice(0, 100);
+    setNoteDraft(text);
+    setShowNoteBox(text.trim().length > 0);
+    setNotesMap((m) => ({ ...m, [targetId]: text }));
+    const key = noteKeyFor(targetId);
+    const payload = JSON.stringify({ t: text, x: text ? Date.now() + NOTE_TTL_MS : null });
+    try { localStorage.setItem(key, payload); } catch {}
+    try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch {}
+  };
+
+  const handleForceReset = async () => {
+    if (!selectedProfile || !PAYMENT_WORKER_URL) return;
+    if (!window.confirm(`Force reset profile of ${selectedProfile.name}?`)) return;
+    try {
+      await fetch(`${PAYMENT_WORKER_URL}/api/reset-profile`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caller_id: currentUser?.id ? Number(String(currentUser.id).replace(/^tg_/, '')) : null, target_id: Number(String(selectedProfile.id).replace(/^tg_/, '')) }),
+      });
+      alert('Profile reset.');
+    } catch (e) { console.error(e); alert('Reset failed.'); }
+  };
+
+  const filterSubStatusInfo = (() => {
+    if (!isAdmin && !hasFilterSub && !(filterSubUntil > Date.now())) return { label: 'Unsubscribed', color: '#888' };
+    if (filterSubUntil > Date.now()) return { label: `Subscribed until ${new Date(filterSubUntil).toLocaleDateString()}`, color: '#4ade80' };
+    return { label: 'Expired', color: '#e11d48' };
+  })();
+
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
   const activeProfile = selectedProfile;
   const gridFilteredUsers = users;
-  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true)));
+  // Self is excluded from the shared list; your own pin is rendered separately
+  // at your live GPS location and is visible ONLY to you (greyed out only when
+  // actually invisible, i.e. grid toggle off - NOT when the map toggle is off).
+  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? false : (u.map_visible === true)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
   const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode';
@@ -1339,7 +1502,7 @@ export default function App() {
           </button>
           {showFilterDropdown && (
             <div style={{ position: 'absolute', top: '44px', right: '0', zIndex: 2000, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '12px', width: '280px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{t('filterUsers')}</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: filterSubStatusInfo.color }}>{isAdmin ? 'Admin' : `${filterSubStatusInfo.label}${filterSubUntil > Date.now() ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
               <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => handleToggleFilterItem('age')}>
                   <input type="checkbox" checked={filterAgeOn} onChange={() => {}} style={{ width: '16px', height: '16px', accentColor: '#007bff', cursor: 'pointer' }} />
@@ -1410,13 +1573,25 @@ export default function App() {
           <MapContainer center={[location.lat, location.lng]} zoom={15} style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }} zoomControl={false}>
             <MapController center={[location.lat, location.lng]} />
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
+            <TileFallbackController />
             <MarkerClusterGroup chunkedLoading>
+              {/* Your own pin: ALWAYS visible to you only, at your live GPS coords, greyed out unless green. */}
+              {currentUser && typeof location.lat === 'number' && typeof location.lng === 'number' && (
+                <Marker
+                  key="self-pin"
+                  position={[location.lat, location.lng]}
+                  icon={createProfileIcon(currentUser, gridVisible, true, isOnlineWithin15Min(currentUser.last_seen))}
+                  eventHandlers={{ click: () => handleCardClick(currentUser) }}
+                />
+              )}
               {mapFilteredUsers.map((user) => {
-                const isSelf = currentUser && user.id === currentUser.id;
+                // Skip users with no known coordinates entirely: never fall back
+                // to the viewer's own location (that piled every user onto one spot).
+                if (typeof user.lat !== 'number' || typeof user.lng !== 'number') return null;
                 const isUserVisible = user.grid_visible !== false;
-                const isEnabled = isSelf ? (mapVisible && gridVisible) : isUserVisible;
+                const isEnabled = isUserVisible;
                 const isOnline = isOnlineWithin15Min(user.last_seen);
-                return (<Marker key={user.id} position={[user.lat || location.lat, user.lng || location.lng]} icon={createProfileIcon(user, isEnabled, Boolean(isSelf), isOnline)} eventHandlers={{ click: () => handleCardClick(user) }} />);
+                return (<Marker key={user.id} position={[user.lat, user.lng]} icon={createProfileIcon(user, isEnabled, false, isOnline)} eventHandlers={{ click: () => handleCardClick(user) }} />);
               })}
             </MarkerClusterGroup>
           </MapContainer>
@@ -1425,7 +1600,13 @@ export default function App() {
 
       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
-          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ position: 'relative', backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            {!isViewingSelf && (
+              <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', gap: '6px' }}>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Private note">📝</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Force reset">🔁</button>
+              </div>
+            )}
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px', filter: passesFilterForActive ? 'none' : 'grayscale(100%)' }}>
@@ -1440,6 +1621,14 @@ export default function App() {
                 <button type="button" onClick={handleHideAgeToggle} style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{hideAge ? t('ageHidden') : t('ageShown')}</button>
                 {hideAgeExpiry && <span style={{ fontSize: '10px', color: '#888' }}>{t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}</span>}
               </div>)}
+              {!isViewingSelf && (
+                <div style={{ width: '100%', marginTop: '-42px', marginBottom: '8px', minHeight: '0' }}>
+                  {showNoteBox && (<>
+                    <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder="Private note (100 chars max)" rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
+                    <div style={{ fontSize: '10px', color: '#666', textAlign: 'right' }}>{noteDraft.length}/100</div>
+                  </>)}
+                </div>
+              )}
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
               {targetIsManSeekingMan && (
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1497,7 +1686,10 @@ export default function App() {
 SECTION 10: Supabase DB migrations
 ================================================================================
 
--- 001_initial_schema.sql — tables: profiles, transactions, purchases
+--- supabase/migrations/001_initial_schema.sql ---
+
+-- Who's Nearby — 001: initial schema
+-- Idempotent: safe to run on a fresh project or an existing one.
 
 create table if not exists public.profiles (
   id text not null primary key,
@@ -1529,9 +1721,11 @@ create table if not exists public.profiles (
   updated_at timestamp with time zone not null default now()
 );
 
+-- Additive columns for databases created before the edit_profile feature existed.
 alter table public.profiles add column if not exists edit_profile_pass boolean not null default false;
 alter table public.profiles add column if not exists edit_profile_expiry timestamp with time zone;
 
+-- Payment receipts (idempotency source for the payment webhook).
 create table if not exists public.transactions (
   id uuid primary key default gen_random_uuid(),
   user_id text,
@@ -1544,6 +1738,7 @@ create table if not exists public.transactions (
   created_at timestamp with time zone not null default now()
 );
 
+-- Long-lived entitlements (optional; expiry fields on profiles cover current features).
 create table if not exists public.purchases (
   id uuid primary key default gen_random_uuid(),
   user_id text,
@@ -1574,8 +1769,12 @@ create policy "Allow public insert on transactions" on public.transactions for i
 notify pgrst, 'reload schema';
 
 
--- 002_age_enforcement_and_nearby.sql — compute_age(), enforce_age trigger, get_nearby_users()
+--- supabase/migrations/002_age_enforcement_and_nearby.sql ---
 
+-- Who's Nearby — 002: server-side age enforcement + nearby search (Haversine)
+-- Idempotent: uses create or replace / drop-if-exists everywhere.
+
+-- Age from ISO date-of-birth text. Returns null when unparseable.
 create or replace function public.compute_age(dob text)
 returns integer
 language sql
@@ -1588,6 +1787,8 @@ as $$
   end;
 $$;
 
+-- Enforce age server-side: is_underage is ALWAYS recomputed from dob on write,
+-- so a client can never forge is_underage = false (or true) for themselves.
 create or replace function public.enforce_age()
 returns trigger
 language plpgsql
@@ -1602,7 +1803,7 @@ begin
         new.is_underage := (age < 18);
       end if;
     exception when others then
-      null;
+      null; -- leave flag unchanged if dob is unparseable
     end;
   end if;
   new.updated_at := now();
@@ -1615,6 +1816,8 @@ create trigger profiles_enforce_age
   before insert or update on public.profiles
   for each row execute function public.enforce_age();
 
+-- Nearby users within radius, sorted by Haversine distance.
+-- Underage users (by dob OR flag) are never returned, even to admins.
 create or replace function public.get_nearby_users(
   p_lat double precision,
   p_lng double precision,
@@ -1623,15 +1826,31 @@ create or replace function public.get_nearby_users(
   p_is_admin boolean default false
 )
 returns table (
-  id text, name text, username text, avatar text,
-  lat double precision, lng double precision,
+  id text,
+  name text,
+  username text,
+  avatar text,
+  lat double precision,
+  lng double precision,
   last_seen timestamp with time zone,
-  gender text, seeking text, dob text, height text, weight text,
-  role_pref text, safety_pref text, playstyle_pref text,
-  where_pref text, how_many_pref text, non_man_mode text,
-  is_underage boolean, hide_age boolean, grid_visible boolean, map_visible boolean,
+  gender text,
+  seeking text,
+  dob text,
+  height text,
+  weight text,
+  role_pref text,
+  safety_pref text,
+  playstyle_pref text,
+  where_pref text,
+  how_many_pref text,
+  non_man_mode text,
+  is_underage boolean,
+  hide_age boolean,
+  grid_visible boolean,
+  map_visible boolean,
   distance double precision,
-  hide_age_expiry timestamp with time zone, invisible_expiry timestamp with time zone
+  hide_age_expiry timestamp with time zone,
+  invisible_expiry timestamp with time zone
 )
 language plpgsql
 stable
@@ -1640,19 +1859,42 @@ declare
   ref_lat double precision;
   ref_lng double precision;
 begin
+  -- Prefer the requesting user's stored location; fall back to the passed coordinates.
   select p.lat, p.lng into ref_lat, ref_lng
-  from profiles p where p.id = p_requesting_user_id;
+  from profiles p
+  where p.id = p_requesting_user_id;
+
   if ref_lat is null or ref_lng is null then
     ref_lat := p_lat;
     ref_lng := p_lng;
   end if;
+
   return query
-  select * from (
+  select *
+  from (
     select
-      p.id, p.name, p.username, p.avatar, p.lat, p.lng, p.last_seen,
-      p.gender, p.seeking, p.dob, p.height, p.weight,
-      p.role_pref, p.safety_pref, p.playstyle_pref, p.where_pref, p.how_many_pref,
-      p.non_man_mode, p.is_underage, p.hide_age, p.grid_visible, p.map_visible,
+      p.id,
+      p.name,
+      p.username,
+      p.avatar,
+      p.lat,
+      p.lng,
+      p.last_seen,
+      p.gender,
+      p.seeking,
+      p.dob,
+      p.height,
+      p.weight,
+      p.role_pref,
+      p.safety_pref,
+      p.playstyle_pref,
+      p.where_pref,
+      p.how_many_pref,
+      p.non_man_mode,
+      p.is_underage,
+      p.hide_age,
+      p.grid_visible,
+      p.map_visible,
       (6371000 * acos(
         least(1.0, greatest(-1.0,
           cos(radians(ref_lat)) * cos(radians(p.lat)) *
@@ -1660,12 +1902,19 @@ begin
           sin(radians(ref_lat)) * sin(radians(p.lat))
         ))
       ))::double precision as distance,
-      p.hide_age_expiry, p.invisible_expiry
+      p.hide_age_expiry,
+      p.invisible_expiry
     from profiles p
     where
+      -- age gate: never expose underage profiles
       (p.is_underage is null or p.is_underage = false)
       and (public.compute_age(p.dob) is null or public.compute_age(p.dob) >= 18)
-      and (p_is_admin = true or p.id = p_requesting_user_id or p.grid_visible = true)
+      -- admins and self see everyone; others only see grid-visible profiles
+      and (
+        p_is_admin = true
+        or p.id = p_requesting_user_id
+        or p.grid_visible = true
+      )
       and p.lat is not null
       and p.lng is not null
   ) nearby
@@ -1675,6 +1924,29 @@ end;
 $$;
 
 notify pgrst, 'reload schema';
+
+
+--- supabase/migrations/003_private_notes_and_filter_sub.sql ---
+
+-- 003_private_notes_and_filter_sub.sql
+-- Adds private_notes column (admin-only private notes on profiles)
+-- and filter_sub_expiry (server-side filter subscription expiry).
+
+alter table public.profiles add column if not exists private_notes text not null default '';
+alter table public.profiles add column if not exists filter_sub_expiry timestamp with time zone;
+
+-- Ensure webhook/service writes to these columns are allowed by RLS policies
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'profiles'
+      and policyname = 'profiles_service_all'
+  ) then
+    create policy profiles_service_all on public.profiles
+      for all using (true) with check (true);
+  end if;
+end $$;
 
 
 ================================================================================
@@ -1705,25 +1977,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+
       - name: Install dependencies
         run: npm ci
+
       - name: Build
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_PAYMENT_WORKER_URL: ${{ secrets.VITE_PAYMENT_WORKER_URL }}
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
@@ -1731,4 +2009,3 @@ jobs:
 
 ================================================================================
 END OF MONOLITHIC SOURCE
-================================================================================

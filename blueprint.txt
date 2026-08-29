@@ -226,8 +226,12 @@ B. Grid & map discovery
    - Grid of user cards sorted by distance (server-side Haversine, 50 km
      radius), with clustering on the map (react-leaflet-cluster) and
      CartoDB Dark Matter tiles.
-   - Map view shows only profiles with map_visible=true; your own pin
-     follows your mapVisible toggle.
+   - Map view shows only profiles with map_visible=true; your own pin is
+     always visible to you at your live GPS coords (greyed out only when
+     invisible, i.e. grid_visible=false — never by the map toggle).
+   - MAP footer toggle (green to red) INTENTIONALLY hides the pin from
+     others AND switches the view back to the grid; the pin staying hidden
+     when the map toggle is red is by design, not a bug.
    - Geolocation capture; profile stores lat/lng.
 
 C. Profile cards
@@ -312,4 +316,5 @@ GOTCHAS FOR THE NEXT PERSON
   - start_param ('gaymode') is client-side only; anyone can open the
     default entry and pick any gender.
   - Admin identity is a hardcoded Telegram id, not a secret.
-  - monolithic-source.txt is a stale reference dump; trust the source files.
+  - monolithic-source.txt is regenerated from the live source files; trust
+    the source files if they ever drift.
