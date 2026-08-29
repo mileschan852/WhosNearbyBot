@@ -922,7 +922,9 @@ export default function App() {
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
   const activeProfile = selectedProfile;
   const gridFilteredUsers = users;
-  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? mapVisible : (u.map_visible === true)));
+  // Self is excluded from the shared list; your own pin is rendered separately
+  // at your live GPS location and is visible ONLY to you (greyed out when not green).
+  const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? false : (u.map_visible === true)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
   const isHkModEntry = window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode';
@@ -1079,12 +1081,23 @@ export default function App() {
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
             <TileFallbackController />
             <MarkerClusterGroup chunkedLoading>
+              {/* Your own pin: ALWAYS visible to you only, at your live GPS coords, greyed out unless green. */}
+              {currentUser && typeof location.lat === 'number' && typeof location.lng === 'number' && (
+                <Marker
+                  key="self-pin"
+                  position={[location.lat, location.lng]}
+                  icon={createProfileIcon(currentUser, mapVisible && gridVisible, true, isOnlineWithin15Min(currentUser.last_seen))}
+                  eventHandlers={{ click: () => handleCardClick(currentUser) }}
+                />
+              )}
               {mapFilteredUsers.map((user) => {
-                const isSelf = currentUser && user.id === currentUser.id;
+                // Skip users with no known coordinates entirely: never fall back
+                // to the viewer's own location (that piled every user onto one spot).
+                if (typeof user.lat !== 'number' || typeof user.lng !== 'number') return null;
                 const isUserVisible = user.grid_visible !== false;
-                const isEnabled = isSelf ? (mapVisible && gridVisible) : isUserVisible;
+                const isEnabled = isUserVisible;
                 const isOnline = isOnlineWithin15Min(user.last_seen);
-                return (<Marker key={user.id} position={[user.lat || location.lat, user.lng || location.lng]} icon={createProfileIcon(user, isEnabled, Boolean(isSelf), isOnline)} eventHandlers={{ click: () => handleCardClick(user) }} />);
+                return (<Marker key={user.id} position={[user.lat, user.lng]} icon={createProfileIcon(user, isEnabled, false, isOnline)} eventHandlers={{ click: () => handleCardClick(user) }} />);
               })}
             </MarkerClusterGroup>
           </MapContainer>

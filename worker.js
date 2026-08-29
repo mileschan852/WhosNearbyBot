@@ -204,7 +204,7 @@ export default {
           }
         }
         return new Response("OK");
-      } catch (e) { return new Response("OK"); }
+      } catch { return new Response("OK"); }
     }
 
     // GET/POST /api/messages
