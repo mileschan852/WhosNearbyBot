@@ -228,7 +228,6 @@ compatibility_flags = ["nodejs_compat"]
 ================================================================================
 SECTION 8: worker.js (Cloudflare Worker — API backend)
 ================================================================================
-
 // WhosNearbyBot — Canonical Cloudflare Worker (API-only, < 1MB)
 // Static assets are served by Cloudflare Pages / KV Asset Binding.
 // Supabase is the backend database.
@@ -418,15 +417,17 @@ export default {
         if (update.message?.successful_payment) {
           const payload = JSON.parse(update.message.successful_payment.invoice_payload);
           const expiry = new Date(Date.now() + 30 * 86400000).toISOString();
-          await sbPost(env, "rest/v1/transactions", {
+          // Await transaction insert so replay attacks (duplicate charge IDs) are blocked.
+          const txResult = await sbPost(env, "rest/v1/transactions", {
             user_id: payload.tg_id, type: payload.type, amount: payload.finalAmount, currency: "XTR",
             provider_payment_charge_id: update.message.successful_payment.provider_payment_charge_id || null,
             telegram_payment_charge_id: update.message.successful_payment.telegram_payment_charge_id || null,
-          }).catch(() => {});
+          });
+          if (!txResult) return new Response("Duplicate or invalid transaction", { status: 400 });
           const profileId = `tg_${payload.tg_id}`;
           if (payload.type === "hide_age") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { hide_age: true, hide_age_expiry: expiry });
           else if (payload.type === "invisible") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { grid_visible: false, invisible_expiry: expiry });
-          else if (payload.type === "edit_profile") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { edit_profile_pass: true, edit_profile_expiry: expiry });
+          else if (payload.type === "change_preference" || payload.type === "edit_profile") await sbPatch(env, `rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}`, { edit_profile_pass: true, edit_profile_expiry: expiry });
           else if (payload.type === "change_filter") {
             const existing = await sbGet(env, `rest/v1/profiles?select=filter_sub_expiry&id=eq.${encodeURIComponent(profileId)}`);
             const prev = (Array.isArray(existing) ? existing[0] : existing)?.filter_sub_expiry;

@@ -180,10 +180,14 @@ a profiles_service_all catch-all policy added in migration 003.
   POST /api/invoice    — body {tg_id, type, base_amount?}; calls Telegram
                          createInvoiceLink, returns {invoiceLink}
   POST /api/webhook    — Telegram payments webhook: answers pre_checkout_query
-                         ok; on successful_payment inserts into transactions
-                         (idempotent via charge ids) and applies the
-                         entitlement to the profile (30-day expiries;
-                         change_filter stacks on existing expiry)
+                         ok; on successful_payment AWAIT inserts into
+                         transactions (idempotent via charge ids). Duplicate/
+                         rejected inserts abort with HTTP 400 (replay-attack
+                         fix, no error swallowing). Entitlement then applied
+                         to the profile (30-day expiries; change_filter stacks
+                         on existing expiry). change_preference is treated
+                         identically to edit_profile (edit_profile_pass +
+                         edit_profile_expiry).
   GET  /api/messages   — last N flying_messages
   POST /api/messages   — post one (text trimmed to 200 chars)
   GET  /api/raffle     — raffle_state row
