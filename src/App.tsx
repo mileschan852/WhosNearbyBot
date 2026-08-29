@@ -146,7 +146,7 @@ const formatDistanceBigUnit = (meters?: number) => {
 
 const formatTagText = (str: string) => {
   if (!str) return '';
-  return str.replace(/\s*[\(（][^)）]*[\)）]/g, '').trim();
+  return str.replace(/\s*[(（][^)）]*[)）]/g, '').trim();
 };
 
 const calculateAge = (dobString?: string | null) => {
@@ -241,6 +241,28 @@ function MapController({ center }: { center: [number, number] }) {
       map.setView(center, 15, { animate: true });
     }
   }, [center, map]);
+  return null;
+}
+
+// Fallback tile source: if the CartoDB dark tiles fail (e.g. rate-limited with
+// an "API key required" error tile), swap to the free OSM standard tiles.
+const FALLBACK_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+let tileFallbackUsed = false;
+function TileFallbackController() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const onTileError = () => {
+      if (tileFallbackUsed) return;
+      tileFallbackUsed = true;
+      map.eachLayer((layer: any) => {
+        if (layer instanceof L.TileLayer) { map.removeLayer(layer); }
+      });
+      L.tileLayer(FALLBACK_TILE_URL, { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    };
+    map.on('tileerror', onTileError);
+    return () => { map.off('tileerror', onTileError); };
+  }, [map]);
   return null;
 }
 
@@ -442,19 +464,22 @@ export default function App() {
         const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Test User');
         const userAvatar = tgUser?.photo_url || '';
         if (!navigator.geolocation) { setIsLocationDenied(true); setIsReady(true); return; }
-        const hasLocation = await new Promise<boolean>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(true); },
-            () => {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(true); },
-                () => resolve(false),
-                { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-              );
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-          );
-        });
+        // Try hard for a fix: high accuracy (WiFi hotspot triangulation can be
+        // slow), then cached/low-accuracy, then a last low-accuracy retry with
+        // a long timeout. maximumAge allows cached fixes so WiFi-only devices
+        // aren't failed out on a 10s timer.
+        const tryGeolocation = (opts: PositionOptions): Promise<boolean> =>
+          new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(true); },
+              () => resolve(false),
+              opts
+            );
+          });
+        const hasLocation =
+          (await tryGeolocation({ enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 })) ||
+          (await tryGeolocation({ enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 })) ||
+          (await tryGeolocation({ enableHighAccuracy: false, timeout: 20000, maximumAge: Infinity }));
         if (!hasLocation) { setLocation({ lat: 22.3193, lng: 114.1694 }); }
         let existingProfile: any = null;
         if (supabase) {
@@ -487,7 +512,7 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
-          if (existingProfile.filter_sub_expiry) { const ts = new Date(existingProfile.filter_sub_expiry).getTime(); if (!isNaN(ts) && ts > filterSubUntil) { setFilterSubUntil(ts); try { localStorage.setItem(FILTER_SUB_KEY, String(ts)); } catch (e) {} } }
+          if (existingProfile.filter_sub_expiry) { const ts = new Date(existingProfile.filter_sub_expiry).getTime(); if (!isNaN(ts) && ts > filterSubUntil) { setFilterSubUntil(ts); try { localStorage.setItem(FILTER_SUB_KEY, String(ts)); } catch {} } }
           if (typeof existingProfile.grid_visible === 'boolean') { initialGridVisible = existingProfile.grid_visible; setGridVisible(initialGridVisible); }
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
           if (isManSeekingMan) {
@@ -514,6 +539,7 @@ export default function App() {
       finally { setIsReady(true); }
     };
     initApp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount; deps are intentionally frozen at init
   }, []);
 
   const handleRefresh = async () => {
@@ -605,7 +631,7 @@ export default function App() {
       if (data.invoiceLink && window.Telegram?.WebApp?.openInvoice) {
         return new Promise((resolve) => {
           window.Telegram!.WebApp!.openInvoice!(data.invoiceLink!, (status) => {
-            if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch (e) {} if (currentUser && supabase) { const newExpiry = new Date(subUntil).toISOString(); supabase.from('profiles').update({ filter_sub_expiry: newExpiry }).eq('id', currentUser.id).then(() => {}); setCurrentUser((p: any) => p ? { ...p, filter_sub_expiry: newExpiry } : p); } resolve(true); }
+            if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch {} if (currentUser && supabase) { const newExpiry = new Date(subUntil).toISOString(); supabase.from('profiles').update({ filter_sub_expiry: newExpiry }).eq('id', currentUser.id).then(() => {}); setCurrentUser((p: any) => p ? { ...p, filter_sub_expiry: newExpiry } : p); } resolve(true); }
             else { alert(t('paymentCancelled')); resolve(false); }
           });
         });
@@ -792,7 +818,7 @@ export default function App() {
         const k = localStorage.key(i);
         if (k && k.startsWith(NOTE_PREFIX)) hydrate(k, localStorage.getItem(k));
       }
-    } catch (e) {}
+    } catch {}
     const cs: any = window.Telegram?.WebApp?.CloudStorage;
     if (cs?.getItems) {
       try {
@@ -802,14 +828,14 @@ export default function App() {
           if (k && k.startsWith(NOTE_PREFIX)) keys.push(k);
         }
         cs.getItems(keys, (err: any, val: any) => { if (!err && val) Object.entries(val).forEach(([k, v]) => hydrate(k, v as string)); });
-      } catch (e) {}
+      } catch {}
     } else if (cs?.getItem) {
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
           if (k && k.startsWith(NOTE_PREFIX)) cs.getItem(k, (err: any, val: any) => { if (!err) hydrate(k, val); });
         }
-      } catch (e) {}
+      } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
@@ -843,7 +869,7 @@ export default function App() {
         if (p.x && Number(p.x) < Date.now()) return null; // expired
         return (p.t || '').slice(0, 100);
       }
-    } catch (e) {}
+    } catch {}
     return raw.slice(0, 100); // legacy plain-text value
   };
 
@@ -856,11 +882,11 @@ export default function App() {
     try {
       const local = localStorage.getItem(key);
       if (local !== null) apply(local);
-    } catch (e) {}
+    } catch {}
     try {
       const cs = window.Telegram?.WebApp?.CloudStorage;
       cs?.getItem?.(key, (err, val) => { if (!err) apply(val); });
-    } catch (e) {}
+    } catch {}
   };
 
   const savePrivateNote = (targetId: string | undefined, value: string) => {
@@ -871,8 +897,8 @@ export default function App() {
     setNotesMap((m) => ({ ...m, [targetId]: text }));
     const key = noteKeyFor(targetId);
     const payload = JSON.stringify({ t: text, x: text ? Date.now() + NOTE_TTL_MS : null });
-    try { localStorage.setItem(key, payload); } catch (e) {}
-    try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch (e) {}
+    try { localStorage.setItem(key, payload); } catch {}
+    try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch {}
   };
 
   const handleForceReset = async () => {
@@ -1051,6 +1077,7 @@ export default function App() {
           <MapContainer center={[location.lat, location.lng]} zoom={15} style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }} zoomControl={false}>
             <MapController center={[location.lat, location.lng]} />
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
+            <TileFallbackController />
             <MarkerClusterGroup chunkedLoading>
               {mapFilteredUsers.map((user) => {
                 const isSelf = currentUser && user.id === currentUser.id;
@@ -1066,7 +1093,13 @@ export default function App() {
 
       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
-          <div style={{ backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ position: 'relative', backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            {!isViewingSelf && (
+              <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', gap: '6px' }}>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Private note">📝</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Force reset">🔁</button>
+              </div>
+            )}
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
             <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#222', border: '3px solid #007bff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px', filter: passesFilterForActive ? 'none' : 'grayscale(100%)' }}>
@@ -1082,11 +1115,7 @@ export default function App() {
                 {hideAgeExpiry && <span style={{ fontSize: '10px', color: '#888' }}>{t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}</span>}
               </div>)}
               {!isViewingSelf && (
-                <div style={{ position: 'relative', width: '100%', marginTop: '-42px', marginBottom: '8px', minHeight: '0' }}>
-                  <div style={{ position: 'absolute', top: '-6px', right: '0', zIndex: 5, display: 'flex', gap: '6px' }}>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Private note">📝</button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Force reset">🔁</button>
-                  </div>
+                <div style={{ width: '100%', marginTop: '-42px', marginBottom: '8px', minHeight: '0' }}>
                   {showNoteBox && (<>
                     <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder="Private note (100 chars max)" rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
                     <div style={{ fontSize: '10px', color: '#666', textAlign: 'right' }}>{noteDraft.length}/100</div>
