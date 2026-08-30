@@ -26,6 +26,15 @@ A Telegram Mini App for finding nearby Telegram users — React + TypeScript SPA
 
 The app supports a `startapp=gaymode` parameter that locks the user's gender to "man" and seeking to "men". This is used by @HKMO_D_Bot as a dedicated men-only entry point: `https://t.me/HKMO_D_Bot/app?startapp=gaymode`.
 
+### Two Entry Points
+
+| Entry | Bot | Link | Behavior |
+|-------|-----|------|----------|
+| Default (botB) | @WhosNearbyBot | standard web app link | gender/seeking freely selectable |
+| Gay mode (botA) | @HKMO_D_Bot | `https://t.me/HKMO_D_Bot/app?startapp=gaymode` | gender locked to "man", seeking locked to "men" (selectors disabled) |
+
+The chat menu button on @HKMO_D_Bot ("Open App") opens the Mini App; the app itself detects the entry via `start_param` (`gaymode` → botA, otherwise botB). The chat button label links to @HKMOChat in gaymode and @WhosNearby in default mode.
+
 ## Features
 
 - 📍 Grid of nearby Telegram users sorted by distance (server-side Haversine)
