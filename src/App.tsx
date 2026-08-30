@@ -58,7 +58,15 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Clean': 'Clean (No Drugs)', 'Party': 'Party (Chemsex)', 'Party✓': 'Party✓',
     '1on1_setup': '1-on-1 (only)', 'group_setup': 'group (only)', 'DoesntMatter_setup': "Doesn't matter",
     '1on1': '1-on-1', 'group': 'group', 'DoesntMatter': "Doesn't matter",
-    'Host': 'Host', 'Travel': 'Travel', 'Off': 'Off', 'Anywhere': 'Anywhere', 'Role': 'Role', 'Safety': 'Safety', 'Playstyle': 'Playstyle', 'How Many': 'How Many', 'Where': 'Where'
+    'Host': 'Host', 'Travel': 'Travel', 'Off': 'Off', 'Anywhere': 'Anywhere', 'Role': 'Role', 'Safety': 'Safety', 'Playstyle': 'Playstyle', 'How Many': 'How Many', 'Where': 'Where',
+    you: 'You', away: 'away', online: 'Online', offline: 'Offline',
+    mAgo: '{n}m ago', hAgo: '{n}h ago', dAgo: '{n}d ago',
+    m2m: 'M2M', admin: 'Admin', unsubscribed: 'Unsubscribed',
+    subscribedUntil: 'Subscribed until {d}', expired: 'Expired',
+    privateNote: 'Private note', notePlaceholder: 'Private note (100 chars max)',
+    forceReset: 'Force reset', gamesApps: 'Games & Apps',
+    selectedUser: 'Selected user: {n}', profileReset: 'Profile reset.', resetFailed: 'Reset failed.',
+    forceResetConfirm: 'Force reset profile of {n}?'
   },
   'zh-CN': {
     loading: '正在加载应用...', locationRequired: '需要位置权限', locationMessage: '使用"附近"功能必须获得位置权限。请在浏览器或 Telegram 设置中启用位置访问并重新启动应用。', accessDenied: '拒绝访问', underageMessage: '本应用仅限成年人使用。由于年龄限制，该账户已被锁定。', completeProfile: '完善您的个人资料', profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。', dob: '出生日期：', imA: '我是', seeking: '寻找', man: '男性', woman: '女性', nonBinary: '非二元性别', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '选择身高', weight: '体重：', selectWeight: '选择体重', tapToChange: '点击更改您的偏好：', mode: '模式：', browsingOnly: '仅浏览', onlineOnly: '仅在线', meetUp: '约会中', saveProfile: '保存资料并继续', whosNearby: '附近的人', filter: '筛选', refresh: '刷新', grid: '网格', chat: '聊天', map: '地图', wallet: '钱包', filterUsers: '筛选用户', ageRange: '年龄范围', preferenceMatcher: '偏好匹配器', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '游戏风格偏好', groupSize: '群组人数', applyFilters: '应用筛选', ageHidden: '年龄已隐藏', ageShown: '年龄已显示', expires: '到期时间：', sendMessage: '发送消息', unlockPreference: '更改资料与偏好', iGotStuff: '我有货', unlockPreferencePrompt: '更改个人资料与偏好需要支付 1000 Telegram Stars。是否继续支付？', invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？', hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？', filterSubPrompt: '自定义此筛选条件需要订阅。是否继续支付？', paymentCancelled: '支付已取消或失败。', errorSaving: '保存资料出错：', fillAll: '请填写所有必填问题以继续。',
@@ -67,7 +75,15 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Clean': 'Clean (无药)', 'Party': 'Party (嗨药)', 'Party✓': 'Party✓',
     '1on1_setup': '单对单 (仅限1on1)', 'group_setup': '群组 (仅限群组)', 'DoesntMatter_setup': '无所谓',
     '1on1': '单对单', 'group': '群组', 'DoesntMatter': '无所谓',
-    'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)', 'Off': '关闭', 'Anywhere': '任意', 'Role': '角色', 'Safety': '安全', 'Playstyle': '风格', 'How Many': '人数', 'Where': '地点'
+    'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)', 'Off': '关闭', 'Anywhere': '任意', 'Role': '角色', 'Safety': '安全', 'Playstyle': '风格', 'How Many': '人数', 'Where': '地点',
+    you: '你', away: '远', online: '在线', offline: '离线',
+    mAgo: '{n}分钟前', hAgo: '{n}小时前', dAgo: '{n}天前',
+    m2m: '男找男 (M2M)', admin: '管理员', unsubscribed: '未订阅',
+    subscribedUntil: '已订阅至 {d}', expired: '已过期',
+    privateNote: '私密备注', notePlaceholder: '私密备注 (最多100字)',
+    forceReset: '强制重置', gamesApps: '游戏和应用',
+    selectedUser: '已选中用户: {n}', profileReset: '资料已重置。', resetFailed: '重置失败。',
+    forceResetConfirm: '强制重置 {n} 的资料？'
   },
   'zh-TW': {
     loading: '正在載入應用程式...', locationRequired: '需要位置權限', locationMessage: '使用「附近」功能必須獲得位置權限。請在瀏覽器或 Telegram 設定中啟用位置存取並重新啟動應用程式。', accessDenied: '存取被拒', underageMessage: '本應用程式僅限成年人使用。由於年齡限制，該帳戶已被鎖定。', completeProfile: '完善您的個人資料', profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。', dob: '出生日期：', imA: '我是', seeking: '尋找', man: '男性', woman: '女性', nonBinary: '非二元性別', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '選擇身高', weight: '體重：', selectWeight: '選擇體重', tapToChange: '點擊更改您的偏好：', mode: '模式：', browsingOnly: '僅瀏覽', onlineOnly: '僅線上', meetUp: '見面中', saveProfile: '儲存資料並繼續', whosNearby: '附近的人', filter: '篩選', refresh: '重新整理', grid: '網格', chat: '聊天', map: '地圖', wallet: '錢包', filterUsers: '篩選使用者', ageRange: '年齡範圍', preferenceMatcher: '偏好匹配器', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '風格偏好', groupSize: '群組人數', applyFilters: '套用篩選', ageHidden: '年齡已隱藏', ageShown: '年齡已顯示', expires: '到期時間：', sendMessage: '傳送訊息', unlockPreference: '更改資料與偏好', iGotStuff: '我有貨', unlockPreferencePrompt: '更改個人資料與偏好需要支付 1000 Telegram Stars。是否繼續支付？', invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？', hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？', filterSubPrompt: '自訂此篩選條件需要訂閱。是否繼續支付？', paymentCancelled: '付款已取消或失敗。', errorSaving: '儲存資料出錯：', fillAll: '請填寫所有必填問題以繼續。',
@@ -76,7 +92,15 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Clean': 'Clean (無藥)', 'Party': 'Party (嗨藥/煙)', 'Party✓': 'Party✓',
     '1on1_setup': '單對單 (僅限1on1)', 'group_setup': '群組 (僅限群組)', 'DoesntMatter_setup': '無所謂',
     '1on1': '單對單', 'group': '群組', 'DoesntMatter': '無所謂',
-    'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)', 'Off': '關閉', 'Anywhere': '任意', 'Role': '角色', 'Safety': '安全', 'Playstyle': '風格', 'How Many': '人數', 'Where': '地點'
+    'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)', 'Off': '關閉', 'Anywhere': '任意', 'Role': '角色', 'Safety': '安全', 'Playstyle': '風格', 'How Many': '人數', 'Where': '地點',
+    you: '你', away: '遠', online: '在線', offline: '離線',
+    mAgo: '{n}分鐘前', hAgo: '{n}小時前', dAgo: '{n}天前',
+    m2m: '男找男 (M2M)', admin: '管理員', unsubscribed: '未訂閱',
+    subscribedUntil: '已訂閱至 {d}', expired: '已過期',
+    privateNote: '私密備註', notePlaceholder: '私密備註 (最多100字)',
+    forceReset: '強制重置', gamesApps: '遊戲和應用',
+    selectedUser: '已選中用戶: {n}', profileReset: '資料已重置。', resetFailed: '重置失敗。',
+    forceResetConfirm: '強制重置 {n} 的資料？'
   },
   'ja': {
     loading: 'アプリを読み込んでいます...', locationRequired: '位置情報のアクセスが必要です', locationMessage: '位置情報の許可が必須です。', accessDenied: 'アクセスが拒否されました', underageMessage: 'このアプリは成人向けです。', completeProfile: 'プロフィールを完成させる', profileWarning: '警告：これは後から変更できません。', dob: '生年月日：', imA: '私は', seeking: '探しています：', man: '男性', woman: '女性', nonBinary: 'ノンバイナリー', men: '男性', women: '女性', everyone: 'すべての人', height: '身長：', selectHeight: '身長を選択', weight: '体重：', selectWeight: '体重を選択', tapToChange: 'タップして好みを変更：', mode: 'モード：', browsingOnly: '閲覧のみ', onlineOnly: 'オンラインのみ', meetUp: 'ミートアップ', saveProfile: 'プロフィールを保存して続ける', whosNearby: '近くの人', filter: 'フィルター', refresh: '更新', grid: 'グリッド', chat: 'チャット', map: 'マップ', wallet: 'ウォレット', filterUsers: 'ユーザーをフィルター', ageRange: '年齢層', preferenceMatcher: '好みマッチング', rolePreference: 'ロールの好み', safetyPreference: '安全の好み', playstylePreference: 'プレイスタイルの好み', groupSize: 'グループサイズ', applyFilters: 'フィルターを適用', ageHidden: '年齢非表示', ageShown: '年齢表示', expires: '有効期限：', sendMessage: 'メッセージを送る', unlockPreference: 'プロフィールと好みを変更', iGotStuff: '持ってるよ', unlockPreferencePrompt: 'プロフィールの変更には1000 Starsが必要です。', invisiblePrompt: '透明化には3000 Starsが必要です。', hideAgePrompt: '年齢非表示には1000 Starsが必要です。', filterSubPrompt: 'フィルターのカスタマイズにはサブスクリプションが必要です。', paymentCancelled: '支払いがキャンセルされました。', errorSaving: 'エラー：', fillAll: 'すべての必須項目を入力してください。',
@@ -85,7 +109,15 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Clean': 'シラフ (Clean)', 'Party': 'ケミ (Party)', 'Party✓': 'Party✓',
     '1on1_setup': '1対1 (のみ)', 'group_setup': 'グループ (のみ)', 'DoesntMatter_setup': 'こだわらない',
     '1on1': '1対1', 'group': 'グループ', 'DoesntMatter': 'こだわらない',
-    'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)', 'Off': 'オフ', 'Anywhere': 'どこでも', 'Role': '役割', 'Safety': '安全', 'Playstyle': 'スタイル', 'How Many': '人数', 'Where': '場所'
+    'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)', 'Off': 'オフ', 'Anywhere': 'どこでも', 'Role': '役割', 'Safety': '安全', 'Playstyle': 'スタイル', 'How Many': '人数', 'Where': '場所',
+    you: 'あなた', away: '先', online: 'オンライン', offline: 'オフライン',
+    mAgo: '{n}分前', hAgo: '{n}時間前', dAgo: '{n}日前',
+    m2m: '男×男 (M2M)', admin: '管理者', unsubscribed: '未購読',
+    subscribedUntil: '購読期限: {d}', expired: '期限切れ',
+    privateNote: 'プライベートメモ', notePlaceholder: 'プライベートメモ (最大100文字)',
+    forceReset: '強制リセット', gamesApps: 'ゲーム&アプリ',
+    selectedUser: '選択したユーザー: {n}', profileReset: 'プロフィールをリセットしました。', resetFailed: 'リセットに失敗しました。',
+    forceResetConfirm: '{n} のプロフィールを強制リセットしますか？'
   },
   'ko': {
     loading: '앱 로딩 중...', locationRequired: '위치 접근 권한 필요', locationMessage: '위치 권한이 필수입니다.', accessDenied: '접근 거부됨', underageMessage: '이 앱은 성인 전용입니다.', completeProfile: '프로필 완성하기', profileWarning: '경고: 이는 나중에 변경할 수 없습니다.', dob: '생년월일:', imA: '나는', seeking: '찾는 대상:', man: '남성', woman: '여성', nonBinary: '논바이너리', men: '남성', women: '여성', everyone: '모두', height: '키:', selectHeight: '키 선택', weight: '체중:', selectWeight: '체중 선택', tapToChange: '탭하여 선호도 변경:', mode: '모드:', browsingOnly: '브라우징 전용', onlineOnly: '온라인 전용', meetUp: '만남', saveProfile: '프로필 저장 및 계속', whosNearby: '내 주변', filter: '필터', refresh: '새로고침', grid: '그리드', chat: '채팅', map: '지도', wallet: '지갑', filterUsers: '사용자 필터', ageRange: '연령대', preferenceMatcher: '취향 매칭', rolePreference: '포지션 선호', safetyPreference: '안전 선호', playstylePreference: '플레이스타일 선호', groupSize: '그룹 인원', applyFilters: '필터 적용', ageHidden: '나이 숨김', ageShown: '나이 표시', expires: '만료일:', sendMessage: '메시지 보내기', unlockPreference: '프로필 변경', iGotStuff: '나 있음', unlockPreferencePrompt: '프로필 변경 1000 Stars 결제?', invisiblePrompt: '숨김 모드 3000 Stars 결제?', hideAgePrompt: '나이 숨기기 1000 Stars 결제?', filterSubPrompt: '필터 변경 구독 필요.', paymentCancelled: '결제 취소됨.', errorSaving: '오류:', fillAll: '필수 항목을 입력해주세요.',
@@ -94,7 +126,15 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Clean': '노약 (Clean)', 'Party': '파티/약 (Party)', 'Party✓': 'Party✓',
     '1on1_setup': '1대1 (전용)', 'group_setup': '그룹 (전용)', 'DoesntMatter_setup': '상관없음',
     '1on1': '1대1', 'group': '그룹', 'DoesntMatter': '상관없음',
-    'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)', 'Off': '꺼짐', 'Anywhere': '상관없음', 'Role': '포지션', 'Safety': '안전', 'Playstyle': '스타일', 'How Many': '인원', 'Where': '장소'
+    'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)', 'Off': '꺼짐', 'Anywhere': '상관없음', 'Role': '포지션', 'Safety': '안전', 'Playstyle': '스타일', 'How Many': '인원', 'Where': '장소',
+    you: '나', away: '거리', online: '온라인', offline: '오프라인',
+    mAgo: '{n}분 전', hAgo: '{n}시간 전', dAgo: '{n}일 전',
+    m2m: '남↔남 (M2M)', admin: '관리자', unsubscribed: '미구독',
+    subscribedUntil: '구독 만료: {d}', expired: '만료됨',
+    privateNote: '개인 메모', notePlaceholder: '개인 메모 (최대 100자)',
+    forceReset: '강제 초기화', gamesApps: '게임 & 앱',
+    selectedUser: '선택한 사용자: {n}', profileReset: '프로필이 초기화되었습니다.', resetFailed: '초기화에 실패했습니다.',
+    forceResetConfirm: '{n} 님의 프로필을 강제 초기화할까요?'
   },
   'ru': {
     loading: 'Загрузка...', locationRequired: 'Требуется геолокация', locationMessage: 'Разрешение обязательно.', accessDenied: 'Доступ запрещен', underageMessage: 'Только для взрослых.', completeProfile: 'Заполните профиль', profileWarning: 'Предупреждение: это нельзя изменить.', dob: 'Дата рождения:', imA: 'Я', seeking: 'ищу', man: 'мужчину', woman: 'женщину', nonBinary: 'небинарную', men: 'мужчин', women: 'женщин', everyone: 'всех', height: 'Рост:', selectHeight: 'Выберите рост', weight: 'Вес:', selectWeight: 'Выберите вес', tapToChange: 'нажмите, чтобы изменить:', mode: 'Режим:', browsingOnly: 'Только просмотр', onlineOnly: 'Только онлайн', meetUp: 'Встреча', saveProfile: 'Сохранить', whosNearby: 'Рядом', filter: 'Фильтр', refresh: 'Обновить', grid: 'Сетка', chat: 'Чат', map: 'Карта', wallet: 'Кошелек', filterUsers: 'Фильтры', ageRange: 'Возраст', preferenceMatcher: 'Подбор по предпочтениям', rolePreference: 'Роль', safetyPreference: 'Безопасность', playstylePreference: 'Стиль', groupSize: 'Размер группы', applyFilters: 'Применить', ageHidden: 'Возраст скрыт', ageShown: 'Возраст виден', expires: 'Истекает:', sendMessage: 'Сообщение', unlockPreference: 'Изменить профиль', iGotStuff: 'У меня есть стафф', unlockPreferencePrompt: 'Изменить профиль за 1000 Stars?', invisiblePrompt: 'Невидимка за 3000 Stars?', hideAgePrompt: 'Скрыть возраст за 1000 Stars?', filterSubPrompt: 'Требуется подписка на фильтры.', paymentCancelled: 'Оплата отменена.', errorSaving: 'Ошибка:', fillAll: 'Заполните все поля.',
@@ -103,7 +143,15 @@ const translations: Record<LangKey, Record<string, string>> = {
     'Clean': 'Без наркотиков (Clean)', 'Party': 'Химсекс (Party)', 'Party✓': 'Party✓',
     '1on1_setup': '1 на 1 (только)', 'group_setup': 'группа (только)', 'DoesntMatter_setup': 'Неважно',
     '1on1': '1 на 1', 'group': 'группа', 'DoesntMatter': 'Неважно',
-    'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)', 'Off': 'Выкл', 'Anywhere': 'Везде', 'Role': 'Роль', 'Safety': 'Безопасность', 'Playstyle': 'Стиль', 'How Many': 'Сколько', 'Where': 'Где'
+    'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)', 'Off': 'Выкл', 'Anywhere': 'Везде', 'Role': 'Роль', 'Safety': 'Безопасность', 'Playstyle': 'Стиль', 'How Many': 'Сколько', 'Where': 'Где',
+    you: 'Вы', away: 'от вас', online: 'Онлайн', offline: 'Офлайн',
+    mAgo: '{n} мин назад', hAgo: '{n} ч назад', dAgo: '{n} дн назад',
+    m2m: 'М+М (M2M)', admin: 'Админ', unsubscribed: 'Без подписки',
+    subscribedUntil: 'Подписка до {d}', expired: 'Истекла',
+    privateNote: 'Личная заметка', notePlaceholder: 'Личная заметка (макс. 100 симв.)',
+    forceReset: 'Принуд. сброс', gamesApps: 'Игры и приложения',
+    selectedUser: 'Выбран пользователь: {n}', profileReset: 'Профиль сброшен.', resetFailed: 'Ошибка сброса.',
+    forceResetConfirm: 'Сбросить профиль {n}?'
   }
 };
 
@@ -204,20 +252,28 @@ const getZodiacSignEmoji = (dobString?: string | null) => {
 };
 
 const formatLastSeenBigUnit = (isoString?: string | null) => {
-  if (!isoString) return 'Offline';
+  if (!isoString) return 'offline';
   try {
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'Online';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return 'online';
+    if (diffMins < 60) return `mAgo:${diffMins}`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${Math.floor(diffHours / 24)}d ago`;
+    if (diffHours < 24) return `hAgo:${diffHours}`;
+    return `dAgo:${Math.floor(diffHours / 24)}`;
   } catch {
-    return 'Offline';
+    return 'offline';
   }
+};
+
+// Render a formatLastSeenBigUnit token with the current language
+const renderLastSeenBigUnit = (token: string, t: (key: string) => string) => {
+  if (token.startsWith('mAgo:')) return t('mAgo').replace('{n}', token.slice(5));
+  if (token.startsWith('hAgo:')) return t('hAgo').replace('{n}', token.slice(5));
+  if (token.startsWith('dAgo:')) return t('dAgo').replace('{n}', token.slice(5));
+  return t(token);
 };
 
 const isOnlineWithin15Min = (isoString?: string | null) => {
@@ -781,7 +837,7 @@ export default function App() {
       const profileUrl = `https://t.me/user?id=${rawTgId}`;
       if (window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(profileUrl);
       else window.open(profileUrl, '_blank');
-    } else { alert(`Selected user: ${targetUser.name}`); }
+    } else { alert(t('selectedUser').replace('{n}', targetUser.name)); }
     setSelectedProfile(null);
   };
 
@@ -913,20 +969,20 @@ export default function App() {
 
   const handleForceReset = async () => {
     if (!selectedProfile || !PAYMENT_WORKER_URL) return;
-    if (!window.confirm(`Force reset profile of ${selectedProfile.name}?`)) return;
+    if (!window.confirm(t('forceResetConfirm').replace('{n}', selectedProfile.name || ''))) return;
     try {
       await fetch(`${PAYMENT_WORKER_URL}/api/reset-profile`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ caller_id: currentUser?.id ? Number(String(currentUser.id).replace(/^tg_/, '')) : null, target_id: Number(String(selectedProfile.id).replace(/^tg_/, '')) }),
       });
-      alert('Profile reset.');
-    } catch (e) { console.error(e); alert('Reset failed.'); }
+      alert(t('profileReset'));
+    } catch (e) { console.error(e); alert(t('resetFailed')); }
   };
 
   const filterSubStatusInfo = (() => {
-    if (!isAdmin && !hasFilterSub && !(filterSubUntil > Date.now())) return { label: 'Unsubscribed', color: '#888' };
-    if (filterSubUntil > Date.now()) return { label: `Subscribed until ${new Date(filterSubUntil).toLocaleDateString()}`, color: '#4ade80' };
-    return { label: 'Expired', color: '#e11d48' };
+    if (!isAdmin && !hasFilterSub && !(filterSubUntil > Date.now())) return { label: t('unsubscribed'), color: '#888' };
+    if (filterSubUntil > Date.now()) return { label: t('subscribedUntil').replace('{d}', new Date(filterSubUntil).toLocaleDateString()), color: '#4ade80' };
+    return { label: t('expired'), color: '#e11d48' };
   })();
 
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
@@ -1019,7 +1075,7 @@ export default function App() {
           </button>
           {showFilterDropdown && (
             <div style={{ position: 'absolute', top: '44px', right: '0', zIndex: 2000, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '12px', width: '280px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: filterSubStatusInfo.color }}>{isAdmin ? 'Admin' : `${filterSubStatusInfo.label}${filterSubUntil > Date.now() ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: filterSubStatusInfo.color }}>{isAdmin ? t('admin') : `${filterSubStatusInfo.label}${filterSubUntil > Date.now() ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
               <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => handleToggleFilterItem('age')}>
                   <input type="checkbox" checked={filterAgeOn} onChange={() => {}} style={{ width: '16px', height: '16px', accentColor: '#007bff', cursor: 'pointer' }} />
@@ -1047,7 +1103,7 @@ export default function App() {
                   <input type="checkbox" checked={filterPrefMatcherOn} onChange={() => {}} style={{ width: '16px', height: '16px', accentColor: '#007bff', cursor: 'pointer' }} />
                   <span style={{ fontSize: '13px', color: '#fff', fontWeight: 'bold' }}>{t('preferenceMatcher')}</span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#888', marginTop: '2px', paddingLeft: '24px' }}>M2M</div>
+                <div style={{ fontSize: '11px', color: '#888', marginTop: '2px', paddingLeft: '24px' }}>{t('m2m')}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px', paddingLeft: '24px' }}>
                   <button type="button" onClick={() => handleToggleFilterValue('role')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterRoleVal ? '#e11d48' : '#2a2a2a', color: '#fff', border: filterRoleVal ? '1px solid #e11d48' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterRoleVal ? 1 : 0.45, filter: filterRoleVal ? 'none' : 'grayscale(100%)' }}>{filterRoleVal ? formatTagText(t(filterRoleVal)) : t('Off')}</button>
                   <button type="button" onClick={() => handleToggleFilterValue('safety')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterSafetyVal ? '#2563eb' : '#2a2a2a', color: '#fff', border: filterSafetyVal ? '1px solid #2563eb' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterSafetyVal ? 1 : 0.45, filter: filterSafetyVal ? 'none' : 'grayscale(100%)' }}>{filterSafetyVal ? formatTagText(t(filterSafetyVal)) : t('Off')}</button>
@@ -1079,7 +1135,7 @@ export default function App() {
                 <div key={user.id || index} onClick={() => handleCardClick(user)} style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity, filter: filterStyle }}>
                   {user.avatar ? (<img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : (<div style={{ width: '100%', height: '100%', backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</div>)}
                   {online15 && (<div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />)}
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>{isSelf ? 'You' : bigDistanceText}</div>
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>{isSelf ? t('you') : bigDistanceText}</div>
                 </div>
               );
             })}
@@ -1120,8 +1176,8 @@ export default function App() {
           <div style={{ position: 'relative', backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             {!isViewingSelf && (
               <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', gap: '6px' }}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Private note">📝</button>
-                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title="Force reset">🔁</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title={t('privateNote')}>📝</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title={t('forceReset')}>🔁</button>
               </div>
             )}
             <div style={{ width: '40px', height: '4px', backgroundColor: '#444', borderRadius: '2px', marginBottom: '16px' }} />
@@ -1132,7 +1188,7 @@ export default function App() {
               <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {!activeProfile.hide_age && calculateAge(activeProfile.dob) && <span>{calculateAge(activeProfile.dob)}yo</span>}
-                {getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span><span>&bull;</span><span>{isViewingSelf ? 'You' : `${formatDistanceBigUnit(activeProfile.distance)} away`}</span><span>&bull;</span><span style={{ color: '#4ade80' }}>{formatLastSeenBigUnit(activeProfile.last_seen)}</span>
+                {getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span><span>&bull;</span><span>{isViewingSelf ? t('you') : `${formatDistanceBigUnit(activeProfile.distance)} ${t('away')}`}</span><span>&bull;</span><span style={{ color: '#4ade80' }}>{renderLastSeenBigUnit(formatLastSeenBigUnit(activeProfile.last_seen), t)}</span>
               </div>
               {isViewingSelf && (<div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                 <button type="button" onClick={handleHideAgeToggle} style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{hideAge ? t('ageHidden') : t('ageShown')}</button>
@@ -1141,7 +1197,7 @@ export default function App() {
               {!isViewingSelf && (
                 <div style={{ width: '100%', marginTop: '-42px', marginBottom: '8px', minHeight: '0' }}>
                   {showNoteBox && (<>
-                    <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder="Private note (100 chars max)" rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
+                    <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder={t('notePlaceholder')} rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
                     <div style={{ fontSize: '10px', color: '#666', textAlign: 'right' }}>{noteDraft.length}/100</div>
                   </>)}
                 </div>
@@ -1169,7 +1225,7 @@ export default function App() {
       )}
 
       <div style={{ position: 'fixed', right: 0, top: '50%', transform: 'translateY(-50%)', zIndex: 5000, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: 'rgba(30, 30, 30, 0.85)', borderTopLeftRadius: '16px', borderBottomLeftRadius: '16px', boxShadow: '-2px 0px 8px rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-        <button onClick={() => setIsGamesMenuOpen(!isGamesMenuOpen)} style={{ background: 'none', border: 'none', fontSize: '32px', cursor: 'pointer', padding: 0, lineHeight: 1, filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.6))', transition: 'transform 0.2s ease', transform: isGamesMenuOpen ? 'scale(0.9)' : 'scale(1)' }} title="Games & Apps">⭐</button>
+        <button onClick={() => setIsGamesMenuOpen(!isGamesMenuOpen)} style={{ background: 'none', border: 'none', fontSize: '32px', cursor: 'pointer', padding: 0, lineHeight: 1, filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.6))', transition: 'transform 0.2s ease', transform: isGamesMenuOpen ? 'scale(0.9)' : 'scale(1)' }} title={t('gamesApps')}>⭐</button>
         {isGamesMenuOpen && (<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
           <img src={bustaIcon} alt="Busta" onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
           <img src={tonflipIcon} alt="TonFlip" onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />

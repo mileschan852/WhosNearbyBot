@@ -294,8 +294,26 @@ K. MintPage (TON NFT mint, alternate monetization)
      separate page from the main Stars flow.
 
 L. Misc
-   - Dark theme (#121212), i18n via t() helper, styled-components only in
-     MintPage (App.tsx uses inline styles).
+   - Dark theme (#121212), styled-components only in MintPage (App.tsx uses
+     inline styles).
+
+================================================================================
+6b. INTERNATIONALISATION (i18n) — t() HELPER
+================================================================================
+   - languages: en, zh-CN, zh-TW, ja, ko, ru (auto-detected from Telegram
+     language_code; zh falls back to zh-TW for tw/hk/hant).
+   - All user-visible strings must go through t('<key>') from the translations
+     object in App.tsx. 100 keys per language; audit rule: every literal used
+     in t('...') must exist in ALL languages, and no UI string may be
+     hardcoded in JSX.
+   - Translated: You/away, Online/Offline/Xm/h/d ago (via tokens
+     mAgo/hAgo/dAgo rendered with renderLastSeenBigUnit), M2M, Admin,
+     Unsubscribed/Subscribed until {d}/Expired, Private note (+placeholder),
+     Force reset (+confirm), Games & Apps, Selected user/Profile reset/
+     Reset failed alerts.
+   - Intentionally NOT translated: proper nouns/brand names (Host, Travel,
+     Safe, Raw, Party, Top, Bottom etc. keep English labels with local gloss),
+     numbers, and tile attribution.
 
 ================================================================================
 7. BUILD / RUN / DEPLOY
