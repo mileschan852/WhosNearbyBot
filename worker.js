@@ -250,6 +250,19 @@ export default {
       return json({ reset: true });
     }
 
+    // POST /api/reset-all-underage (admin only)
+    if (path === "/api/reset-all-underage" && request.method === "POST") {
+      const { caller_id } = await request.json();
+      if (caller_id !== 1231127407) return json({ error: "Forbidden" }, 403);
+      await sbPatch(env, "rest/v1/profiles?is_underage=eq.true", {
+        name: null, username: null, avatar: null, dob: null, height: null, weight: null,
+        gender: "Male", seeking: "Male", role_pref: null, safety_pref: null, playstyle_pref: null,
+        where_pref: null, how_many_pref: null, hide_age: false, grid_visible: true, map_visible: false,
+        is_underage: false, hide_age_expiry: null, invisible_expiry: null,
+      });
+      return json({ reset: true });
+    }
+
     // GET /api/health
     if (path === "/api/health" || path === "/health") return json({ ok: true, version: "monolithic-1.0" });
 
