@@ -1230,14 +1230,17 @@ export default function App() {
               <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {!activeProfile.hide_age && calculateAge(activeProfile.dob) && <span>{calculateAge(activeProfile.dob)}</span>}
-                {getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span><span>&bull;</span><span>{isViewingSelf ? t('you') : `${formatDistanceBigUnit(activeProfile.distance)} ${t('away')}`}</span><span>&bull;</span><span style={{ color: '#4ade80' }}>{renderLastSeenBigUnit(formatLastSeenBigUnit(activeProfile.last_seen), t)}</span>
+                {getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
+                {isViewingSelf ? <span>&nbsp;</span> : <><span>{formatDistanceBigUnit(activeProfile.distance)} {t('away')}</span><span>&bull;</span></>}<span style={{ color: '#4ade80' }}>{renderLastSeenBigUnit(formatLastSeenBigUnit(activeProfile.last_seen), t)}</span>
               </div>
               {isViewingSelf && (<div style={{ display: 'flex', width: '100%', justifyContent: 'center', marginBottom: '14px', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                 <button type="button" onClick={handleHideAgeToggle} style={{ padding: '8px 16px', backgroundColor: hideAge ? '#e11d48' : '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>{hideAge ? t('ageHidden') : t('ageShown')}</button>
                 {hideAgeExpiry && <span style={{ fontSize: '10px', color: '#888' }}>{t('expires')} {new Date(hideAgeExpiry).toLocaleDateString()}</span>}
               </div>)}
               {!isViewingSelf && (
-                <div style={{ width: '100%', marginTop: '-42px', marginBottom: '8px', minHeight: '0' }}>
+                <div style={{ width: '100%', marginTop: '16px', marginBottom: '8px', minHeight: '0' }}>
                   {showNoteBox && (<>
                     <textarea value={noteDraft} maxLength={100} onChange={(e) => savePrivateNote(activeProfile?.id, e.target.value)} placeholder={t('notePlaceholder')} rows={2} style={{ width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '6px 8px', backgroundColor: '#121212', color: '#eee', border: '1px solid #333', borderRadius: '6px', resize: 'none' }} />
                     <div style={{ fontSize: '10px', color: '#666', textAlign: 'right' }}>{noteDraft.length}/100</div>
