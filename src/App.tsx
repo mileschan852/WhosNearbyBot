@@ -64,7 +64,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     m2m: 'M2M', admin: 'Admin', unsubscribed: 'Unsubscribed',
     subscribedUntil: 'Subscribed until {d}', expired: 'Expired',
     privateNote: 'Private note', notePlaceholder: 'Private note (100 chars max)',
-    forceReset: 'Force reset', gamesApps: 'Games & Apps',
+    forceReset: 'Force reset', gamesApps: 'Games & Apps', resetProfile: 'Reset Profile',
     selectedUser: 'Selected user: {n}', profileReset: 'Profile reset.', resetFailed: 'Reset failed.',
     forceResetConfirm: 'Force reset profile of {n}?',
     resetAllUnderage: 'Reset all underage', resetAllUnderageConfirm: 'Reset ALL underage profiles?'
@@ -196,6 +196,34 @@ const formatDistanceBigUnit = (meters?: number) => {
 const formatTagText = (str: string) => {
   if (!str) return '';
   return str.replace(/\s*[(（][^)）]*[)）]/g, '').trim();
+};
+
+// Tag-match helpers: when viewing another user's card, a tag lights up only if
+// it matches the viewer's own preference filter. Versatile matches all roles
+// except Side; "Doesn't matter"/Anywhere (or Off/null) matches everything.
+const tagMatchesRole = (filterVal: string | null, userRole: string | null) => {
+  if (!filterVal || filterVal === 'Off') return true;
+  if (filterVal === 'Versatile') return userRole !== 'Side';
+  if (filterVal === 'VT') return userRole === 'Versatile' || userRole === 'Top';
+  if (filterVal === 'VB') return userRole === 'Versatile' || userRole === 'Bottom';
+  return filterVal === userRole;
+};
+const tagMatchesSafety = (filterVal: string | null, userPref: string | null) => {
+  if (!filterVal || filterVal === 'Off') return true;
+  return filterVal === userPref;
+};
+const tagMatchesPlaystyle = (filterVal: string | null, userPref: string | null) => {
+  if (!filterVal || filterVal === 'Off') return true;
+  if (filterVal === 'Party') return userPref === 'Party' || userPref === 'Party✓';
+  return filterVal === userPref;
+};
+const tagMatchesHowMany = (filterVal: string | null, userPref: string | null) => {
+  if (!filterVal || filterVal === 'Off' || filterVal === 'DoesntMatter') return true;
+  return filterVal === userPref;
+};
+const tagMatchesWhere = (filterVal: string | null, userWhere: string | null) => {
+  if (!filterVal || filterVal === 'Off') return true;
+  return filterVal === userWhere;
 };
 
 const calculateAge = (dobString?: string | null) => {
@@ -851,6 +879,27 @@ export default function App() {
     setHideAge(nextHide); await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
   };
 
+  const handleResetProfile = async () => {
+    if (!currentUser) return;
+    if (isAdmin) { setShowProfileEditModal(true); return; }
+    const confirmed = window.confirm(t('unlockPreferencePrompt'));
+    if (!confirmed) return;
+    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
+    try {
+      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, type: 'edit_profile', bot: getActiveBotKey() }),
+      });
+      if (!res.ok) { console.error('create-invoice failed:', res.status); alert(t('paymentCancelled')); return; }
+      const data = await res.json() as { invoiceLink?: string };
+      if (data.invoiceLink) {
+        const status = await startInvoice(data.invoiceLink);
+        if (status === 'paid') { setShowProfileEditModal(true); }
+        else if (status !== 'unsupported') { alert(t('paymentCancelled')); }
+      }
+    } catch (err) { console.error('Reset profile invoice error:', err); alert(t('paymentCancelled')); }
+  };
+
   const handleCardClick = (targetUser: UserProfile) => { setShowFilterDropdown(false); setSelectedProfile(targetUser); if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id); else { setNoteDraft(''); setShowNoteBox(false); } };
 
   const handleStartChat = (targetUser: UserProfile) => {
@@ -1219,6 +1268,11 @@ export default function App() {
                 {isAdmin && <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title={t('forceReset')}>🔁</button>}
               </div>
             )}
+            {isViewingSelf && (
+              <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', gap: '6px' }}>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleResetProfile(); }} style={{ padding: '2px 8px', backgroundColor: '#1d4ed8', border: '1px solid #444', borderRadius: '6px', fontSize: '12px', color: '#fff', cursor: 'pointer' }} title={t('resetProfile')}>{t('resetProfile')}</button>
+              </div>
+            )}
             {isViewingSelf && isAdmin && (
               <button type="button" onClick={(e) => { e.stopPropagation(); handleResetAllUnderage(); }} style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 5, padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '12px', color: '#fff', cursor: 'pointer' }} title={t('resetAllUnderage')}>{t('resetAllUnderage')}</button>
             )}
@@ -1250,14 +1304,14 @@ export default function App() {
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
               {targetIsManSeekingMan && (
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>{formatTagText(t(activeProfile.role_pref || 'Versatile'))}</div>
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>{formatTagText(t(activeProfile.safety_pref || 'Safe'))}</div>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesRole(filterRoleVal, activeProfile.role_pref || 'Versatile') ? 1 : 0.3, filter: tagMatchesRole(filterRoleVal, activeProfile.role_pref || 'Versatile') ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.role_pref || 'Versatile'))}</div>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesSafety(filterSafetyVal, activeProfile.safety_pref || 'Safe') ? 1 : 0.3, filter: tagMatchesSafety(filterSafetyVal, activeProfile.safety_pref || 'Safe') ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.safety_pref || 'Safe'))}</div>
                   {isViewingSelf ? (<div style={{ flex: 1, position: 'relative', display: 'flex' }}>
                     <button type="button" onClick={async () => { if (currentUser?.playstyle_pref !== 'Party' && currentUser?.playstyle_pref !== 'Party✓') return; const nextPlaystyle = playstylePref === 'Party✓' ? 'Party' : 'Party✓'; setPlaystylePref(nextPlaystyle); setFilterPlaystyleVal(nextPlaystyle); const updated = { ...activeProfile, playstyle_pref: nextPlaystyle }; setSelectedProfile(updated); await handleUpdateSelfField({ playstyle_pref: nextPlaystyle }); if (nextPlaystyle === 'Party✓') { setShowStuffBubble(true); setTimeout(() => setShowStuffBubble(false), 3000); } }} style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 1 : 0.4 }}>{formatTagText(t(playstylePref))}</button>
                     {showStuffBubble && (<div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#ffffff', color: '#000000', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 20 }}>{t('iGotStuff')}<div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', borderWidth: '4px', borderStyle: 'solid', borderColor: '#ffffff transparent transparent transparent' }} /></div>)}
-                  </div>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>{formatTagText(t(activeProfile.playstyle_pref || 'Clean'))}</div>)}
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: 0.3, filter: 'grayscale(100%)' }}>{formatTagText(t(activeProfile.how_many_pref || 'DoesntMatter'))}</div>
-                  {isViewingSelf ? (<button type="button" onClick={async () => { const nextWhere = wherePref === 'Host' ? 'Travel' : (wherePref === 'Travel' ? null : 'Host'); setWherePref(nextWhere); const updated = { ...activeProfile, where_pref: nextWhere }; setSelectedProfile(updated); await handleUpdateSelfField({ where_pref: nextWhere }); }} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}>{formatTagText(wherePref === null ? t('Anywhere') : t(wherePref))}</button>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>{formatTagText(activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere'))}</div>)}
+                  </div>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesPlaystyle(filterPlaystyleVal, activeProfile.playstyle_pref || 'Clean') ? 1 : 0.3, filter: tagMatchesPlaystyle(filterPlaystyleVal, activeProfile.playstyle_pref || 'Clean') ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.playstyle_pref || 'Clean'))}</div>)}
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesHowMany(filterHowManyVal, activeProfile.how_many_pref || 'DoesntMatter') ? 1 : 0.3, filter: tagMatchesHowMany(filterHowManyVal, activeProfile.how_many_pref || 'DoesntMatter') ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.how_many_pref || 'DoesntMatter'))}</div>
+                  {isViewingSelf ? (<button type="button" onClick={async () => { const nextWhere = wherePref === 'Host' ? 'Travel' : (wherePref === 'Travel' ? null : 'Host'); setWherePref(nextWhere); const updated = { ...activeProfile, where_pref: nextWhere }; setSelectedProfile(updated); await handleUpdateSelfField({ where_pref: nextWhere }); }} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}>{formatTagText(wherePref === null ? t('Anywhere') : t(wherePref))}</button>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesWhere(filterWhereVal, activeProfile.where_pref || null) ? 1 : 0.3, filter: tagMatchesWhere(filterWhereVal, activeProfile.where_pref || null) ? 'none' : 'grayscale(100%)' }}>{formatTagText(activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere'))}</div>)}
                 </div>
               )}
               {!isViewingSelf && passesFilterForActive && (<button type="button" onClick={() => handleStartChat(activeProfile)} style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
