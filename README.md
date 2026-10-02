@@ -11,16 +11,23 @@ A Telegram Mini App for finding nearby Telegram users — React + TypeScript SPA
 
 ### Backend (Cloudflare Worker)
 - **URL:** `https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf`
-- **Payment Worker:** `worker.js` — Telegram Stars invoice creation (`POST /create-invoice`), verified payment webhook (`POST /telegram-webhook`), `GET /health`.
-- **Secrets (set via `wrangler secret` / hosting env — never commit):**
-  - `TELEGRAM_BOT_TOKEN` — bot token for @WhosNearbyBot
+- **Worker:** `worker.js` — Telegram-authenticated profile and nearby APIs, invoice creation, payment webhooks, and admin actions.
+- **Cloudflare bindings/secrets (configure outside the repository; never commit values):**
+  - `BOT_A_TOKEN` — Telegram bot token for @HKMODate_bot / gaymode.
+  - `BOT_B_TOKEN` — Telegram bot token for @WhosNearbyBot / default mode.
   - `SUPABASE_URL` — Supabase project URL
-  - `SUPABASE_ANON_KEY` — Supabase anon key
+  - `SUPABASE_SERVICE_KEY` — server-only Supabase service-role key. Required for profile, payment, and nearby operations.
+  - `TELEGRAM_WEBHOOK_SECRET` — Telegram webhook `secret_token`, checked on every payment update.
+  - `TELEGRAM_BOT_TOKEN` — temporary legacy fallback for deployments that have not switched to the two bot bindings.
 
 ### Database (Supabase PostgreSQL)
 - Migrations live in `supabase/migrations/` (run them in order in the Supabase SQL Editor):
-  - `001_initial_schema.sql` — `profiles` (with subscription expiry columns), `transactions` (idempotency), `purchases`, RLS policies
-  - `002_age_enforcement_and_nearby.sql` — `compute_age()` + trigger that recomputes `is_underage` from `dob` on every write (server-side 18+ gate), and `get_nearby_users()` Haversine search with server-side age filtering
+  - `001_initial_schema.sql` — profiles, transactions, purchases, and initial RLS policies.
+  - `002_age_enforcement_and_nearby.sql` — server-side age enforcement and Haversine nearby search.
+  - `003_private_notes_and_filter_sub.sql` through `007_app_settings.sql` — app features and webhook settings.
+  - `008_privacy_and_payment_hardening.sql` — removes public access to profiles, transactions, and purchases; restricts nearby/payment RPC execution to `service_role`; adds atomic, idempotent payment fulfillment.
+
+The Worker verifies Telegram `initData` and derives the caller ID and admin status itself. The browser does not read or write profile rows. Nearby results contain derived age, coarse coordinates and rounded distance, never raw birth dates or exact coordinates.
 
 ## Men-Only Entry (gaymode)
 
@@ -56,7 +63,9 @@ The chat menu button on @HKMODate_bot ("Open App") opens the Mini App; the app i
 | Filter Subscription (30 days) | 1000 XTR | `change_filter` |
 | Change Profile & Preferences | 1000 XTR | `change_preference` |
 
-**Payment flow:** Frontend calls `POST /create-invoice` → gets invoice link → opens via `Telegram.WebApp.openInvoice()` → Telegram sends webhook to `POST /telegram-webhook` → webhook verifies the charge via `getUpdates`, records it in `transactions` (idempotent), and updates the profile in Supabase.
+**Payment flow:** The authenticated frontend requests `POST /create-invoice` → opens the returned link with `Telegram.WebApp.openInvoice()` → Telegram sends a secret-token-protected webhook → the Worker validates the invoice and calls `apply_payment`. The database records the receipt and grants its entitlement atomically; duplicate charge IDs do not grant it twice.
+
+Configure both bots to send payment updates to the Worker webhook and set the same `TELEGRAM_WEBHOOK_SECRET` as Telegram's `secret_token`. Apply migration 008 only after confirming the Worker has the `SUPABASE_SERVICE_KEY` binding; do not apply it before the Worker is ready to serve the private APIs.
 
 ## Development
 
