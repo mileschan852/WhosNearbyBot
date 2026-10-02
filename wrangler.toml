@@ -1,7 +1,8 @@
-name = "whosnearby-bot"
+name = "whosnearbybot"
 main = "worker.js"
 compatibility_date = "2026-08-04"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 # All secrets are injected at deploy time (wrangler secret put / hosting env vars).
 # NEVER commit real values here. See .env.example for the variable names.

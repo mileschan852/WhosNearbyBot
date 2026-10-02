@@ -53,7 +53,7 @@ type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
 
 const translations: Record<LangKey, Record<string, string>> = {
   'en': {
-    loading: 'Loading app...', locationRequired: 'Location Access Required', locationMessage: "Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.", accessDenied: 'Access Denied', underageMessage: 'The app is for adults only. Access has been locked for this account due to age restrictions.', completeProfile: 'Complete Your Profile', profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.', dob: 'Date of Birth:', imA: "I'm a", seeking: 'seeking', man: 'man', woman: 'woman', nonBinary: 'non-binary', men: 'men', women: 'women', everyone: 'everyone', height: 'Height:', selectHeight: 'Select height', weight: 'Weight:', selectWeight: 'Select weight', tapToChange: 'tap to change your preference:', mode: 'Mode:', browsingOnly: 'Browsing only - You cannot send not receive private message from others', onlineOnly: 'Online only - You are visible on grid but not on map, map is inaccessible', meetUp: 'Meet up - You are visible on grid and map', saveProfile: 'Save Profile & Continue', whosNearby: "Who's Nearby", filter: 'Filter', refresh: 'Refresh', grid: 'Grid', chat: 'Chat', map: 'Map', wallet: 'Wallet', filterUsers: 'Filter Users', ageRange: 'Age Range', preferenceMatcher: 'Preference Matcher', rolePreference: 'Role Preference', safetyPreference: 'Safety Preference', playstylePreference: 'Playstyle Preference', groupSize: 'Group Size', applyFilters: 'Apply Filters', ageHidden: 'Age Hidden (Click to Show)', ageShown: 'Age Shown (Click to Hide)', expires: 'Expires:', sendMessage: 'Send Message', unlockPreference: 'Change Profile & Preferences', iGotStuff: 'I got stuff', unlockPreferencePrompt: 'Changing your profile/preferences requires a one-time payment of 1000 Telegram Stars. Proceed to payment?', invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?', hideAgePrompt: 'Hiding your age for 30 days costs 1000 Telegram Stars. Proceed to payment?', filterSubPrompt: 'Customizing this filter requires a subscription. Proceed to payment?', paymentCancelled: 'Payment was cancelled or failed.', errorSaving: 'Error saving profile:', fillAll: 'Please fill in all required questions to continue.',
+    loading: 'Loading app...', locationRequired: 'Location Access Required', locationMessage: "Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.", accessDenied: 'Access Denied', underageMessage: 'The app is for adults only. Access has been locked for this account due to age restrictions.', completeProfile: 'Complete Your Profile', profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.', dob: 'Date of Birth:', imA: "I'm a", seeking: 'seeking', man: 'man', woman: 'woman', nonBinary: 'non-binary', men: 'men', women: 'women', everyone: 'everyone', height: 'Height:', selectHeight: 'Select height', weight: 'Weight:', selectWeight: 'Select weight', tapToChange: 'tap to change your preference:', mode: 'Mode:', browsingOnly: 'Browsing only - You cannot send not receive private message from others', onlineOnly: 'Online only - You are visible on grid but not on map, map is inaccessible', meetUp: 'Meet up - You are visible on grid and map', saveProfile: 'Save Profile & Continue', whosNearby: "Who's Nearby", filter: 'Filter', refresh: 'Refresh', grid: 'Grid', chat: 'Chat', map: 'Map', wallet: 'Wallet', filterUsers: 'Filter Users', ageRange: 'Age Range', preferenceMatcher: 'Preference Matcher', rolePreference: 'Role Preference', safetyPreference: 'Safety Preference', playstylePreference: 'Playstyle Preference', groupSize: 'Group Size', applyFilters: 'Apply Filters', ageHidden: 'Age Hidden (Click to Show)', ageShown: 'Age Shown (Click to Hide)', expires: 'Expires:', sendMessage: 'Send Message', unlockPreference: 'Change Profile & Preferences', iGotStuff: 'I got stuff', unlockPreferencePrompt: 'Changing your profile/preferences requires a one-time payment of 1000 Telegram Stars. Proceed to payment?', invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?', hideAgePrompt: 'Hiding your age for 30 days costs 1000 Telegram Stars. Proceed to payment?', filterSubPrompt: 'Customizing this filter requires a subscription. Proceed to payment?', paymentCancelled: 'Payment was cancelled or failed.', paymentProcessing: 'Payment received; access is still updating. Please refresh shortly.', errorSaving: 'Error saving profile:', fillAll: 'Please fill in all required questions to continue.',
     'Versatile': 'Versatile', 'Top': 'Top', 'Bottom': 'Bottom', 'Side': 'Side', 'VT': 'Vers / Top', 'VB': 'Vers / Bottom',
     'Safe': 'Safe (Condoms)', 'Raw': 'Raw (Bareback)',
     'Clean': 'Clean (No Drugs)', 'Party': 'Party (Chemsex)', 'Party✓': 'Party✓',
@@ -173,6 +173,8 @@ interface UserProfile {
   gender?: string | null;
   seeking?: string | null;
   dob?: string | null;
+  age?: number | null;
+  zodiac?: string;
   height?: string | null;
   weight?: string | null;
   role_pref?: string | null;
@@ -365,6 +367,7 @@ export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
   const [isReady, setIsReady] = useState<boolean>(false);
+  const [startupError, setStartupError] = useState<string>('');
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
   const [isUnderageLocked, setIsUnderageLocked] = useState<boolean>(false);
   const [isLocationDenied, setIsLocationDenied] = useState<boolean>(false);
@@ -475,6 +478,21 @@ export default function App() {
     return startParam === 'gaymode' ? 'botA' : 'botB';
   };
 
+  const workerPost = async (path: string, body: Record<string, unknown> = {}) => {
+    if (!PAYMENT_WORKER_URL) throw new Error('The app service is not configured.');
+    const initData = window.Telegram?.WebApp?.initData || '';
+    if (!initData) throw new Error('Open Who’s Nearby from Telegram to continue.');
+    const response = await fetch(`${PAYMENT_WORKER_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, initData, bot: getActiveBotKey() }),
+    });
+    let result: any = {};
+    try { result = await response.json(); } catch {}
+    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+    return result;
+  };
+
   const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
     if (pRole === 'Top') setFilterRoleVal('Bottom');
     else if (pRole === 'Bottom') setFilterRoleVal('Top');
@@ -487,34 +505,43 @@ export default function App() {
     else setFilterPlaystyleVal('Clean');
   };
 
-  const fetchUsersData = async (lat: number, lng: number, currentUserId: string, userIsAdmin: boolean) => {
-    if (!supabase) return;
-    const { data, error } = await supabase.rpc('get_nearby_users', {
-      p_lat: lat, p_lng: lng, p_radius_meters: 50000,
-      p_requesting_user_id: currentUserId, p_is_admin: userIsAdmin
-    });
-    if (!error && data && Array.isArray(data)) {
-      const processed = data.map((u: any) => ({
-        id: u.id || 'unknown', name: u.name || (u.username ? '@'+u.username : 'Anonymous'), username: u.username || '',
-        avatar: u.avatar || '', lat: typeof u.lat === 'number' ? u.lat : lat,
-        lng: typeof u.lng === 'number' ? u.lng : lng,
-        last_seen: u.last_seen || new Date().toISOString(), gender: u.gender || null,
-        seeking: u.seeking || null, dob: u.dob || null, height: u.height || null,
-        weight: u.weight || null, role_pref: u.role_pref || null, safety_pref: u.safety_pref || null,
-        playstyle_pref: u.playstyle_pref || null, where_pref: u.where_pref || null,
-        how_many_pref: u.how_many_pref || null, non_man_mode: u.non_man_mode || null,
-        is_underage: u.is_underage || false, hide_age: u.hide_age || false,
-        grid_visible: u.grid_visible ?? true, map_visible: u.map_visible ?? false,
-        distance: Math.round(u.distance),
-        hide_age_expiry: u.hide_age_expiry || null, invisible_expiry: u.invisible_expiry || null,
-        filter_sub_expiry: u.filter_sub_expiry || null,
+  const fetchUsersData = async () => {
+    try {
+      const data = await workerPost('/api/nearby');
+      if (!Array.isArray(data)) throw new Error('Nearby search returned invalid data.');
+      const processed: UserProfile[] = data.map((u: any) => ({
+        id: u.id || 'unknown',
+        name: u.name || (u.username ? '@' + u.username : 'Anonymous'),
+        username: u.username || '',
+        avatar: u.avatar || '',
+        lat: typeof u.lat === 'number' ? u.lat : null,
+        lng: typeof u.lng === 'number' ? u.lng : null,
+        last_seen: u.last_seen || null,
+        gender: u.gender || null,
+        seeking: u.seeking || null,
+        age: typeof u.age === 'number' ? u.age : null,
+        zodiac: u.zodiac || '',
+        height: u.height || null,
+        weight: u.weight || null,
+        role_pref: u.role_pref || null,
+        safety_pref: u.safety_pref || null,
+        playstyle_pref: u.playstyle_pref || null,
+        where_pref: u.where_pref || null,
+        how_many_pref: u.how_many_pref || null,
+        non_man_mode: u.non_man_mode || null,
+        hide_age: u.hide_age || false,
+        grid_visible: u.grid_visible ?? true,
+        map_visible: u.map_visible ?? false,
+        distance: typeof u.distance === 'number' ? u.distance : undefined,
       })).sort((a, b) => {
-        if (a.id === currentUserId) return -1;
-        if (b.id === currentUserId) return 1;
+        if (a.id === currentUser?.id) return -1;
+        if (b.id === currentUser?.id) return 1;
         return (a.distance || 0) - (b.distance || 0);
       });
       setUsers(processed);
-    } else if (error) { console.error("Error fetching nearby users:", error); }
+    } catch (error) {
+      console.error('Error fetching nearby users:', error);
+    }
   };
 
   useEffect(() => {
@@ -538,7 +565,11 @@ export default function App() {
         else if (tgLangCode.startsWith('ko')) { setLang('ko'); }
         else if (tgLangCode.startsWith('ru')) { setLang('ru'); }
         else { setLang('en'); }
-        const userUsername = tgUser?.username || '';
+        if (!window.Telegram?.WebApp?.initData) throw new Error('Open Who’s Nearby from Telegram to continue.');
+        const authResponse = await workerPost('/api/auth');
+        const existingProfile: any = authResponse.profile;
+        if (!existingProfile?.id) throw new Error('Your profile could not be loaded.');
+        const userUsername = existingProfile.username || tgUser?.username || '';
         // Load the managed admin/VIP list so entitlements survive across sessions.
         let rolesList: { username: string; role: string }[] = [];
         if (supabase) {
@@ -559,10 +590,11 @@ export default function App() {
         const checkIsAdmin = unameLower === 'mileschan852' || unameLower === 'hkmembersonly' || tableRole === 'admin';
         setIsAdmin(checkIsAdmin);
         setIsVip(tableRole === 'vip');
-        const userId = tgUser?.id ? `tg_${tgUser.id}` : ('user_' + Math.random().toString(36).substring(2, 9));
+        const userId = existingProfile.id;
         localStorage.setItem('whos_nearby_user_id', userId);
-        const userName = tgUser?.first_name || (tgUser?.id ? `User ${tgUser.id}` : 'Anonymous');
-        const userAvatar = tgUser?.photo_url || '';
+        const userName = existingProfile.name || tgUser?.first_name || 'Anonymous';
+        const userAvatar = existingProfile.avatar || '';
+        if (existingProfile.is_underage) { setIsUnderageLocked(true); setIsReady(true); return; }
         if (!navigator.geolocation) { setIsLocationDenied(true); setIsReady(true); return; }
         // Try hard for a fix: high accuracy (WiFi hotspot triangulation can be
         // slow), then cached/low-accuracy, then a last low-accuracy retry with
@@ -584,12 +616,6 @@ export default function App() {
           (await tryGeolocation({ enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 })) ||
           (await tryGeolocation({ enableHighAccuracy: false, timeout: 20000, maximumAge: Infinity }));
         if (!hasLocation) { setLocation({ lat: 22.3193, lng: 114.1694 }); }
-        let existingProfile: any = null;
-        if (supabase) {
-          const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-          if (data) { existingProfile = data; }
-        }
-        if (existingProfile?.is_underage) { setIsUnderageLocked(true); setIsReady(true); return; }
         let initialGender = existingProfile?.gender || 'man';
         let initialSeeking = existingProfile?.seeking || 'women';
         if (!existingProfile && startParam === 'gaymode') { initialGender = 'man'; initialSeeking = 'men'; }
@@ -615,7 +641,14 @@ export default function App() {
           if (typeof existingProfile.hide_age === 'boolean') setHideAge(existingProfile.hide_age);
           if (existingProfile.hide_age_expiry) setHideAgeExpiry(existingProfile.hide_age_expiry);
           if (existingProfile.invisible_expiry) setInvisibleExpiry(existingProfile.invisible_expiry);
-          if (existingProfile.filter_sub_expiry) { const ts = new Date(existingProfile.filter_sub_expiry).getTime(); if (!isNaN(ts) && ts > filterSubUntil) { setFilterSubUntil(ts); try { localStorage.setItem(FILTER_SUB_KEY, String(ts)); } catch {} } }
+          if (existingProfile.filter_sub_expiry) {
+            const ts = new Date(existingProfile.filter_sub_expiry).getTime();
+            if (Number.isFinite(ts) && ts > Date.now()) {
+              setFilterSubUntil(ts);
+              filterSubUntilRef.current = ts;
+              setHasFilterSub(true);
+            }
+          }
           if (typeof existingProfile.grid_visible === 'boolean') { initialGridVisible = existingProfile.grid_visible; setGridVisible(initialGridVisible); }
           if (typeof existingProfile.map_visible === 'boolean') setMapVisible(existingProfile.map_visible);
           if (isManSeekingMan) {
@@ -639,13 +672,15 @@ export default function App() {
         } else {
           const myProfile: UserProfile = { id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), gender: initialGender, seeking: initialSeeking, dob: existingProfile.dob, height: existingProfile.height, weight: existingProfile.weight, role_pref: isManSeekingMan ? existingProfile.role_pref : null, safety_pref: isManSeekingMan ? existingProfile.safety_pref : null, playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null, where_pref: isManSeekingMan ? existingProfile.where_pref : null, how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null, non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode, is_underage: false, hide_age: existingProfile.hide_age || false, grid_visible: initialGridVisible, map_visible: existingProfile.map_visible ?? false, hide_age_expiry: existingProfile.hide_age_expiry || null, invisible_expiry: existingProfile.invisible_expiry || null };
           setCurrentUser(myProfile);
-          if (supabase) {
-            await supabase.from('profiles').upsert([{ ...myProfile, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), grid_visible: initialGridVisible }], { onConflict: 'id' });
-            await fetchUsersData(currentLoc.lat, currentLoc.lng, userId, checkIsAdmin);
-          }
+          const { profile: refreshedProfile } = await workerPost('/api/profile', { profile: { lat: currentLoc.lat, lng: currentLoc.lng } });
+          setCurrentUser((previous) => previous ? { ...previous, ...refreshedProfile } : refreshedProfile);
+          await fetchUsersData();
           loadFilterPrefs();
         }
-      } catch (err) { console.error('Initialization error:', err); }
+      } catch (err) {
+        console.error('Initialization error:', err);
+        setStartupError(err instanceof Error ? err.message : 'Could not load your profile.');
+      }
       finally { setIsReady(true); }
     };
     initApp();
@@ -653,13 +688,13 @@ export default function App() {
   }, []);
 
   const handleRefresh = async () => {
-    if (!currentUser || !currentUser.lat || !currentUser.lng || !supabase) return;
+    if (!currentUser) return;
     const lastRefreshKey = `last_refresh_${currentUser.id}`;
     const lastRefreshTime = Number(localStorage.getItem(lastRefreshKey) || 0);
     const now = Date.now();
     if (now - lastRefreshTime < 5 * 60 * 1000) return;
     localStorage.setItem(lastRefreshKey, now.toString());
-    await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);
+    await fetchUsersData();
   };
 
   const handleToggleFilterDropdown = () => setShowFilterDropdown(!showFilterDropdown);
@@ -714,17 +749,43 @@ export default function App() {
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     if (age < 18) {
-      if (currentUser && supabase) { await supabase.from('profiles').upsert([{ ...currentUser, dob, is_underage: true }], { onConflict: 'id' }); }
-      setIsUnderageLocked(true); return;
+      if (!currentUser) return;
+      try {
+        await workerPost('/api/profile', { profile: { dob } });
+        setIsUnderageLocked(true);
+      } catch (error) {
+        setErrorMessage(`${t('errorSaving')} ${error instanceof Error ? error.message : String(error)}`);
+      }
+      return;
     }
-    if (!currentUser || !supabase) return;
-    const updatedProfile = { ...currentUser, lat: location.lat, lng: location.lng, last_seen: new Date().toISOString(), dob, gender, seeking, height, weight, role_pref: isManSeekingMan ? rolePref : null, safety_pref: isManSeekingMan ? safetyPref : null, playstyle_pref: isManSeekingMan ? playstylePref : null, how_many_pref: isManSeekingMan ? howManyPref : null, where_pref: isManSeekingMan ? wherePref : null, non_man_mode: isManSeekingMan ? null : nonManMode, hide_age: false, is_underage: false };
-    const { error } = await supabase.from('profiles').upsert([updatedProfile], { onConflict: 'id' });
-    if (error) { setErrorMessage(`${t('errorSaving')} ${error.message}`); return; }
-    if (isManSeekingMan) applyDefaultFiltersFromPreferences(rolePref, safetyPref, playstylePref, howManyPref);
-    setCurrentUser(updatedProfile); setShowProfileSetup(false); setShowProfileEditModal(false);
-    loadFilterPrefs();
-    await fetchUsersData(location.lat, location.lng, currentUser.id, isAdmin);
+    if (!currentUser) return;
+    try {
+      const result = await workerPost('/api/profile', {
+        profile: {
+          lat: location.lat,
+          lng: location.lng,
+          dob,
+          gender,
+          seeking,
+          height,
+          weight,
+          role_pref: isManSeekingMan ? rolePref : null,
+          safety_pref: isManSeekingMan ? safetyPref : null,
+          playstyle_pref: isManSeekingMan ? playstylePref : null,
+          how_many_pref: isManSeekingMan ? howManyPref : null,
+          where_pref: isManSeekingMan ? wherePref : null,
+          non_man_mode: isManSeekingMan ? null : nonManMode,
+        },
+      });
+      applyOwnProfile(result.profile);
+      if (isManSeekingMan) applyDefaultFiltersFromPreferences(rolePref, safetyPref, playstylePref, howManyPref);
+      setShowProfileSetup(false);
+      setShowProfileEditModal(false);
+      loadFilterPrefs();
+      await fetchUsersData();
+    } catch (error) {
+      setErrorMessage(`${t('errorSaving')} ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   // Open a Telegram invoice with a graceful fallback if openInvoice is
@@ -743,35 +804,77 @@ export default function App() {
     });
   };
 
+  const startPurchase = async (type: string) => {
+    const result = await workerPost('/create-invoice', { userId: currentUser?.id, type });
+    if (!result.invoiceLink) throw new Error('The payment service did not return an invoice link.');
+    return startInvoice(result.invoiceLink as string);
+  };
+
   const verifyFilterSubscription = async (): Promise<boolean> => {
     if (paidUnlocked || hasFilterSub) return true;
     const confirmed = window.confirm(t('filterSubPrompt'));
     if (!confirmed) return false;
-    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return false; }
     try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser?.id, type: 'change_filter', bot: getActiveBotKey() }),
-      });
-      if (!res.ok) { console.error('create-invoice failed:', res.status); alert(t('paymentCancelled')); return false; }
-      const data = await res.json() as { invoiceLink?: string };
-      if (data.invoiceLink) {
-        const status = await startInvoice(data.invoiceLink);
-        if (status === 'paid') { setHasFilterSub(true); const subUntil = Date.now() + 30 * 24 * 60 * 60 * 1000; setFilterSubUntil(subUntil); filterSubUntilRef.current = subUntil; try { localStorage.setItem(FILTER_SUB_KEY, String(subUntil)); } catch {} if (currentUser && supabase) { const newExpiry = new Date(subUntil).toISOString(); supabase.from('profiles').update({ filter_sub_expiry: newExpiry }).eq('id', currentUser.id).then(() => {}); setCurrentUser((p: any) => p ? { ...p, filter_sub_expiry: newExpiry } : p); } }
-        else { if (status !== 'unsupported') alert(t('paymentCancelled')); return false; }
+      const baseline = Math.max(Date.now(), filterSubUntilRef.current);
+      const status = await startPurchase('change_filter');
+      if (status === 'paid') {
+        const minimumExpiry = baseline + 29 * 24 * 60 * 60 * 1000;
+        const profile = await waitForPaidProfile((value) =>
+          new Date(value.filter_sub_expiry || 0).getTime() >= minimumExpiry,
+        );
+        if (profile && new Date(profile.filter_sub_expiry || 0).getTime() >= minimumExpiry) return true;
+        alert(t('paymentProcessing'));
+      } else if (status !== 'unsupported') {
+        alert(t('paymentCancelled'));
       }
-    } catch (err) { console.error('Invoice error:', err); }
+    } catch (err) {
+      console.error('Invoice error:', err);
+      alert(t('paymentCancelled'));
+    }
     return false;
   };
 
   const FILTER_PREFS_KEY = 'whos_nearby_filter_prefs';
   const FILTER_SUB_KEY = 'whos_nearby_filter_sub_until';
 
+  const applyOwnProfile = (profile: any) => {
+    if (!profile) return;
+    setCurrentUser((previous) => previous ? { ...previous, ...profile } : profile);
+    setHideAge(profile.hide_age === true);
+    setHideAgeExpiry(profile.hide_age_expiry || null);
+    setInvisibleExpiry(profile.invisible_expiry || null);
+    setGridVisible(profile.grid_visible ?? true);
+    setMapVisible(profile.map_visible ?? false);
+    const subscriptionExpiry = profile.filter_sub_expiry
+      ? new Date(profile.filter_sub_expiry).getTime()
+      : 0;
+    const validExpiry = Number.isFinite(subscriptionExpiry) && subscriptionExpiry > Date.now()
+      ? subscriptionExpiry
+      : 0;
+    setFilterSubUntil(validExpiry);
+    filterSubUntilRef.current = validExpiry;
+    setHasFilterSub(validExpiry > 0);
+    try {
+      if (validExpiry) localStorage.setItem(FILTER_SUB_KEY, String(validExpiry));
+      else localStorage.removeItem(FILTER_SUB_KEY);
+    } catch {}
+  };
+
+  const waitForPaidProfile = async (isGranted: (profile: any) => boolean) => {
+    let latestProfile: any = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const result = await workerPost('/api/auth');
+      latestProfile = result.profile;
+      if (latestProfile) applyOwnProfile(latestProfile);
+      if (latestProfile && isGranted(latestProfile)) return latestProfile;
+      if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return latestProfile;
+  };
+
   const loadFilterPrefs = () => {
     try {
-      const subRaw = localStorage.getItem(FILTER_SUB_KEY);
       let subUntil = filterSubUntilRef.current;
-      if (subRaw) { const n = Number(subRaw); if (!isNaN(n)) subUntil = n; }
       // Drop expired cached subscriptions so stale localStorage can't grant access.
       if (subUntil && subUntil <= Date.now()) {
         subUntil = 0;
@@ -808,90 +911,109 @@ export default function App() {
   };
 
   const handleToggleGrid = async () => {
-    if (!currentUser || !supabase) return;
-    let nextVal = !gridVisible;
-    let newInvisibleExpiry = invisibleExpiry;
+    if (!currentUser) return;
+    const nextVal = !gridVisible;
     if (!nextVal && !paidUnlocked) {
-      const now = new Date();
-      const isExpired = !invisibleExpiry || new Date(invisibleExpiry).getTime() < now.getTime();
-      if (isExpired) {
-        const confirmed = window.confirm(t('invisiblePrompt'));
-        if (!confirmed) return;
-        if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
+      const expiry = invisibleExpiry ? new Date(invisibleExpiry).getTime() : 0;
+      if (expiry <= Date.now()) {
+        if (!window.confirm(t('invisiblePrompt'))) return;
         try {
-          const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id, type: 'invisible', bot: getActiveBotKey() }),
-          });
-          if (!res.ok) { console.error('create-invoice failed:', res.status); alert(t('paymentCancelled')); return; }
-          const data = await res.json() as { invoiceLink?: string };
-          if (data.invoiceLink) {
-            const status = await startInvoice(data.invoiceLink);
-            if (status === 'paid') {
-              const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + 30);
-              newInvisibleExpiry = expiryDate.toISOString(); setInvisibleExpiry(newInvisibleExpiry);
-              setGridVisible(false); const updated = { ...currentUser, grid_visible: false, invisible_expiry: newInvisibleExpiry };
-              setCurrentUser(updated); await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+          const status = await startPurchase('invisible');
+          if (status === 'paid') {
+            const minimumExpiry = Date.now() + 29 * 24 * 60 * 60 * 1000;
+            const profile = await waitForPaidProfile((value) =>
+              value.grid_visible === false &&
+              new Date(value.invisible_expiry || 0).getTime() >= minimumExpiry,
+            );
+            if (profile && profile.grid_visible === false &&
+                new Date(profile.invisible_expiry || 0).getTime() >= minimumExpiry) {
               setView('grid');
-              if (currentUser.lat && currentUser.lng) await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);
-            } else if (status !== 'unsupported') { alert(t('paymentCancelled')); }
-            return;
+              await fetchUsersData();
+              return;
+            }
+            alert(t('paymentProcessing'));
+          } else if (status !== 'unsupported') {
+            alert(t('paymentCancelled'));
           }
-        } catch (err) { console.error('Invisible invoice error:', err); }
+        } catch (error) {
+          console.error('Invisible invoice error:', error);
+          alert(t('paymentCancelled'));
+        }
+        return;
       }
-    } else if (nextVal) {
-      // Turning invisible OFF: clear the expiry so it can't linger as "active".
-      newInvisibleExpiry = null; setInvisibleExpiry(null);
     }
-    setGridVisible(nextVal); const updated = { ...currentUser, grid_visible: nextVal, invisible_expiry: newInvisibleExpiry };
-    setCurrentUser(updated); await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-    setView('grid');
-    if (currentUser.lat && currentUser.lng) await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);
+    try {
+      const result = await workerPost('/api/profile', { profile: { grid_visible: nextVal } });
+      applyOwnProfile(result.profile);
+      setView('grid');
+      await fetchUsersData();
+    } catch (error) {
+      console.error('Could not update grid visibility:', error);
+      alert(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleToggleMap = async () => {
-    if (!currentUser || !supabase) return;
-    const nextVal = !mapVisible; setMapVisible(nextVal);
-    const updated = { ...currentUser, map_visible: nextVal }; setCurrentUser(updated);
-    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
-    setView(nextVal ? 'map' : 'grid');
-    if (currentUser.lat && currentUser.lng) await fetchUsersData(currentUser.lat, currentUser.lng, currentUser.id, isAdmin);
+    if (!currentUser) return;
+    const nextVal = !mapVisible;
+    try {
+      const result = await workerPost('/api/profile', { profile: { map_visible: nextVal } });
+      applyOwnProfile(result.profile);
+      setView(nextVal ? 'map' : 'grid');
+      await fetchUsersData();
+    } catch (error) {
+      console.error('Could not update map visibility:', error);
+      alert(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
-    if (!currentUser || !supabase) return;
-    const updated = { ...currentUser, ...fields }; setCurrentUser(updated);
-    await supabase.from('profiles').upsert([updated], { onConflict: 'id' });
+    if (!currentUser) return;
+    try {
+      const result = await workerPost('/api/profile', { profile: fields });
+      applyOwnProfile(result.profile);
+      await fetchUsersData();
+    } catch (error) {
+      if ('where_pref' in fields) setWherePref(currentUser.where_pref || null);
+      if ('playstyle_pref' in fields) {
+        setPlaystylePref(currentUser.playstyle_pref || 'Clean');
+        setFilterPlaystyleVal(currentUser.playstyle_pref || null);
+      }
+      setSelectedProfile((previous) => previous ? { ...previous, ...currentUser } : previous);
+      console.error('Could not update profile field:', error);
+      alert(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleHideAgeToggle = async () => {
-    if (!currentUser || !supabase) return;
-    let nextHide = !hideAge; let newExpiry = hideAgeExpiry;
+    if (!currentUser) return;
+    const nextHide = !hideAge;
     if (nextHide && !paidUnlocked) {
-      const now = new Date(); const isExpired = !hideAgeExpiry || new Date(hideAgeExpiry).getTime() < now.getTime();
-      if (isExpired) {
-        const confirmed = window.confirm(t('hideAgePrompt')); if (!confirmed) return;
-        if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
+      const expiry = hideAgeExpiry ? new Date(hideAgeExpiry).getTime() : 0;
+      if (expiry <= Date.now()) {
+        if (!window.confirm(t('hideAgePrompt'))) return;
         try {
-          const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id, type: 'hide_age', bot: getActiveBotKey() }),
-          });
-          if (!res.ok) { console.error('create-invoice failed:', res.status); alert(t('paymentCancelled')); return; }
-          const data = await res.json() as { invoiceLink?: string };
-          if (data.invoiceLink) {
-            const status = await startInvoice(data.invoiceLink);
-            if (status === 'paid') {
-              const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + 30);
-              newExpiry = expiryDate.toISOString(); setHideAgeExpiry(newExpiry); setHideAge(true);
-              await handleUpdateSelfField({ hide_age: true, hide_age_expiry: newExpiry });
-            } else if (status !== 'unsupported') { alert(t('paymentCancelled')); }
-            return;
+          const status = await startPurchase('hide_age');
+          if (status === 'paid') {
+            const minimumExpiry = Date.now() + 29 * 24 * 60 * 60 * 1000;
+            const profile = await waitForPaidProfile((value) =>
+              value.hide_age === true &&
+              new Date(value.hide_age_expiry || 0).getTime() >= minimumExpiry,
+            );
+            if (profile && profile.hide_age === true &&
+                new Date(profile.hide_age_expiry || 0).getTime() >= minimumExpiry) return;
+            alert(t('paymentProcessing'));
+          } else if (status !== 'unsupported') {
+            alert(t('paymentCancelled'));
           }
-        } catch (err) { console.error('Hide age invoice error:', err); }
+        } catch (error) {
+          console.error('Hide age invoice error:', error);
+          alert(t('paymentCancelled'));
+        }
+        return;
       }
-    } else if (!nextHide) { newExpiry = null; setHideAgeExpiry(null); }
-    setHideAge(nextHide); await handleUpdateSelfField({ hide_age: nextHide, hide_age_expiry: newExpiry });
+    }
+    await handleUpdateSelfField({ hide_age: nextHide });
   };
 
   const handleResetProfile = async () => {
@@ -899,18 +1021,21 @@ export default function App() {
     if (paidUnlocked) { setShowProfileEditModal(true); return; }
     const confirmed = window.confirm(t('unlockPreferencePrompt'));
     if (!confirmed) return;
-    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
     try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/create-invoice`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, type: 'edit_profile', bot: getActiveBotKey() }),
-      });
-      if (!res.ok) { console.error('create-invoice failed:', res.status); alert(t('paymentCancelled')); return; }
-      const data = await res.json() as { invoiceLink?: string };
-      if (data.invoiceLink) {
-        const status = await startInvoice(data.invoiceLink);
-        if (status === 'paid') { setShowProfileEditModal(true); }
-        else if (status !== 'unsupported') { alert(t('paymentCancelled')); }
+      const status = await startPurchase('edit_profile');
+      if (status === 'paid') {
+        const profile = await waitForPaidProfile((value) =>
+          value.edit_profile_pass === true &&
+          new Date(value.edit_profile_expiry || 0).getTime() > Date.now(),
+        );
+        if (profile?.edit_profile_pass === true &&
+            new Date(profile.edit_profile_expiry || 0).getTime() > Date.now()) {
+          setShowProfileEditModal(true);
+        } else {
+          alert(t('paymentProcessing'));
+        }
+      } else if (status !== 'unsupported') {
+        alert(t('paymentCancelled'));
       }
     } catch (err) { console.error('Reset profile invoice error:', err); alert(t('paymentCancelled')); }
   };
@@ -934,7 +1059,7 @@ export default function App() {
 
   const checkFilterPass = (user: UserProfile) => {
     if (currentUser && user.id === currentUser.id) return true;
-    if (filterAgeOn) { const age = calculateAge(user.dob); if (age === null || age < filterAgeMin || age > filterAgeMax) return false; }
+    if (filterAgeOn) { const age = typeof user.age === 'number' ? user.age : calculateAge(user.dob); if (age === null || age < filterAgeMin || age > filterAgeMax) return false; }
     if (filterHeightOn) { const h = parseHeightMeters(user.height); if (h === null || h < filterHeightMin || h > filterHeightMax) return false; }
     const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';
     if (filterPrefMatcherOn && userIsManSeekingMan) {
@@ -1003,6 +1128,9 @@ export default function App() {
   if (isLocationDenied) {
     return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('locationRequired')}</h2><p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>{t('locationMessage')}</p></div>;
   }
+  if (startupError) {
+    return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '22px', marginBottom: '12px' }}>{t('accessDenied')}</h2><p style={{ maxWidth: '360px', lineHeight: '1.5', color: '#ffb4b4' }}>{startupError}</p></div>;
+  }
   if (isUnderageLocked) {
     return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('accessDenied')}</h2><p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>{t('underageMessage')}</p></div>;
   }
@@ -1059,13 +1187,10 @@ export default function App() {
   };
 
   const handleForceReset = async () => {
-    if (!selectedProfile || !PAYMENT_WORKER_URL) return;
+    if (!selectedProfile) return;
     if (!window.confirm(t('forceResetConfirm').replace('{n}', selectedProfile.name || ''))) return;
     try {
-      await fetch(`${PAYMENT_WORKER_URL}/api/reset-profile`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_id: Number(String(selectedProfile.id).replace(/^tg_/, '')), initData: window.Telegram?.WebApp?.initData || '' }),
-      });
+      await workerPost('/api/reset-profile', { target_id: selectedProfile.id });
       alert(t('profileReset'));
     } catch (e) { console.error(e); alert(t('resetFailed')); }
   };
@@ -1079,41 +1204,26 @@ export default function App() {
   const handleAddRole = async () => {
     const uname = newRoleUsername.trim().toLowerCase().replace(/^@/, '');
     if (!uname) return;
-    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
     if (uname === 'mileschan852') { alert(t('ownerImmutable')); return; }
     try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/api/roles`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', username: uname, role: newRole, initData: window.Telegram?.WebApp?.initData || '' }),
-      });
-      if (!res.ok) { alert(t('roleUpdateFailed')); return; }
+      await workerPost('/api/roles', { action: 'add', username: uname, role: newRole });
       setNewRoleUsername('');
       await loadRoles();
     } catch (e) { console.error(e); alert(t('roleUpdateFailed')); }
   };
 
   const handleRemoveRole = async (username: string) => {
-    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
     if (username.toLowerCase() === 'mileschan852') { alert(t('ownerImmutable')); return; }
     try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/api/roles`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'remove', username, initData: window.Telegram?.WebApp?.initData || '' }),
-      });
-      if (!res.ok) { alert(t('roleUpdateFailed')); return; }
+      await workerPost('/api/roles', { action: 'remove', username });
       await loadRoles();
     } catch (e) { console.error(e); alert(t('roleUpdateFailed')); }
   };
 
   const handleGrantGlobalVip = async (ms: number) => {
-    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
     const until = ms > 0 ? Date.now() + ms : 0;
     try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/api/global-vip`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ until, initData: window.Telegram?.WebApp?.initData || '' }),
-      });
-      if (!res.ok) { alert(t('roleUpdateFailed')); return; }
+      await workerPost('/api/global-vip', { until });
       setGlobalVipUntil(until);
       setShowVipPeriods(false);
       setShowAdminMenu(false);
@@ -1121,14 +1231,9 @@ export default function App() {
   };
 
   const handleResetAll = async () => {
-    if (!PAYMENT_WORKER_URL) { console.error('VITE_PAYMENT_WORKER_URL is not set'); return; }
     if (!window.confirm(t('forceResetAllConfirm'))) return;
     try {
-      const res = await fetch(`${PAYMENT_WORKER_URL}/api/reset-all`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: window.Telegram?.WebApp?.initData || '' }),
-      });
-      if (!res.ok) { alert(t('resetFailed')); return; }
+      await workerPost('/api/reset-all');
       setShowAdminMenu(false);
       alert(t('resetAllDone'));
     } catch (e) { console.error(e); alert(t('resetFailed')); }
@@ -1367,8 +1472,8 @@ export default function App() {
               </div>
               <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
-                {!activeProfile.hide_age && calculateAge(activeProfile.dob) && <span>{calculateAge(activeProfile.dob)}</span>}
-                {getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span>
+                {!activeProfile.hide_age && (typeof activeProfile.age === 'number' ? activeProfile.age : calculateAge(activeProfile.dob)) && <span>{typeof activeProfile.age === 'number' ? activeProfile.age : calculateAge(activeProfile.dob)}</span>}
+                {activeProfile.zodiac || getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {isViewingSelf ? <span>&nbsp;</span> : <><span>{formatDistanceBigUnit(activeProfile.distance)} {t('away')}</span><span>&bull;</span></>}<span style={{ color: '#4ade80' }}>{renderLastSeenBigUnit(formatLastSeenBigUnit(activeProfile.last_seen), t)}</span>
@@ -1412,7 +1517,7 @@ export default function App() {
         {isGamesMenuOpen && (<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
           <img src={bustaIcon} alt="Busta" onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
           <img src={tonflipIcon} alt="TonFlip" onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
-          <img src={photifyIcon} alt="Photify" onClick={() => handleOpenExternalApp('https://t.me/PhotifyOfficialBot?start=referral_1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
+          <img src={photifyIcon} alt="Photify" onClick={() => handleOpenExternalApp('https://t.me/PhotifyAIOfficialBot?start=referral_1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
         </div>)}
       </div>
 
