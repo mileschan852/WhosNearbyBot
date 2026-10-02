@@ -1517,7 +1517,7 @@ export default function App() {
         {isGamesMenuOpen && (<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
           <img src={bustaIcon} alt="Busta" onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
           <img src={tonflipIcon} alt="TonFlip" onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
-          <img src={photifyIcon} alt="Photify" onClick={() => handleOpenExternalApp('https://t.me/PhotifyOfficialBot?start=referral_1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
+          <img src={photifyIcon} alt="Photify" onClick={() => handleOpenExternalApp('https://t.me/PhotifyAIOfficialBot?start=referral_1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
         </div>)}
       </div>
 
