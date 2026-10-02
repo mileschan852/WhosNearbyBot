@@ -5,15 +5,43 @@
 // X-Telegram-Bot-Api-Secret-Token header to match (setWebhook secret_token).
 // All private profile and payment database access uses the server-only key.
 
-function json(data, status = 200) {
+function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": "*",
       "cache-control": "no-store",
+      ...extraHeaders,
     },
   });
+}
+
+const requestWindows = new Map();
+
+function rateLimit(request, key, maxRequests = 120, windowMs = 60_000) {
+  const now = Date.now();
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const bucketKey = `${key}:${ip}`;
+  let bucket = requestWindows.get(bucketKey);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + windowMs };
+  }
+  if (bucket.count >= maxRequests) {
+    return Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+  }
+  bucket.count += 1;
+  requestWindows.set(bucketKey, bucket);
+
+  // Keep the isolate-local guard bounded under high-cardinality traffic.
+  if (requestWindows.size > 4096) {
+    for (const [existingKey, existingBucket] of requestWindows) {
+      if (existingBucket.resetAt <= now || requestWindows.size > 3072) {
+        requestWindows.delete(existingKey);
+      }
+    }
+  }
+  return 0;
 }
 
 function getBotToken(env, bot) {
@@ -133,7 +161,10 @@ function sbHeaders(env, write = false) {
 }
 
 async function sbGet(env, path) {
-  const res = await fetch(`${env.SUPABASE_URL}/${path}`, { headers: sbHeaders(env) });
+  const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
+    headers: sbHeaders(env),
+    signal: AbortSignal.timeout(5000),
+  });
   if (!res.ok) return null;
   return res.json();
 }
@@ -469,6 +500,10 @@ export default {
 
     // POST /api/auth
     if (path === "/api/auth" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "auth");
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
       try {
         const { initData, bot } = await request.json();
         if (!initData || !bot) return json({ error: "Missing initData or bot" }, 400);
@@ -478,7 +513,22 @@ export default {
         const profileData = { id: tgId, name: tgUser.first_name || "", username: tgUser.username || null, avatar: tgUser.photo_url || null, last_seen: new Date().toISOString() };
         const profile = await sbUpsertProfile(env, profileData);
         if (!profile) return json({ error: "Profile could not be loaded" }, 503);
-        return json({ profile: safeOwnProfile(profile) });
+        const [rolesResult, settingsResult] = await Promise.allSettled([
+          sbGet(env, "rest/v1/app_roles?select=username,role"),
+          sbGet(env, "rest/v1/app_settings?select=value&key=eq.global_vip_until"),
+        ]);
+        const roles = rolesResult.status === "fulfilled" && Array.isArray(rolesResult.value)
+          ? rolesResult.value
+          : [];
+        const settings = settingsResult.status === "fulfilled" && Array.isArray(settingsResult.value)
+          ? settingsResult.value
+          : [];
+        const globalVipUntil = Number(settings[0]?.value);
+        return json({
+          profile: safeOwnProfile(profile),
+          roles,
+          globalVipUntil: Number.isFinite(globalVipUntil) ? globalVipUntil : 0,
+        });
       } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
     }
 

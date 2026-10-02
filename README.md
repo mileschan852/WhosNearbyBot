@@ -7,7 +7,7 @@ A Telegram Mini App for finding nearby Telegram users — React + TypeScript SPA
 ### Frontend (React SPA)
 - **Stack:** React 19, TypeScript, Vite, Leaflet/react-leaflet
 - **Deployed to:** GitHub Pages (via CI)
-- **Config:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PAYMENT_WORKER_URL` set at build time (GitHub Actions secrets). See `.env.example`.
+- **Config:** Production uses the Worker URL configured in the frontend source. `VITE_PAYMENT_WORKER_URL` is only for local development; no Supabase credentials are injected into or bundled with the browser app.
 
 ### Backend (Cloudflare Worker)
 - **URL:** `https://whosnearbybot.mileschan852.workers.dev`

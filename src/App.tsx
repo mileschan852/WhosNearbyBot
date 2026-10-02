@@ -6,7 +6,6 @@ import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
-import { createClient } from '@supabase/supabase-js';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 
 import bustaIcon from './assets/Bustagames.jpg';
@@ -44,10 +43,10 @@ declare global {
   }
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const PAYMENT_WORKER_URL = import.meta.env.VITE_PAYMENT_WORKER_URL || '';
-const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const DEFAULT_PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
+const PAYMENT_WORKER_URL = (import.meta.env.DEV && import.meta.env.VITE_PAYMENT_WORKER_URL)
+  ? import.meta.env.VITE_PAYMENT_WORKER_URL.replace(/\/+$/, '')
+  : DEFAULT_PAYMENT_WORKER_URL;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
 
@@ -479,13 +478,22 @@ export default function App() {
   };
 
   const workerPost = async (path: string, body: Record<string, unknown> = {}) => {
-    if (!PAYMENT_WORKER_URL) throw new Error('The app service is not configured.');
     const initData = window.Telegram?.WebApp?.initData || '';
     if (!initData) throw new Error('Open Who’s Nearby from Telegram to continue.');
     const response = await fetch(`${PAYMENT_WORKER_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, initData, bot: getActiveBotKey() }),
+    });
+    let result: any = {};
+    try { result = await response.json(); } catch {}
+    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+    return result;
+  };
+
+  const workerGet = async (path: string) => {
+    const response = await fetch(`${PAYMENT_WORKER_URL}${path}`, {
+      headers: { Accept: 'application/json' },
     });
     let result: any = {};
     try { result = await response.json(); } catch {}
@@ -571,18 +579,12 @@ export default function App() {
         if (!existingProfile?.id) throw new Error('Your profile could not be loaded.');
         const userUsername = existingProfile.username || tgUser?.username || '';
         // Load the managed admin/VIP list so entitlements survive across sessions.
-        let rolesList: { username: string; role: string }[] = [];
-        if (supabase) {
-          const { data: rolesData } = await supabase.from('app_roles').select('username, role');
-          if (Array.isArray(rolesData)) rolesList = rolesData as { username: string; role: string }[];
-        }
+        const rolesList: { username: string; role: string }[] =
+          Array.isArray(authResponse.roles) ? authResponse.roles : [];
         setRoles(rolesList);
-        // Load the global VIP window (admin-granted VIP for everyone).
-        if (supabase) {
-          const { data: settingRow } = await supabase.from('app_settings').select('value').eq('key', 'global_vip_until').single();
-          const gv = Number(settingRow?.value);
-          if (Number.isFinite(gv)) setGlobalVipUntil(gv);
-        }
+        // The Worker reads this server-side so no Supabase credential is sent to the browser.
+        const globalVipUntil = Number(authResponse.globalVipUntil);
+        if (Number.isFinite(globalVipUntil)) setGlobalVipUntil(globalVipUntil);
         const unameLower = userUsername.toLowerCase();
         const tableRole = rolesList.find((r) => (r.username || '').toLowerCase() === unameLower)?.role;
         // Owner (mileschan852) and hkmembersonly are always admin; everyone else
@@ -1196,9 +1198,12 @@ export default function App() {
   };
 
   const loadRoles = async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from('app_roles').select('username, role, created_at').order('created_at', { ascending: true });
-    if (Array.isArray(data)) setRoles(data as { username: string; role: string }[]);
+    try {
+      const data = await workerGet('/api/roles');
+      if (Array.isArray(data)) setRoles(data as { username: string; role: string }[]);
+    } catch (error) {
+      console.error('Could not load managed roles:', error);
+    }
   };
 
   const handleAddRole = async () => {
