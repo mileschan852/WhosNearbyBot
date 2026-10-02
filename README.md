@@ -10,7 +10,7 @@ A Telegram Mini App for finding nearby Telegram users — React + TypeScript SPA
 - **Config:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PAYMENT_WORKER_URL` set at build time (GitHub Actions secrets). See `.env.example`.
 
 ### Backend (Cloudflare Worker)
-- **URL:** `https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/287f310dcfbf`
+- **URL:** `https://whosnearbybot.mileschan852.workers.dev`
 - **Worker:** `worker.js` — Telegram-authenticated profile and nearby APIs, invoice creation, payment webhooks, and admin actions.
 - **Cloudflare bindings/secrets (configure outside the repository; never commit values):**
   - `BOT_A_TOKEN` — Telegram bot token for @HKMODate_bot / gaymode.
