@@ -331,6 +331,22 @@ async function parseAuthUser(env, initData, bot) {
   }
 }
 
+async function parseAuthUserForEitherBot(env, initData, preferredBot) {
+  if (preferredBot !== "botA" && preferredBot !== "botB") return null;
+  const candidates = [preferredBot, preferredBot === "botA" ? "botB" : "botA"];
+  for (const bot of candidates) {
+    if (!(await verifyInitDataWithToken(getBotToken(env, bot), initData || ""))) continue;
+    try {
+      const user = JSON.parse(new URLSearchParams(initData).get("user") || "null");
+      if (parseTelegramId(user?.id)) return { user, bot };
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 function roundCoordinate(value) {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.round(value * 100) / 100
@@ -507,8 +523,9 @@ export default {
       try {
         const { initData, bot } = await request.json();
         if (!initData || !bot) return json({ error: "Missing initData or bot" }, 400);
-        const tgUser = await parseAuthUser(env, initData, bot);
-        if (!tgUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        const authSession = await parseAuthUserForEitherBot(env, initData, bot);
+        if (!authSession) return json({ error: "Invalid or expired Telegram session" }, 401);
+        const { user: tgUser, bot: verifiedBot } = authSession;
         const tgId = `tg_${parseTelegramId(tgUser.id)}`;
         const profileData = { id: tgId, name: tgUser.first_name || "", username: tgUser.username || null, avatar: tgUser.photo_url || null, last_seen: new Date().toISOString() };
         const profile = await sbUpsertProfile(env, profileData);
@@ -528,6 +545,7 @@ export default {
           profile: safeOwnProfile(profile),
           roles,
           globalVipUntil: Number.isFinite(globalVipUntil) ? globalVipUntil : 0,
+          bot: verifiedBot,
         });
       } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
     }
