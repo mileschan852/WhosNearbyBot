@@ -228,11 +228,15 @@ async function verifyInitDataWithToken(token, initData) {
   const ageSeconds = Date.now() / 1000 - authDate;
   if (!authDate || ageSeconds > 86400 || ageSeconds < -60) return false;
   params.delete("hash");
-  params.delete("signature");
-  const dataCheckString = [...params.entries()]
-    .map(([k, v]) => `${k}=${v}`)
-    .sort()
-    .join("\n");
+  const entries = [...params.entries()];
+  // Telegram may include a separate Ed25519 `signature` alongside the HMAC
+  // hash. Accept both documented canonical forms, while still requiring the
+  // bot-token HMAC to cover the user and all other authentication fields.
+  const dataCheckStrings = [
+    entries.map(([k, v]) => `${k}=${v}`).sort().join("\n"),
+    entries.filter(([k]) => k !== "signature")
+      .map(([k, v]) => `${k}=${v}`).sort().join("\n"),
+  ];
   const enc = new TextEncoder();
   const secretKey = await crypto.subtle.importKey(
     "raw", enc.encode("WebAppData"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
@@ -241,9 +245,12 @@ async function verifyInitDataWithToken(token, initData) {
   const signKey = await crypto.subtle.importKey(
     "raw", secret, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
   );
-  const signature = await crypto.subtle.sign("HMAC", signKey, enc.encode(dataCheckString));
-  const hex = [...new Uint8Array(signature)].map(b => b.toString(16).padStart(2, "0")).join("");
-  return timingSafeEqual(hex, hash);
+  for (const dataCheckString of new Set(dataCheckStrings)) {
+    const hmac = await crypto.subtle.sign("HMAC", signKey, enc.encode(dataCheckString));
+    const hex = [...new Uint8Array(hmac)].map(b => b.toString(16).padStart(2, "0")).join("");
+    if (timingSafeEqual(hex, hash)) return true;
+  }
+  return false;
 }
 
 async function verifyInitData(env, initData, bot) {
