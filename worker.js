@@ -1088,6 +1088,8 @@ export default {
     }
 
     // POST /api/reset-profile — admin-only force reset of a single profile.
+    // Clearing only weight is enough to make the profile incomplete, while
+    // preserving the user's avatar and all other saved profile data.
     // Authorization comes from the verified Telegram user and server-side role
     // lookup; target_id is validated and is never treated as the caller.
     if (path === "/api/reset-profile" && request.method === "POST") {
@@ -1102,10 +1104,7 @@ export default {
         const targetTelegramId = parseTelegramId(target_id);
         if (!targetTelegramId) return json({ error: "Invalid target ID" }, 400);
         const result = await sbPatchStrict(env, `rest/v1/profiles?id=eq.${encodeURIComponent(`tg_${targetTelegramId}`)}`, {
-          name: "", username: null, avatar: null, dob: null, height: null, weight: null,
-          gender: "man", seeking: "men", role_pref: null, safety_pref: null, playstyle_pref: null,
-          where_pref: null, how_many_pref: null, hide_age: false, grid_visible: true, map_visible: false,
-          is_underage: false, hide_age_expiry: null, invisible_expiry: null,
+          weight: null,
         });
         if (!Array.isArray(result) || result.length === 0) return json({ error: "Profile not found" }, 404);
         return json({ reset: true });
@@ -1186,9 +1185,9 @@ export default {
       } catch (e) { return adminWriteFailure("Global VIP update", e); }
     }
 
-    // POST /api/reset-all — admin-only. Clears the required profile fields for
-    // EVERY user so the "complete your info" setup screen appears on their next
-    // login. Mirrors /api/reset-profile but applied across all rows.
+    // POST /api/reset-all — admin-only. Clears only weight for EVERY user.
+    // Weight is required by the profile-completion check, so this shows the
+    // setup screen on next login without erasing avatars or other profile data.
     if (path === "/api/reset-all" && request.method === "POST") {
       const retryAfter = rateLimit(request, "admin-reset-all", 2, 60_000);
       if (retryAfter) return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
@@ -1199,11 +1198,7 @@ export default {
         if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
         // PostgREST requires a filter for bulk PATCH; `id=not.is.null` matches all.
         await sbPatchStrict(env, "rest/v1/profiles?id=not.is.null", {
-          name: "", username: null, avatar: null, dob: null, height: null, weight: null,
-          gender: "man", seeking: "men", role_pref: null, safety_pref: null, playstyle_pref: null,
-          where_pref: null, how_many_pref: null, non_man_mode: null, hide_age: false,
-          is_underage: false, grid_visible: true, map_visible: false,
-          hide_age_expiry: null, invisible_expiry: null,
+          weight: null,
         }, "return=minimal");
         let resetTimestampRecorded = true;
         try {
