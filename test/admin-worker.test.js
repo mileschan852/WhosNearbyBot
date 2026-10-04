@@ -90,7 +90,7 @@ beforeEach(() => {
         : jsonResponse([body]);
     }
     if (url.pathname === "/rest/v1/profiles" && method === "PATCH") {
-      return new Response(null, { status: 204 });
+      return jsonResponse([{ id: url.searchParams.get("id")?.replace(/^eq\./, "") || "tg_654321" }]);
     }
     throw new Error(`Unexpected Supabase request: ${method} ${url.pathname}${url.search}`);
   };
@@ -139,16 +139,26 @@ test("global VIP settings are written by a verified administrator", async () => 
   });
 });
 
-test("reset-all clears required profile fields without writing null to profiles.name", async () => {
+test("reset-all clears only weight so profile setup appears without erasing other profile data", async () => {
   const { response, result } = await send("/api/reset-all");
 
   assert.equal(response.status, 200);
   assert.equal(result.ok, true);
   const patch = calls.find((call) => call.url.pathname === "/rest/v1/profiles" && call.method === "PATCH");
   assert.ok(patch);
-  assert.equal(patch.body.name, "");
-  assert.equal(patch.body.is_underage, false);
+  assert.deepEqual(patch.body, { weight: null });
   assert.equal(patch.prefer, "return=minimal");
+});
+
+test("single-profile reset clears only weight on the selected profile", async () => {
+  const { response, result } = await send("/api/reset-profile", { target_id: "654321" });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result, { reset: true });
+  const patch = calls.find((call) => call.url.pathname === "/rest/v1/profiles" && call.method === "PATCH");
+  assert.ok(patch);
+  assert.equal(patch.url.searchParams.get("id"), "eq.tg_654321");
+  assert.deepEqual(patch.body, { weight: null });
 });
 
 test("role-list database failures are surfaced rather than returned as an empty list", async () => {
