@@ -449,6 +449,7 @@ export default function App() {
   const [flyingPriceDraft, setFlyingPriceDraft] = useState<string>('0');
   const [savingFlyingPrice, setSavingFlyingPrice] = useState<boolean>(false);
   const [flyingMessagePrice, setFlyingMessagePrice] = useState<number>(0);
+  const effectiveFlyingMessagePrice = paidUnlocked ? 0 : flyingMessagePrice;
   const [flyingMessageText, setFlyingMessageText] = useState<string>('');
   const [flyingMessages, setFlyingMessages] = useState<FlyingMessage[]>([]);
   const [flyingMessageNotice, setFlyingMessageNotice] = useState<string>('');
@@ -974,8 +975,11 @@ export default function App() {
         return;
       }
 
+      if (result.ok === true) {
+        throw new Error('The message service returned an incomplete response. Please try again later.');
+      }
       if (!result.invoiceLink || !result.intentId) {
-        throw new Error('The payment service did not return an invoice link.');
+        throw new Error('The payment service returned an incomplete invoice response. Please try again later.');
       }
       const invoiceStatus = await startInvoice(result.invoiceLink as string);
       if (invoiceStatus === 'paid') {
@@ -1629,8 +1633,8 @@ export default function App() {
             disabled={!currentUser || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
             style={{ flex: 1, minWidth: 0, height: '38px', borderRadius: '8px', border: '1px solid #3f4652', backgroundColor: '#121212', color: '#fff', padding: '0 12px', fontSize: '14px', outline: 'none' }}
           />
-          <span style={{ minWidth: '42px', textAlign: 'center', color: flyingMessagePrice > 0 ? '#f5c518' : '#4ade80', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-            {flyingMessagePrice > 0 ? `${flyingMessagePrice} ⭐` : flyingCopy.free}
+          <span style={{ minWidth: '42px', textAlign: 'center', color: effectiveFlyingMessagePrice > 0 ? '#f5c518' : '#4ade80', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            {effectiveFlyingMessagePrice > 0 ? `${effectiveFlyingMessagePrice} ⭐` : flyingCopy.free}
           </span>
           <button
             type="submit"
