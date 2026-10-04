@@ -562,7 +562,14 @@ export default function App() {
     let result: any = {};
     try { result = await response.json(); } catch {}
     if (!response.ok) {
-      const error = new Error(result.error || `Request failed (${response.status})`) as Error & { retryAfter?: number };
+      const error = new Error(result.error || `Request failed (${response.status})`) as Error & {
+        retryAfter?: number;
+        status?: number;
+        upstreamStatus?: number;
+      };
+      error.status = response.status;
+      const upstreamStatus = Number(result.upstreamStatus);
+      if (Number.isInteger(upstreamStatus) && upstreamStatus >= 400) error.upstreamStatus = upstreamStatus;
       const retryAfter = Number(result.retryAfter || response.headers.get('retry-after'));
       if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
       throw error;
@@ -576,8 +583,28 @@ export default function App() {
     });
     let result: any = {};
     try { result = await response.json(); } catch {}
-    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+    if (!response.ok) {
+      const error = new Error(result.error || `Request failed (${response.status})`) as Error & {
+        status?: number;
+        upstreamStatus?: number;
+      };
+      error.status = response.status;
+      const upstreamStatus = Number(result.upstreamStatus);
+      if (Number.isInteger(upstreamStatus) && upstreamStatus >= 400) error.upstreamStatus = upstreamStatus;
+      throw error;
+    }
     return result;
+  };
+
+  const formatAdminFailure = (error: unknown, fallback: string) => {
+    if (!(error instanceof Error)) return fallback;
+    const details = error as Error & { status?: number; upstreamStatus?: number };
+    const parts = [
+      details.status ? `HTTP ${details.status}` : '',
+      details.upstreamStatus ? `database ${details.upstreamStatus}` : '',
+      error.message,
+    ].filter(Boolean);
+    return parts.length ? `${fallback} (${parts.join(' · ')})` : fallback;
   };
 
   const mergeFlyingMessages = (incoming: FlyingMessage[]) => {
@@ -1399,7 +1426,7 @@ export default function App() {
     try {
       await workerPost('/api/reset-profile', { target_id: selectedProfile.id });
       alert(t('profileReset'));
-    } catch (e) { console.error(e); alert(t('resetFailed')); }
+    } catch (e) { console.error(e); alert(formatAdminFailure(e, t('resetFailed'))); }
   };
 
   const loadRoles = async () => {
@@ -1419,7 +1446,7 @@ export default function App() {
       await workerPost('/api/roles', { action: 'add', username: uname, role: newRole });
       setNewRoleUsername('');
       await loadRoles();
-    } catch (e) { console.error(e); alert(t('roleUpdateFailed')); }
+    } catch (e) { console.error(e); alert(formatAdminFailure(e, t('roleUpdateFailed'))); }
   };
 
   const handleRemoveRole = async (username: string) => {
@@ -1427,7 +1454,7 @@ export default function App() {
     try {
       await workerPost('/api/roles', { action: 'remove', username });
       await loadRoles();
-    } catch (e) { console.error(e); alert(t('roleUpdateFailed')); }
+    } catch (e) { console.error(e); alert(formatAdminFailure(e, t('roleUpdateFailed'))); }
   };
 
   const handleGrantGlobalVip = async (ms: number) => {
@@ -1437,7 +1464,7 @@ export default function App() {
       setGlobalVipUntil(until);
       setShowVipPeriods(false);
       setShowAdminMenu(false);
-    } catch (e) { console.error(e); alert(t('roleUpdateFailed')); }
+    } catch (e) { console.error(e); alert(formatAdminFailure(e, t('roleUpdateFailed'))); }
   };
 
   const handleSaveFlyingPrice = async () => {
@@ -1455,7 +1482,7 @@ export default function App() {
       setShowAdminMenu(false);
       setFlyingMessageNotice('');
     } catch (error) {
-      setFlyingMessageNotice(error instanceof Error ? error.message : 'Price could not be saved.');
+      setFlyingMessageNotice(formatAdminFailure(error, 'Price could not be saved.'));
     } finally {
       setSavingFlyingPrice(false);
     }
@@ -1467,7 +1494,7 @@ export default function App() {
       await workerPost('/api/reset-all');
       setShowAdminMenu(false);
       alert(t('resetAllDone'));
-    } catch (e) { console.error(e); alert(t('resetFailed')); }
+    } catch (e) { console.error(e); alert(formatAdminFailure(e, t('resetFailed'))); }
   };
 
   const filterSubStatusInfo = (() => {

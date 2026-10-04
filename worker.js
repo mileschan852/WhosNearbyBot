@@ -234,6 +234,15 @@ function sbHeaders(env, write = false) {
   };
 }
 
+function adminWriteFailure(action, error) {
+  const status = Number(error?.status);
+  console.error(`[worker] ${action} failed`, error && error.message);
+  return json({
+    error: `${action} failed`,
+    ...(Number.isInteger(status) && status >= 400 ? { upstreamStatus: status } : {}),
+  }, 502);
+}
+
 async function sbGet(env, path) {
   const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
     headers: sbHeaders(env),
@@ -248,7 +257,11 @@ async function sbGetStrict(env, path) {
     headers: sbHeaders(env),
     signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`Supabase read failed (${res.status})`);
+  if (!res.ok) {
+    const error = new Error(`Supabase read failed (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
   return res.json();
 }
 
@@ -259,20 +272,29 @@ async function sbPostStrict(env, path, body, prefer = "return=representation") {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`Supabase write failed (${res.status})`);
+  if (!res.ok) {
+    const error = new Error(`Supabase write failed (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
 
-async function sbPatchStrict(env, path, body) {
+async function sbPatchStrict(env, path, body, prefer = "return=representation") {
   const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
     method: "PATCH",
-    headers: { ...sbHeaders(env, true), "Prefer": "return=representation" },
+    headers: { ...sbHeaders(env, true), "Prefer": prefer },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`Supabase update failed (${res.status})`);
-  return res.json();
+  if (!res.ok) {
+    const error = new Error(`Supabase update failed (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 async function sbUpsertProfile(env, profile) {
@@ -1069,11 +1091,13 @@ export default {
     // Authorization comes from the verified Telegram user and server-side role
     // lookup; target_id is validated and is never treated as the caller.
     if (path === "/api/reset-profile" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "admin-reset-profile", 10, 60_000);
+      if (retryAfter) return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
       try {
-        const { target_id, initData } = await request.json();
+        const { target_id, initData, bot } = await request.json();
         if (!target_id) return json({ error: "Missing params" }, 400);
-        const authUser = await parseAuthUser(env, initData || "");
-        if (!authUser) return json({ error: "Unauthorized" }, 401);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
         if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
         const targetTelegramId = parseTelegramId(target_id);
         if (!targetTelegramId) return json({ error: "Invalid target ID" }, 400);
@@ -1085,25 +1109,28 @@ export default {
         });
         if (!Array.isArray(result) || result.length === 0) return json({ error: "Profile not found" }, 404);
         return json({ reset: true });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) { return adminWriteFailure("Profile reset", e); }
     }
 
     // GET /api/roles — list managed admin/VIP entries (public read).
     if (path === "/api/roles" && request.method === "GET") {
       try {
-        const rows = await sbGet(env, "rest/v1/app_roles?select=username,role,created_at&order=created_at.asc");
-        return json(Array.isArray(rows) ? rows : []);
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+        const rows = await sbGetStrict(env, "rest/v1/app_roles?select=username,role,created_at&order=created_at.asc");
+        if (!Array.isArray(rows)) return json({ error: "Admin role list returned an invalid response" }, 502);
+        return json(rows);
+      } catch (e) { return adminWriteFailure("Admin role list", e); }
     }
 
     // POST /api/roles — admin-only add/remove of admin/VIP entries.
     // Authorization comes from verified initData; the caller must be an admin.
     // The owner (mileschan852) role can never be added or removed here.
     if (path === "/api/roles" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "admin-role-update", 30, 60_000);
+      if (retryAfter) return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
       try {
-        const { action, username, role, initData } = await request.json();
-        const authUser = await parseAuthUser(env, initData || "");
-        if (!authUser) return json({ error: "Unauthorized" }, 401);
+        const { action, username, role, initData, bot } = await request.json();
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
         if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
         const uname = String(username || "").trim().toLowerCase().replace(/^@/, "");
         if (!/^[a-z0-9_]{5,32}$/.test(uname)) return json({ error: "Invalid username" }, 400);
@@ -1120,12 +1147,19 @@ export default {
         }
         if (action === "remove") {
           const res = await fetch(`${env.SUPABASE_URL}/rest/v1/app_roles?username=eq.${encodeURIComponent(uname)}`, {
-            method: "DELETE", headers: sbHeaders(env, true),
+            method: "DELETE",
+            headers: sbHeaders(env, true),
+            signal: AbortSignal.timeout(8000),
           });
-          return json({ ok: res.ok });
+          if (!res.ok) {
+            const error = new Error(`Supabase delete failed (${res.status})`);
+            error.status = res.status;
+            throw error;
+          }
+          return json({ ok: true });
         }
         return json({ error: "Invalid action" }, 400);
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) { return adminWriteFailure("Admin role update", e); }
     }
 
     // POST /api/global-vip — admin-only. Grants EVERY user all paid functions
@@ -1133,10 +1167,12 @@ export default {
     // Stored in app_settings.global_vip_until; clients read it and treat any
     // future value as VIP-for-all.
     if (path === "/api/global-vip" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "admin-global-vip", 10, 60_000);
+      if (retryAfter) return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
       try {
-        const { until, initData } = await request.json();
-        const authUser = await parseAuthUser(env, initData || "");
-        if (!authUser) return json({ error: "Unauthorized" }, 401);
+        const { until, initData, bot } = await request.json();
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
         if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
         const untilMs = Number(until);
         const value = Number.isFinite(untilMs) && untilMs > Date.now() ? String(Math.floor(untilMs)) : "0";
@@ -1147,34 +1183,43 @@ export default {
           "resolution=merge-duplicates,return=representation",
         );
         return json({ ok: true, until: value });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) { return adminWriteFailure("Global VIP update", e); }
     }
 
     // POST /api/reset-all — admin-only. Clears the required profile fields for
     // EVERY user so the "complete your info" setup screen appears on their next
     // login. Mirrors /api/reset-profile but applied across all rows.
     if (path === "/api/reset-all" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "admin-reset-all", 2, 60_000);
+      if (retryAfter) return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
       try {
-        const { initData } = await request.json();
-        const authUser = await parseAuthUser(env, initData || "");
-        if (!authUser) return json({ error: "Unauthorized" }, 401);
+        const { initData, bot } = await request.json();
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
         if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
         // PostgREST requires a filter for bulk PATCH; `id=not.is.null` matches all.
         await sbPatchStrict(env, "rest/v1/profiles?id=not.is.null", {
-          name: null, username: null, avatar: null, dob: null, height: null, weight: null,
+          name: "", username: null, avatar: null, dob: null, height: null, weight: null,
           gender: "man", seeking: "men", role_pref: null, safety_pref: null, playstyle_pref: null,
           where_pref: null, how_many_pref: null, non_man_mode: null, hide_age: false,
-          grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null,
-        });
-        const resetAt = String(Date.now());
-        await sbPostStrict(
-          env,
-          "rest/v1/app_settings?on_conflict=key",
-          { key: "force_reset_after", value: resetAt, updated_at: new Date().toISOString() },
-          "resolution=merge-duplicates,return=representation",
-        );
-        return json({ ok: true });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+          is_underage: false, grid_visible: true, map_visible: false,
+          hide_age_expiry: null, invisible_expiry: null,
+        }, "return=minimal");
+        let resetTimestampRecorded = true;
+        try {
+          const resetAt = String(Date.now());
+          await sbPostStrict(
+            env,
+            "rest/v1/app_settings?on_conflict=key",
+            { key: "force_reset_after", value: resetAt, updated_at: new Date().toISOString() },
+            "resolution=merge-duplicates,return=minimal",
+          );
+        } catch (error) {
+          resetTimestampRecorded = false;
+          console.error("[worker] reset-all timestamp write failed", error && error.message);
+        }
+        return json({ ok: true, resetTimestampRecorded });
+      } catch (e) { return adminWriteFailure("All-user reset", e); }
     }
 
     // GET /api/health
