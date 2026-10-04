@@ -44,6 +44,62 @@ function rateLimit(request, key, maxRequests = 120, windowMs = 60_000) {
   return 0;
 }
 
+async function readJsonLimited(request, maxBytes = 4096) {
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > maxBytes) {
+    const error = new Error("Request body is too large");
+    error.status = 413;
+    throw error;
+  }
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > maxBytes) {
+    const error = new Error("Request body is too large");
+    error.status = 413;
+    throw error;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const error = new Error("Invalid JSON body");
+    error.status = 400;
+    throw error;
+  }
+}
+
+const MAX_FLYING_MESSAGE_LENGTH = 200;
+const MAX_FLYING_MESSAGE_PRICE = 10_000;
+
+function parseFlyingMessageInvoicePayload(value) {
+  const match = /^fm1\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|(botA|botB)\|([0-9]{1,20})\|([0-9]{1,5})$/i.exec(String(value || ""));
+  if (!match) return null;
+  const tgId = parseTelegramId(match[3]);
+  const amount = Number(match[4]);
+  if (!tgId || !Number.isSafeInteger(amount) || amount < 1 || amount > MAX_FLYING_MESSAGE_PRICE) return null;
+  return { intentId: match[1], bot: match[2], tgId, amount };
+}
+
+function unwrapRpcResult(result) {
+  return Array.isArray(result) ? result[0] : result;
+}
+
+async function getFlyingMessagePrice(env) {
+  const rows = await sbGetStrict(
+    env,
+    "rest/v1/app_settings?select=value&key=eq.flying_message_price&limit=1",
+  );
+  const rawValue = Array.isArray(rows) ? rows[0]?.value : rows?.value;
+  const price = rawValue === undefined || rawValue === null ? 0 : Number(rawValue);
+  if (!Number.isSafeInteger(price) || price < 0 || price > MAX_FLYING_MESSAGE_PRICE) {
+    throw new Error("Flying message price setting is invalid");
+  }
+  return price;
+}
+
+async function getEffectiveFlyingMessagePrice(env, authUser) {
+  if (await isPaidUnlocked(env, authUser)) return 0;
+  return getFlyingMessagePrice(env);
+}
+
 function getBotToken(env, bot) {
   if (bot !== "botA" && bot !== "botB") return null;
   const selected = bot === "botA" ? env.BOT_A_TOKEN : env.BOT_B_TOKEN;
@@ -77,6 +133,24 @@ function computeAge(dob) {
   const m = now.getMonth() - b.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
   return age;
+}
+
+async function isEligibleAdultMessageUser(env, authUser) {
+  const tgId = parseTelegramId(authUser?.id);
+  if (!tgId) return false;
+  const params = new URLSearchParams({
+    select: "dob,is_underage",
+    id: `eq.tg_${tgId}`,
+    limit: "1",
+  });
+  const rows = await sbGetStrict(env, `rest/v1/profiles?${params}`);
+  const profile = Array.isArray(rows) ? rows[0] : null;
+  return Boolean(
+    profile &&
+    profile.is_underage !== true &&
+    typeof profile.dob === "string" &&
+    computeAge(profile.dob) >= 18
+  );
 }
 
 function getZodiacSignEmoji(dob) {
@@ -170,7 +244,10 @@ async function sbGet(env, path) {
 }
 
 async function sbGetStrict(env, path) {
-  const res = await fetch(`${env.SUPABASE_URL}/${path}`, { headers: sbHeaders(env) });
+  const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
+    headers: sbHeaders(env),
+    signal: AbortSignal.timeout(8000),
+  });
   if (!res.ok) throw new Error(`Supabase read failed (${res.status})`);
   return res.json();
 }
@@ -180,6 +257,7 @@ async function sbPostStrict(env, path, body, prefer = "return=representation") {
     method: "POST",
     headers: { ...sbHeaders(env, true), "Prefer": prefer },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Supabase write failed (${res.status})`);
   const text = await res.text();
@@ -191,6 +269,7 @@ async function sbPatchStrict(env, path, body) {
     method: "PATCH",
     headers: { ...sbHeaders(env, true), "Prefer": "return=representation" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Supabase update failed (${res.status})`);
   return res.json();
@@ -276,20 +355,48 @@ const ALLOWED_TYPES = {
 async function handlePaymentUpdate(env, update) {
   if (update.pre_checkout_query) {
     const query = update.pre_checkout_query;
+    const flyingInvoice = parseFlyingMessageInvoicePayload(query.invoice_payload);
     let payment = null;
     try { payment = JSON.parse(query.invoice_payload || "null"); } catch {}
-    const bot = payment?.bot === "botA" ? "botA" : "botB";
+    const bot = flyingInvoice?.bot || (payment?.bot === "botA" ? "botA" : "botB");
     const token = getBotToken(env, bot);
     if (!token) return new Response("Payment bot is not configured", { status: 503 });
-    const config = payment && ALLOWED_TYPES[payment.type];
-    const amount = payment?.amount ?? payment?.finalAmount;
-    const valid = Boolean(
-      token && config &&
-      parseTelegramId(payment?.tg_id) === String(query.from?.id || "") &&
-      amount === config.amount &&
-      query.currency === "XTR" &&
-      query.total_amount === config.amount
-    );
+    let valid = false;
+    if (flyingInvoice) {
+      valid = Boolean(
+        String(query.from?.id || "") === flyingInvoice.tgId &&
+        query.currency === "XTR" &&
+        query.total_amount === flyingInvoice.amount
+      );
+      if (valid) {
+        try {
+          const result = unwrapRpcResult(await sbPostStrict(
+            env,
+            "rest/v1/rpc/mark_flying_message_prechecked",
+            {
+              p_intent_id: flyingInvoice.intentId,
+              p_tg_id: flyingInvoice.tgId,
+              p_bot: flyingInvoice.bot,
+              p_amount: flyingInvoice.amount,
+            },
+          ));
+          valid = result?.ok === true;
+        } catch (error) {
+          console.error("[worker] flying message pre-checkout verification failed", error && error.message);
+          valid = false;
+        }
+      }
+    } else {
+      const config = payment && ALLOWED_TYPES[payment.type];
+      const amount = payment?.amount ?? payment?.finalAmount;
+      valid = Boolean(
+        config &&
+        parseTelegramId(payment?.tg_id) === String(query.from?.id || "") &&
+        amount === config.amount &&
+        query.currency === "XTR" &&
+        query.total_amount === config.amount
+      );
+    }
     const result = await fetch(`https://api.telegram.org/bot${token || ""}/answerPreCheckoutQuery`, {
       method: "POST",
       body: JSON.stringify({
@@ -298,12 +405,35 @@ async function handlePaymentUpdate(env, update) {
         ...(!valid ? { error_message: "This invoice is no longer valid. Please create a new one." } : {}),
       }),
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(8000),
     });
-    if (!result.ok) throw new Error(`Telegram pre-checkout response failed (${result.status})`);
+    const answer = await result.json();
+    if (!result.ok || !answer.ok) throw new Error(`Telegram pre-checkout response failed (${result.status})`);
     return new Response("OK");
   }
   if (update.message?.successful_payment) {
     const payment = update.message.successful_payment;
+    const flyingInvoice = parseFlyingMessageInvoicePayload(payment.invoice_payload);
+    if (flyingInvoice) {
+      if (
+        String(update.message.from?.id || "") !== flyingInvoice.tgId ||
+        payment.currency !== "XTR" ||
+        payment.total_amount !== flyingInvoice.amount ||
+        !payment.telegram_payment_charge_id
+      ) {
+        return new Response("Invalid flying message payment", { status: 400 });
+      }
+      await sbPostStrict(env, "rest/v1/rpc/complete_flying_message_payment", {
+        p_intent_id: flyingInvoice.intentId,
+        p_tg_id: flyingInvoice.tgId,
+        p_bot: flyingInvoice.bot,
+        p_amount: payment.total_amount,
+        p_currency: payment.currency,
+        p_telegram_payment_charge_id: payment.telegram_payment_charge_id,
+        p_provider_payment_charge_id: payment.provider_payment_charge_id || null,
+      });
+      return new Response("OK");
+    }
     let payload;
     try { payload = JSON.parse(payment.invoice_payload || "null"); } catch {}
     const tgId = parseTelegramId(payload?.tg_id);
@@ -667,28 +797,266 @@ export default {
       }
     }
 
-    // GET/POST /api/messages
-    if (path === "/api/messages" && request.method === "GET") {
+    // POST /api/messages/feed — authenticated, short-lived messages for this
+    // entry bot only. The database service key never reaches the browser.
+    if (path === "/api/messages/feed" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "flying-message-feed", 900, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
       try {
-        const requestedLimit = parseInt(url.searchParams.get("limit") || "10", 10);
-        const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 50) : 10;
-        return json(await sbGet(env, `rest/v1/flying_messages?order=created_at.desc&limit=${limit}`) || []);
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
-    }
-    if (path === "/api/messages" && request.method === "POST") {
-      try {
-        const { text, initData } = await request.json();
-        const authUser = await parseAuthUser(env, initData || "");
-        if (!authUser) return json({ error: "Unauthorized" }, 401);
-        if (typeof text !== "string" || !text.trim()) return json({ error: "Missing text" }, 400);
-        await sbPostStrict(env, "rest/v1/flying_messages", {
-          id: crypto.randomUUID(),
-          tg_id: parseTelegramId(authUser.id),
-          text: text.trim().slice(0, 200),
-          from_name: String(authUser.first_name || "Anonymous").slice(0, 60),
+        const { initData, bot } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (!(await isEligibleAdultMessageUser(env, authUser))) {
+          return json({ error: "Complete an adult profile before viewing messages." }, 403);
+        }
+
+        const since = new Date(Date.now() - 12_000).toISOString();
+        const params = new URLSearchParams({
+          select: "id,tg_id,text,from_name,created_at,audience_bot",
+          audience_bot: `eq.${bot}`,
+          created_at: `gte.${since}`,
+          order: "created_at.asc",
+          limit: "50",
         });
+        const [messages, starsPrice] = await Promise.all([
+          sbGetStrict(env, `rest/v1/flying_messages?${params}`),
+          getFlyingMessagePrice(env),
+        ]);
+        return json({ messages: Array.isArray(messages) ? messages : [], starsPrice });
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] flying message feed failed", e && e.message);
+        return json({ error: "Internal error" }, 500);
+      }
+    }
+
+    if (path === "/api/messages" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "flying-message-send", 60, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const { text, initData, bot } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (typeof text !== "string") return json({ error: "Enter a message first." }, 400);
+        const safeText = text.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim();
+        if (!safeText || [...safeText].length > MAX_FLYING_MESSAGE_LENGTH) {
+          return json({ error: "Messages must contain 1 to 200 characters." }, 400);
+        }
+
+        const tgId = parseTelegramId(authUser.id);
+        if (!tgId) return json({ error: "Invalid Telegram user." }, 401);
+        const fromName = String(authUser.first_name || "Anonymous")
+          .replace(/\p{Cc}/gu, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 60) || "Anonymous";
+        const starsPrice = await getEffectiveFlyingMessagePrice(env, authUser);
+
+        if (starsPrice === 0) {
+          const result = unwrapRpcResult(await sbPostStrict(
+            env,
+            "rest/v1/rpc/send_free_flying_message",
+            { p_tg_id: tgId, p_bot: bot, p_text: safeText, p_from_name: fromName },
+          ));
+          if (!result?.ok) {
+            const reason = result?.reason;
+            const retry = Number(result?.retry_after) || 0;
+            const status = reason === "cooldown" ? 429 : reason === "pending_invoice" ? 409 : reason === "profile" ? 403 : 400;
+            const error = reason === "cooldown"
+              ? `You can send another flying message in ${retry} seconds.`
+              : reason === "pending_invoice"
+                ? "Finish or cancel your existing message invoice first."
+                : reason === "profile"
+                  ? "Complete an adult profile before sending messages."
+                  : "Message could not be sent.";
+            return json(
+              { error, ...(retry ? { retryAfter: retry } : {}) },
+              status,
+              retry ? { "retry-after": String(retry) } : {},
+            );
+          }
+          return json({ ok: true, message: result.message });
+        }
+
+        const token = getBotToken(env, bot);
+        if (!token) return json({ error: "Payment bot is not configured" }, 503);
+        const intentId = crypto.randomUUID();
+        const prepared = unwrapRpcResult(await sbPostStrict(
+          env,
+          "rest/v1/rpc/prepare_flying_message_intent",
+          {
+            p_intent_id: intentId,
+            p_tg_id: tgId,
+            p_bot: bot,
+            p_text: safeText,
+            p_from_name: fromName,
+            p_amount: starsPrice,
+          },
+        ));
+        if (!prepared?.ok) {
+          const reason = prepared?.reason;
+          const retry = Number(prepared?.retry_after) || 0;
+          const status = reason === "cooldown" ? 429 : reason === "pending_invoice" ? 409 : reason === "profile" ? 403 : 400;
+          const error = reason === "cooldown"
+            ? `You can send another flying message in ${retry} seconds.`
+            : reason === "pending_invoice"
+              ? "Finish or cancel your existing message invoice first."
+              : reason === "profile"
+                ? "Complete an adult profile before sending messages."
+                : "Message could not be sent.";
+          return json(
+            { error, ...(retry ? { retryAfter: retry } : {}) },
+            status,
+            retry ? { "retry-after": String(retry) } : {},
+          );
+        }
+
+        try {
+          const response = await fetch(`https://api.telegram.org/bot${token}/createInvoiceLink`, {
+            method: "POST",
+            body: JSON.stringify({
+              title: "Flying message",
+              description: `Send a message to online users for ${starsPrice} Telegram Stars.`,
+              payload: `fm1|${intentId}|${bot}|${tgId}|${starsPrice}`,
+              provider_token: "",
+              currency: "XTR",
+              prices: [{ label: "Flying message", amount: starsPrice }],
+            }),
+            headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(8000),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok || typeof data.result !== "string") {
+            throw new Error(data.description || "Telegram invoice request failed");
+          }
+          return json({ ok: true, invoiceLink: data.result, intentId, starsPrice });
+        } catch (error) {
+          try {
+            await sbPatchStrict(
+              env,
+              `rest/v1/flying_message_intents?id=eq.${intentId}&status=eq.pending`,
+              { status: "cancelled" },
+            );
+          } catch {}
+          console.error("[worker] flying message invoice failed", error && error.message);
+          return json({ error: "Could not create a Telegram Stars invoice. Please try again." }, 502);
+        }
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] flying message send failed", e && e.message);
+        return json({ error: "Internal error" }, 500);
+      }
+    }
+
+    if (path === "/api/messages/status" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "flying-message-status", 20, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const { initData, bot, intentId } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(intentId || ""))) {
+          return json({ error: "Invalid invoice reference." }, 400);
+        }
+        const tgId = parseTelegramId(authUser.id);
+        const params = new URLSearchParams({
+          select: "status,message_id",
+          id: `eq.${intentId}`,
+          tg_id: `eq.${tgId}`,
+          audience_bot: `eq.${bot}`,
+          limit: "1",
+        });
+        const rows = await sbGetStrict(env, `rest/v1/flying_message_intents?${params}`);
+        const intent = Array.isArray(rows) ? rows[0] : null;
+        if (!intent) return json({ error: "Invoice not found." }, 404);
+        let message = null;
+        if (intent.status === "fulfilled" && intent.message_id) {
+          const messageParams = new URLSearchParams({
+            select: "id,tg_id,text,from_name,created_at,audience_bot",
+            id: `eq.${intent.message_id}`,
+            limit: "1",
+          });
+          const messageRows = await sbGetStrict(env, `rest/v1/flying_messages?${messageParams}`);
+          message = Array.isArray(messageRows) ? messageRows[0] || null : null;
+        }
+        return json({ status: intent.status, message });
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] flying message status failed", e && e.message);
+        return json({ error: "Internal error" }, 500);
+      }
+    }
+
+    if (path === "/api/messages/cancel" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "flying-message-cancel", 10, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const { initData, bot, intentId } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(intentId || ""))) {
+          return json({ error: "Invalid invoice reference." }, 400);
+        }
+        const tgId = parseTelegramId(authUser.id);
+        const filters = new URLSearchParams({
+          id: `eq.${intentId}`,
+          tg_id: `eq.${tgId}`,
+          audience_bot: `eq.${bot}`,
+          status: "eq.pending",
+        });
+        await sbPatchStrict(env, `rest/v1/flying_message_intents?${filters}`, { status: "cancelled" });
         return json({ ok: true });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] flying message cancellation failed", e && e.message);
+        return json({ error: "Internal error" }, 500);
+      }
+    }
+
+    if (path === "/api/admin/flying-message-price" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "flying-message-price-admin", 20, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const { initData, bot, starsPrice } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
+        const price = Number(starsPrice);
+        if (!Number.isSafeInteger(price) || price < 0 || price > MAX_FLYING_MESSAGE_PRICE) {
+          return json({ error: "Price must be between 0 and 10000 Stars." }, 400);
+        }
+        await sbPostStrict(
+          env,
+          "rest/v1/app_settings?on_conflict=key",
+          { key: "flying_message_price", value: String(price), updated_at: new Date().toISOString() },
+          "resolution=merge-duplicates,return=minimal",
+        );
+        return json({ ok: true, starsPrice: price });
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] flying message price update failed", e && e.message);
+        return json({ error: "Internal error" }, 500);
+      }
+    }
+
+    // The old unauthenticated global feed is deliberately disabled.
+    if (path === "/api/messages" && request.method === "GET") {
+      return json({ error: "Use the authenticated messages feed." }, 405);
     }
 
     // GET /api/raffle
