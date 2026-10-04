@@ -20,3 +20,59 @@ html, body, #root {
 .dark-map-tiles {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) grayscale(0.2);
 }
+
+.flying-message-layer {
+  position: fixed;
+  top: 112px;
+  right: 0;
+  bottom: 60px;
+  left: 0;
+  overflow: hidden;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.flying-message-item {
+  position: absolute;
+  left: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(86vw, 760px);
+  padding: 7px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(96, 165, 250, 0.8);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.94);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.48);
+  color: #fff;
+  white-space: nowrap;
+  animation: flying-message-across 10s linear both;
+  will-change: transform;
+}
+
+.flying-message-name {
+  flex: 0 0 auto;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flying-message-text {
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+@keyframes flying-message-across {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-100vw - 100%)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flying-message-item {
+    left: 8px;
+    animation: none;
+  }
+}

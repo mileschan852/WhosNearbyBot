@@ -50,6 +50,59 @@ const PAYMENT_WORKER_URL = (import.meta.env.DEV && import.meta.env.VITE_PAYMENT_
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
 
+type FlyingMessageCopy = {
+  placeholder: string;
+  send: string;
+  free: string;
+  priceLabel: string;
+  save: string;
+  sending: string;
+  cooldown: string;
+  invoiceFallback: string;
+};
+
+type FlyingMessage = {
+  id: string;
+  tg_id: string;
+  text: string;
+  from_name: string;
+  created_at: string;
+  audience_bot: 'botA' | 'botB';
+};
+
+const flyingMessageCopy: Record<LangKey, FlyingMessageCopy> = {
+  en: {
+    placeholder: 'Send a flying message…', send: 'Send', free: 'FREE',
+    priceLabel: 'Flying message price (Stars)', save: 'Save', sending: 'Sending…',
+    cooldown: 'Send again in {seconds}s', invoiceFallback: 'Complete the invoice in Telegram. Your message appears after payment is confirmed.',
+  },
+  'zh-CN': {
+    placeholder: '发送飞行消息…', send: '发送', free: '免费',
+    priceLabel: '飞行消息价格（Stars）', save: '保存', sending: '发送中…',
+    cooldown: '{seconds} 秒后可再次发送', invoiceFallback: '请在 Telegram 中完成付款。确认付款后消息将显示。',
+  },
+  'zh-TW': {
+    placeholder: '傳送飛行訊息…', send: '傳送', free: '免費',
+    priceLabel: '飛行訊息價格（Stars）', save: '儲存', sending: '傳送中…',
+    cooldown: '{seconds} 秒後可再次傳送', invoiceFallback: '請在 Telegram 中完成付款。確認付款後訊息將顯示。',
+  },
+  ja: {
+    placeholder: 'フライングメッセージを送信…', send: '送信', free: '無料',
+    priceLabel: 'フライングメッセージの料金（Stars）', save: '保存', sending: '送信中…',
+    cooldown: 'あと {seconds} 秒で送信できます', invoiceFallback: 'Telegramで支払いを完了してください。決済確認後にメッセージが表示されます。',
+  },
+  ko: {
+    placeholder: '플라잉 메시지 보내기…', send: '보내기', free: '무료',
+    priceLabel: '플라잉 메시지 가격(Stars)', save: '저장', sending: '전송 중…',
+    cooldown: '{seconds}초 후 다시 보낼 수 있습니다', invoiceFallback: 'Telegram에서 결제를 완료하세요. 결제가 확인되면 메시지가 표시됩니다.',
+  },
+  ru: {
+    placeholder: 'Отправить летящее сообщение…', send: 'Отправить', free: 'БЕСПЛАТНО',
+    priceLabel: 'Цена сообщения (Stars)', save: 'Сохранить', sending: 'Отправка…',
+    cooldown: 'Повторная отправка через {seconds} с', invoiceFallback: 'Завершите оплату в Telegram. Сообщение появится после подтверждения.',
+  },
+};
+
 const translations: Record<LangKey, Record<string, string>> = {
   'en': {
     loading: 'Loading app...', locationRequired: 'Location Access Required', locationMessage: "Location permission is mandatory to use Who's Nearby. Please enable location access in your browser or Telegram settings and restart the app.", accessDenied: 'Access Denied', underageMessage: 'The app is for adults only. Access has been locked for this account due to age restrictions.', completeProfile: 'Complete Your Profile', profileWarning: 'Warning: This cannot be changed in the future. Information entered here affects who you can see and interact with.', dob: 'Date of Birth:', imA: "I'm a", seeking: 'seeking', man: 'man', woman: 'woman', nonBinary: 'non-binary', men: 'men', women: 'women', everyone: 'everyone', height: 'Height:', selectHeight: 'Select height', weight: 'Weight:', selectWeight: 'Select weight', tapToChange: 'tap to change your preference:', mode: 'Mode:', browsingOnly: 'Browsing only - You cannot send not receive private message from others', onlineOnly: 'Online only - You are visible on grid but not on map, map is inaccessible', meetUp: 'Meet up - You are visible on grid and map', saveProfile: 'Save Profile & Continue', whosNearby: "Who's Nearby", filter: 'Filter', refresh: 'Refresh', grid: 'Grid', chat: 'Chat', map: 'Map', wallet: 'Wallet', filterUsers: 'Filter Users', ageRange: 'Age Range', preferenceMatcher: 'Preference Matcher', rolePreference: 'Role Preference', safetyPreference: 'Safety Preference', playstylePreference: 'Playstyle Preference', groupSize: 'Group Size', applyFilters: 'Apply Filters', ageHidden: 'Age Hidden (Click to Show)', ageShown: 'Age Shown (Click to Hide)', expires: 'Expires:', sendMessage: 'Send Message', unlockPreference: 'Change Profile & Preferences', iGotStuff: 'I got stuff', unlockPreferencePrompt: 'Changing your profile/preferences requires a one-time payment of 1000 Telegram Stars. Proceed to payment?', invisiblePrompt: 'Going invisible requires a 30-day subscription for 3000 Telegram Stars. Proceed to payment?', hideAgePrompt: 'Hiding your age for 30 days costs 1000 Telegram Stars. Proceed to payment?', filterSubPrompt: 'Customizing this filter requires a subscription. Proceed to payment?', paymentCancelled: 'Payment was cancelled or failed.', paymentProcessing: 'Payment received; access is still updating. Please refresh shortly.', errorSaving: 'Error saving profile:', fillAll: 'Please fill in all required questions to continue.',
@@ -358,6 +411,14 @@ const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolea
   });
 };
 
+const flyingMessageLane = (id: string) => {
+  let hash = 0;
+  for (let index = 0; index < id.length; index++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(index)) | 0;
+  }
+  return 8 + (Math.abs(hash) % 82);
+};
+
 export default function App() {
   const verifiedBotKeyRef = useRef<'botA' | 'botB' | null>(null);
   const [lang, setLang] = useState<LangKey>('en');
@@ -384,6 +445,16 @@ export default function App() {
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
   const [showRolesModal, setShowRolesModal] = useState<boolean>(false);
   const [showVipPeriods, setShowVipPeriods] = useState<boolean>(false);
+  const [showFlyingPriceEditor, setShowFlyingPriceEditor] = useState<boolean>(false);
+  const [flyingPriceDraft, setFlyingPriceDraft] = useState<string>('0');
+  const [savingFlyingPrice, setSavingFlyingPrice] = useState<boolean>(false);
+  const [flyingMessagePrice, setFlyingMessagePrice] = useState<number>(0);
+  const [flyingMessageText, setFlyingMessageText] = useState<string>('');
+  const [flyingMessages, setFlyingMessages] = useState<FlyingMessage[]>([]);
+  const [flyingMessageNotice, setFlyingMessageNotice] = useState<string>('');
+  const [sendingFlyingMessage, setSendingFlyingMessage] = useState<boolean>(false);
+  const [flyingCooldownUntil, setFlyingCooldownUntil] = useState<number>(0);
+  const [cooldownClock, setCooldownClock] = useState<number>(Date.now());
   const [newRoleUsername, setNewRoleUsername] = useState<string>('');
   const [newRole, setNewRole] = useState<'admin' | 'vip'>('vip');
   const [showStuffBubble, setShowStuffBubble] = useState<boolean>(false);
@@ -489,7 +560,12 @@ export default function App() {
     });
     let result: any = {};
     try { result = await response.json(); } catch {}
-    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+    if (!response.ok) {
+      const error = new Error(result.error || `Request failed (${response.status})`) as Error & { retryAfter?: number };
+      const retryAfter = Number(result.retryAfter || response.headers.get('retry-after'));
+      if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+      throw error;
+    }
     return result;
   };
 
@@ -502,6 +578,73 @@ export default function App() {
     if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
     return result;
   };
+
+  const mergeFlyingMessages = (incoming: FlyingMessage[]) => {
+    const cutoff = Date.now() - 10_000;
+    setFlyingMessages((current) => {
+      const combined = new Map<string, FlyingMessage>();
+      for (const message of current) {
+        if (Date.parse(message.created_at) >= cutoff) combined.set(message.id, message);
+      }
+      for (const message of incoming) {
+        if (
+          message &&
+          typeof message.id === 'string' &&
+          typeof message.text === 'string' &&
+          typeof message.created_at === 'string' &&
+          Date.parse(message.created_at) >= cutoff
+        ) {
+          combined.set(message.id, message);
+        }
+      }
+      return [...combined.values()].slice(-24);
+    });
+  };
+
+  useEffect(() => {
+    if (!isReady || !currentUser) return;
+    let active = true;
+    let polling = false;
+    const pollMessages = async () => {
+      if (!active || polling) return;
+      polling = true;
+      try {
+        const feed = await workerPost('/api/messages/feed');
+        if (!active) return;
+        if (Number.isSafeInteger(feed.starsPrice) && feed.starsPrice >= 0) {
+          setFlyingMessagePrice(feed.starsPrice);
+        }
+        if (Array.isArray(feed.messages)) mergeFlyingMessages(feed.messages as FlyingMessage[]);
+      } catch {
+        // Keep the last animation state; the next poll retries automatically.
+      } finally {
+        polling = false;
+      }
+    };
+    void pollMessages();
+    const timer = window.setInterval(() => void pollMessages(), 2000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [isReady, currentUser?.id]);
+
+  useEffect(() => {
+    if (!flyingCooldownUntil) return;
+    setCooldownClock(Date.now());
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setCooldownClock(now);
+      if (now >= flyingCooldownUntil) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [flyingCooldownUntil]);
+
+  useEffect(() => {
+    if (!flyingMessageNotice) return;
+    const timer = window.setTimeout(() => setFlyingMessageNotice(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [flyingMessageNotice]);
 
   const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
     if (pRole === 'Top') setFilterRoleVal('Bottom');
@@ -815,6 +958,59 @@ export default function App() {
     const result = await workerPost('/create-invoice', { userId: currentUser?.id, type });
     if (!result.invoiceLink) throw new Error('The payment service did not return an invoice link.');
     return startInvoice(result.invoiceLink as string);
+  };
+
+  const handleSendFlyingMessage = async () => {
+    const text = flyingMessageText.trim();
+    if (!text || sendingFlyingMessage) return;
+    setFlyingMessageNotice('');
+    setSendingFlyingMessage(true);
+    try {
+      const result = await workerPost('/api/messages', { text });
+      if (result.message) {
+        mergeFlyingMessages([result.message as FlyingMessage]);
+        setFlyingMessageText('');
+        setFlyingCooldownUntil(Date.now() + 60_000);
+        return;
+      }
+
+      if (!result.invoiceLink || !result.intentId) {
+        throw new Error('The payment service did not return an invoice link.');
+      }
+      const invoiceStatus = await startInvoice(result.invoiceLink as string);
+      if (invoiceStatus === 'paid') {
+        setFlyingMessageText('');
+        let paidMessage: FlyingMessage | null = null;
+        for (let attempt = 0; attempt < 12; attempt++) {
+          try {
+            const status = await workerPost('/api/messages/status', { intentId: result.intentId });
+            if (status.status === 'fulfilled') {
+              paidMessage = status.message as FlyingMessage | null;
+              break;
+            }
+          } catch {
+            // The webhook may still be processing; keep checking briefly.
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+        }
+        if (paidMessage) mergeFlyingMessages([paidMessage]);
+        setFlyingCooldownUntil(Date.now() + 60_000);
+        setFlyingMessageNotice(paidMessage ? '' : t('paymentProcessing'));
+      } else if (invoiceStatus === 'unsupported') {
+        setFlyingMessageText('');
+        setFlyingMessageNotice(flyingMessageCopy[lang].invoiceFallback);
+      } else {
+        try { await workerPost('/api/messages/cancel', { intentId: result.intentId }); } catch {}
+        setFlyingMessageText(text);
+        setFlyingMessageNotice(t('paymentCancelled'));
+      }
+    } catch (error) {
+      const apiError = error as Error & { retryAfter?: number };
+      if (apiError.retryAfter) setFlyingCooldownUntil(Date.now() + apiError.retryAfter * 1000);
+      setFlyingMessageNotice(apiError.message || 'Message could not be sent.');
+    } finally {
+      setSendingFlyingMessage(false);
+    }
   };
 
   const verifyFilterSubscription = async (): Promise<boolean> => {
@@ -1240,6 +1436,27 @@ export default function App() {
     } catch (e) { console.error(e); alert(t('roleUpdateFailed')); }
   };
 
+  const handleSaveFlyingPrice = async () => {
+    const price = Number(flyingPriceDraft);
+    if (!Number.isSafeInteger(price) || price < 0 || price > 10_000) {
+      setFlyingMessageNotice('Price must be between 0 and 10000 Stars.');
+      return;
+    }
+    setSavingFlyingPrice(true);
+    try {
+      const result = await workerPost('/api/admin/flying-message-price', { starsPrice: price });
+      setFlyingMessagePrice(result.starsPrice);
+      setFlyingPriceDraft(String(result.starsPrice));
+      setShowFlyingPriceEditor(false);
+      setShowAdminMenu(false);
+      setFlyingMessageNotice('');
+    } catch (error) {
+      setFlyingMessageNotice(error instanceof Error ? error.message : 'Price could not be saved.');
+    } finally {
+      setSavingFlyingPrice(false);
+    }
+  };
+
   const handleResetAll = async () => {
     if (!window.confirm(t('forceResetAllConfirm'))) return;
     try {
@@ -1266,6 +1483,13 @@ export default function App() {
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
   const isHkModEntry = (window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode' || window.location.search.includes('mode=gay'));
   const passesFilterForActive = activeProfile ? checkFilterPass(activeProfile) : true;
+  const flyingMessageWaitSeconds = Math.max(0, Math.ceil((flyingCooldownUntil - cooldownClock) / 1000));
+  const flyingCopy = flyingMessageCopy[lang];
+  const flyingComposerStatus = flyingMessageNotice || (
+    flyingMessageWaitSeconds > 0
+      ? flyingCopy.cooldown.replace('{seconds}', String(flyingMessageWaitSeconds))
+      : ''
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -1390,6 +1614,43 @@ export default function App() {
         </div>
       </header>
 
+      <div style={{ position: 'relative', zIndex: 11, height: '52px', minHeight: '52px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', padding: '6px 12px' }}>
+        <form
+          onSubmit={(event) => { event.preventDefault(); void handleSendFlyingMessage(); }}
+          style={{ height: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <input
+            type="text"
+            value={flyingMessageText}
+            onChange={(event) => setFlyingMessageText(event.target.value)}
+            maxLength={200}
+            placeholder={flyingCopy.placeholder}
+            aria-label={flyingCopy.placeholder}
+            disabled={!currentUser || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
+            style={{ flex: 1, minWidth: 0, height: '38px', borderRadius: '8px', border: '1px solid #3f4652', backgroundColor: '#121212', color: '#fff', padding: '0 12px', fontSize: '14px', outline: 'none' }}
+          />
+          <span style={{ minWidth: '42px', textAlign: 'center', color: flyingMessagePrice > 0 ? '#f5c518' : '#4ade80', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            {flyingMessagePrice > 0 ? `${flyingMessagePrice} ⭐` : flyingCopy.free}
+          </span>
+          <button
+            type="submit"
+            title={flyingCopy.send}
+            aria-label={flyingCopy.send}
+            disabled={!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
+            style={{ width: '38px', height: '38px', flex: '0 0 38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: '8px', color: '#fff', backgroundColor: (!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0) ? '#3b4656' : '#007bff', cursor: 'pointer' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
+        </form>
+        {flyingComposerStatus && (
+          <div role="status" aria-live="polite" style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', zIndex: 12, padding: '5px 8px', borderRadius: '0 0 6px 6px', backgroundColor: '#202938', color: '#dbeafe', fontSize: '11px', textAlign: 'center', boxShadow: '0 3px 8px rgba(0,0,0,0.35)' }}>
+            {flyingComposerStatus}
+          </div>
+        )}
+      </div>
+
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
@@ -1440,6 +1701,23 @@ export default function App() {
         </div>
       </main>
 
+      <div className="flying-message-layer" aria-hidden="true">
+        {flyingMessages.map((message) => {
+          const ageMs = Math.max(0, Date.now() - Date.parse(message.created_at));
+          if (ageMs >= 10_000) return null;
+          return (
+            <div
+              key={message.id}
+              className="flying-message-item"
+              style={{ top: `${flyingMessageLane(message.id)}%`, animationDelay: `-${ageMs / 1000}s` }}
+            >
+              <span className="flying-message-name">{message.from_name}</span>
+              <span className="flying-message-text">{message.text}</span>
+            </div>
+          );
+        })}
+      </div>
+
       {activeProfile && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={() => setSelectedProfile(null)}>
           <div style={{ position: 'relative', backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
@@ -1460,6 +1738,40 @@ export default function App() {
                 {showAdminMenu && (
                   <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: '34px', left: 0, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '6px', minWidth: '210px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <button type="button" onClick={() => { setShowAdminMenu(false); setShowVipPeriods(false); setShowRolesModal(true); loadRoles(); }} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('adminVipList')}</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlyingPriceDraft(String(flyingMessagePrice));
+                        setShowFlyingPriceEditor((value) => !value);
+                      }}
+                      style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '12px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      {flyingCopy.priceLabel} · {flyingMessagePrice} ⭐
+                    </button>
+                    {showFlyingPriceEditor && (
+                      <form
+                        onSubmit={(event) => { event.preventDefault(); void handleSaveFlyingPrice(); }}
+                        style={{ display: 'flex', gap: '5px', padding: '2px 0 4px' }}
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          max={10000}
+                          step={1}
+                          value={flyingPriceDraft}
+                          onChange={(event) => setFlyingPriceDraft(event.target.value)}
+                          aria-label={flyingCopy.priceLabel}
+                          style={{ flex: 1, minWidth: 0, padding: '7px', backgroundColor: '#121212', color: '#fff', border: '1px solid #555', borderRadius: '5px', fontSize: '12px' }}
+                        />
+                        <button
+                          type="submit"
+                          disabled={savingFlyingPrice}
+                          style={{ padding: '7px 9px', backgroundColor: '#166534', border: '1px solid #15803d', borderRadius: '5px', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: savingFlyingPrice ? 'wait' : 'pointer' }}
+                        >
+                          {savingFlyingPrice ? flyingCopy.sending : flyingCopy.save}
+                        </button>
+                      </form>
+                    )}
                     <button type="button" onClick={() => setShowVipPeriods((v) => !v)} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}><span>{t('grantVipAll')}</span><span style={{ color: '#f5c518', fontSize: '11px' }}>{showVipPeriods ? '▾' : '▸'}</span></button>
                     {globalVipActive && (<div style={{ fontSize: '10px', color: '#f5c518', padding: '0 4px' }}>{t('vip')} · {t('expires')} {new Date(globalVipUntil).toLocaleDateString()}</div>)}
                     {showVipPeriods && (
