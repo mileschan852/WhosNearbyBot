@@ -8,7 +8,7 @@ import './index.css'; // Assuming you have a basic reset here
 // Official Telegram Wallet is the ONLY wallet allowed to connect (per owner spec).
 // The single-wallet modal only offers the Telegram Wallet entry from the
 // canonical TON Connect registry — no other wallet can be picked.
-const TONCONNECT_MANIFEST_URL = 'https://teleclaw-dispatch.silent-flower-a7c2.workers.dev/f6710d69cb37/tonconnect-manifest.json';
+const TONCONNECT_MANIFEST_URL = 'https://mileschan852.github.io/WhosNearbyBot/tonconnect-manifest.json';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

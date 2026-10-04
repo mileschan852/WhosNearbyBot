@@ -99,9 +99,9 @@ NEVER committed; wrangler.toml deliberately contains none):
 
 Deployment URL of the Worker: https://whosnearbybot.mileschan852.workers.dev
 The old teleclaw-dispatch.silent-flower-a7c2.workers.dev/... host is DEAD — do
-not use it. It STILL lingers in .env.example, public/tonconnect-manifest.json
-and src/main.tsx (TONCONNECT_MANIFEST_URL) and must be repointed on any rebuild
-(see OPEN ITEMS).
+not use it. TON Connect now fetches its manifest from the GitHub Pages site at
+https://mileschan852.github.io/WhosNearbyBot/tonconnect-manifest.json. The
+.env.example payment-worker URL remains a separate outdated example.
 
 Roles: admin, VIP, and the managed list (app_roles table):
   - Two always-admin usernames are hard-coded: the owner 'mileschan852' and
@@ -544,10 +544,9 @@ Telegram: setWebhook per bot with the matching secret_token.
 ================================================================================
 11. OPEN ITEMS
 ================================================================================
-  - Stale dead host: public/tonconnect-manifest.json AND src/main.tsx
-    (TONCONNECT_MANIFEST_URL) AND .env.example's VITE_PAYMENT_WORKER_URL all
-    still point at teleclaw-dispatch.silent-flower-a7c2.workers.dev/... — must
-    be repointed to the current worker/Pages URL before TON Connect works.
+  - .env.example's VITE_PAYMENT_WORKER_URL still uses the retired
+    teleclaw-dispatch.silent-flower-a7c2.workers.dev host; update it to the
+    current Worker URL before payment testing. This does not affect TON Connect.
   - flying_messages and raffle_state still lack migration files.
   - src/pages/MapPage.tsx and src/pages/MintPage.tsx are dead code (never
     imported) — delete on cleanup.
