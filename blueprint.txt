@@ -128,9 +128,9 @@ Roles: admin, VIP, and the managed list (app_roles table):
          username with a chosen role.
       2. Grant VIP to all — a submenu of period options (1w/1mo/3mo/6mo/1y) that
          sets the global VIP window, plus a Revoke option when active.
-      3. Force reset all users — clears the required profile fields for every
-         row so the "complete your info" setup screen appears on each user's
-         next login.
+      3. Force reset all users — clears only weight for every row. Since weight
+         is required by the profile-completion check, the setup screen appears
+         on next login while avatars and other saved fields are preserved.
   - Frontend gating is a client-side convenience only; it grants no server
     authority.
   - Worker (authoritative): admin-only endpoints verify the caller's Telegram
@@ -138,10 +138,10 @@ Roles: admin, VIP, and the managed list (app_roles table):
     username from the signed payload. isAdminCaller() accepts the ADMIN_ID
     constant (1231127407), the always-admin usernames, or a username stored as
     role=admin in app_roles. A client-supplied caller_id is never trusted.
-    /api/reset-profile requires ADMIN_ID; /api/roles (add/remove),
-    /api/global-vip, and /api/reset-all require isAdminCaller; /api/roles
-    refuses to mutate the owner. Clearing the underage flag is done per-profile
-    through /api/reset-profile (there is no mass underage reset).
+    /api/reset-profile, /api/roles (add/remove), /api/global-vip, and
+    /api/reset-all require isAdminCaller; /api/roles refuses to mutate the
+    owner. Both reset endpoints set only weight to null, preserving all other
+    profile fields, including is_underage.
 
 ================================================================================
 4. DATABASE (Supabase PostgreSQL) — EVERY ITEM AND WHAT IT IS FOR
@@ -289,10 +289,10 @@ Age is enforced server-side via trigger, not RLS.
                          name come from the signed payload (not the body). Text
                          trimmed to 200 chars.
   GET  /api/raffle     — raffle_state row (defaults if missing)
-  POST /api/reset-profile — ADMIN-ONLY: requires valid initData whose decoded
-                         Telegram id equals ADMIN_ID (1231127407). Wipes
-                         {target_id}'s profile to defaults, including clearing
-                         is_underage. (There is no reset-all-underage endpoint.)
+  POST /api/reset-profile — ADMIN-ONLY: requires valid initData and
+                         isAdminCaller. Sets only weight to null on
+                         {target_id}'s profile, preserving all other fields,
+                         including is_underage.
   GET  /api/roles      — list managed admin/VIP entries (public read), ordered
                          by created_at.
   POST /api/roles      — ADMIN-ONLY: requires valid initData and isAdminCaller
@@ -404,10 +404,9 @@ H. Refresh limiter
 
 I. Admin
    - Admin UI unlocked client-side by username (mileschan852 / hkmembersonly).
-   - Force Reset button on other users' profiles -> POST /api/reset-profile,
-     which is authorized server-side by verified initData (decoded Telegram id
-     must equal ADMIN_ID 1231127407). This same reset also clears the target's
-     is_underage flag, so underage profiles are handled one at a time here.
+    - Force Reset button on other users' profiles -> POST /api/reset-profile,
+      authorized server-side by verified Telegram identity and admin role. It
+      now clears only weight, preserving avatars and all other saved fields.
    - Free filter menu and free profile editing.
 
 J. Games & Apps side rail
@@ -507,9 +506,9 @@ Hardened (done):
   - Replay-attack dedupe: transactions keyed by provider/telegram payment
     charge ids (unique); duplicate/rejected inserts abort with HTTP 400.
   - 18+ gate enforced server-side by the enforce_age trigger.
-  - Admin endpoints are initData-authenticated: /api/reset-profile requires the
-    decoded id to equal ADMIN_ID; /api/roles requires isAdminCaller (ADMIN_ID,
-    an always-admin username, or role=admin in app_roles). A client-supplied
+  - Admin endpoints are initData-authenticated: /api/reset-profile and
+    /api/reset-all require isAdminCaller (ADMIN_ID, an always-admin username,
+    or role=admin in app_roles); /api/roles uses the same check. A client-supplied
     caller_id is never trusted, and the owner role is immutable.
 Still weak (known, unfixed):
   - The Worker still falls back to SUPABASE_ANON_KEY when
