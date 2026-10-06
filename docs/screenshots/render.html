@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Who's Nearby — feature screenshot renderer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #f5f5f7;
+      background: #0b0c11;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 1440px; height: 960px; overflow: hidden; }
+    .frame {
+      width: 1344px;
+      height: 872px;
+      margin: 44px auto;
+      overflow: hidden;
+      border: 1px solid #292b36;
+      border-radius: 22px;
+      background: #11131a;
+      box-shadow: 0 32px 90px #0008;
+    }
+    .topbar {
+      height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom: 1px solid #252733;
+      background: #12141b;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 750; letter-spacing: .01em; }
+    .brand-mark {
+      width: 34px; height: 34px; display: grid; place-items: center;
+      border-radius: 11px; background: linear-gradient(140deg, #ff3d75, #ff8959); font-size: 18px;
+    }
+    .sample {
+      padding: 8px 12px; border: 1px solid #634b32; border-radius: 999px;
+      color: #ffd69c; background: #291f16; font-size: 11px; font-weight: 750; letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .layout { display: grid; grid-template-columns: 228px 1fr; height: 802px; }
+    .sidebar { padding: 24px 16px; border-right: 1px solid #252733; background: #101219; }
+    .nav-label { margin: 12px 10px 10px; color: #777b8b; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .nav-item { display: flex; align-items: center; gap: 12px; margin: 4px 0; padding: 12px 13px; border-radius: 11px; color: #9da1b1; font-size: 14px; }
+    .nav-item.active { color: white; background: #29202a; box-shadow: inset 3px 0 #ff5278; }
+    .nav-icon { width: 22px; text-align: center; font-size: 16px; }
+    .sidebar-card { margin-top: 34px; padding: 16px; border: 1px solid #2b2d39; border-radius: 14px; background: #171923; }
+    .sidebar-card strong { display: block; margin-bottom: 7px; font-size: 13px; }
+    .sidebar-card p { margin: 0; color: #9397a7; font-size: 12px; line-height: 1.5; }
+    .main { padding: 30px 34px; overflow: hidden; }
+    .heading-row { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: -.03em; }
+    .sub { margin: 7px 0 0; color: #9296a6; font-size: 13px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; padding: 11px 16px; border: 1px solid #343744; border-radius: 10px; color: #e7e8ed; background: #1b1e28; font-size: 13px; font-weight: 700; }
+    .button.primary { border-color: transparent; color: #fff; background: linear-gradient(120deg, #e93f72, #e36056); }
+    .button.small { padding: 8px 12px; font-size: 12px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab { padding: 9px 14px; border: 1px solid #2c2f3a; border-radius: 9px; color: #9ca0b0; font-size: 12px; }
+    .tab.active { border-color: #6d3448; color: #ff95af; background: #2a1d26; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .profile-card { overflow: hidden; border: 1px solid #2b2e3a; border-radius: 15px; background: #181a23; }
+    .portrait { height: 220px; display: grid; place-items: center; position: relative; overflow: hidden; }
+    .portrait::before, .portrait::after { content: ""; position: absolute; border-radius: 50%; filter: blur(1px); }
+    .portrait::before { width: 250px; height: 250px; left: -40px; top: -60px; background: #ffffff16; }
+    .portrait::after { width: 180px; height: 180px; right: -28px; bottom: -74px; background: #090b1470; }
+    .portrait span { position: relative; z-index: 1; font-size: 52px; font-weight: 800; color: #ffffffdc; }
+    .portrait-tag { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 6px 9px; border-radius: 999px; background: #10121bbd; font-size: 10px; font-weight: 700; }
+    .profile-info { padding: 14px; }
+    .person { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px; font-weight: 750; }
+    .distance { color: #a2a6b5; font-size: 11px; font-weight: 500; }
+    .muted { color: #989cad; font-size: 12px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip { padding: 6px 8px; border: 1px solid #303340; border-radius: 999px; color: #c0c3cf; background: #20222d; font-size: 10px; }
+    .panel { padding: 20px; border: 1px solid #2b2e3a; border-radius: 15px; background: #171923; }
+    .two-col { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; }
+    .label { display: block; margin: 0 0 8px; color: #aeb1bf; font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+    .input, .select { width: 100%; padding: 12px 13px; border: 1px solid #343745; border-radius: 9px; color: #f4f4f7; background: #10121a; font-size: 13px; }
+    .field { margin-bottom: 17px; }
+    .map {
+      height: 550px; position: relative; overflow: hidden; border: 1px solid #303343; border-radius: 16px;
+      background-color: #171c26;
+      background-image: linear-gradient(32deg, transparent 47%, #343b494f 48%, #343b494f 49%, transparent 50%),
+                        linear-gradient(146deg, transparent 45%, #343b4960 46%, #343b4960 47%, transparent 48%),
+                        linear-gradient(90deg, transparent 49%, #2e35424f 50%, transparent 51%),
+                        linear-gradient(#212734 1px, transparent 1px), linear-gradient(90deg, #212734 1px, transparent 1px);
+      background-size: 360px 220px, 320px 290px, 440px 330px, 76px 76px, 76px 76px;
+    }
+    .map-label { position: absolute; padding: 9px 11px; border: 1px solid #3a3d4a; border-radius: 9px; color: #e4e5eb; background: #11131bdc; font-size: 11px; }
+    .pin { position: absolute; width: 38px; height: 38px; display: grid; place-items: center; border: 3px solid #fff; border-radius: 50% 50% 50% 8px; transform: rotate(-45deg); color: #fff; background: #f3547b; box-shadow: 0 8px 24px #0008; }
+    .pin span { transform: rotate(45deg); font-size: 12px; font-weight: 800; }
+    .map-note { position: absolute; left: 16px; bottom: 16px; padding: 10px 12px; border-radius: 9px; color: #c5c7d0; background: #11131bdc; font-size: 11px; }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid #2a2d38; }
+    .switch-row:last-child { border-bottom: 0; }
+    .switch-title { font-size: 14px; font-weight: 700; }
+    .switch-desc { margin-top: 4px; color: #999dad; font-size: 11px; }
+    .switch { width: 42px; height: 24px; padding: 3px; border-radius: 999px; background: #da4b75; }
+    .switch i { display: block; width: 18px; height: 18px; margin-left: auto; border-radius: 50%; background: white; }
+    .notice { margin-top: 14px; padding: 13px 14px; border: 1px solid #59482e; border-radius: 11px; color: #f1cf96; background: #2b241a; font-size: 12px; line-height: 1.5; }
+    .metric { padding: 17px; border: 1px solid #303340; border-radius: 13px; background: #1c1e28; }
+    .metric strong { display: block; font-size: 23px; }
+    .metric span { color: #999dad; font-size: 11px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+    .list-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #292c37; }
+    .list-row:last-child { border-bottom: 0; }
+    .role-tag { padding: 6px 9px; border-radius: 999px; color: #ffabc0; background: #3b202b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .role-tag.vip { color: #f2d991; background: #3a311d; }
+    .role-tag.locked { color: #c2c6d3; background: #2b2e38; }
+    .ticket { padding: 22px; border: 1px solid #624154; border-radius: 16px; background: linear-gradient(130deg, #2d1d2a, #1f1c2a); }
+    .ticket-price { margin: 16px 0; font-size: 38px; font-weight: 850; letter-spacing: -.04em; }
+    .countdown { display: flex; gap: 8px; margin: 18px 0; }
+    .count { min-width: 70px; padding: 11px 10px; border: 1px solid #3d3545; border-radius: 10px; text-align: center; background: #171820; }
+    .count strong { display: block; font-size: 20px; }
+    .count span { color: #969aaa; font-size: 9px; text-transform: uppercase; }
+    .fly { position: absolute; top: 42%; left: -30px; padding: 15px 21px; border: 1px solid #75465a; border-radius: 999px; color: #ffe9ef; background: linear-gradient(105deg, #712e52, #49315d); box-shadow: 0 15px 40px #0008; font-size: 17px; font-weight: 750; transform: rotate(-4deg); }
+    .compose { display: flex; gap: 10px; margin-top: 16px; }
+    .compose .input { flex: 1; }
+    .footer-note { margin-top: 16px; color: #8b8f9f; font-size: 11px; }
+    .avatar-small { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; color: white; background: linear-gradient(135deg, #b44377, #734b9e); font-size: 13px; font-weight: 800; }
+    .table-head { display: grid; grid-template-columns: 1.7fr 1fr .8fr; padding: 10px 0; border-bottom: 1px solid #353845; color: #85899a; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .table-row { display: grid; grid-template-columns: 1.7fr 1fr .8fr; align-items: center; padding: 15px 0; border-bottom: 1px solid #292c37; font-size: 12px; }
+    .who { display: flex; align-items: center; gap: 11px; }
+    .hero { display: grid; grid-template-columns: 310px 1fr; gap: 23px; }
+    .hero-art { min-height: 380px; display: grid; place-items: center; border-radius: 16px; background: linear-gradient(150deg, #6f3658, #222d4e); }
+    .hero-art span { font-size: 84px; font-weight: 850; }
+    .divider { height: 1px; margin: 18px 0; background: #2c2f3a; }
+    .check { color: #79d8a5; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">♥</span> Who's Nearby</div>
+      <div class="sample">Illustrative screen · sample data</div>
+    </header>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-label">Discover</div>
+        <div class="nav-item active"><span class="nav-icon">⌕</span> Nearby</div>
+        <div class="nav-item"><span class="nav-icon">⌖</span> Map</div>
+        <div class="nav-item"><span class="nav-icon">⚑</span> Filters</div>
+        <div class="nav-label">Your account</div>
+        <div class="nav-item"><span class="nav-icon">◉</span> My profile</div>
+        <div class="nav-item"><span class="nav-icon">✦</span> Stars & perks</div>
+        <div class="nav-item"><span class="nav-icon">⚙</span> Privacy</div>
+        <div class="sidebar-card"><strong>Telegram Mini App</strong><p>These example screens use fictional sample data. They are not connected to production accounts.</p></div>
+      </aside>
+      <main class="main" id="screen"></main>
+    </div>
+  </div>
+  <script>
+    const views = {
+      "nearby-grid": `
+        <div class="heading-row"><div><h1>People near you</h1><p class="sub">Discover nearby profiles and open a conversation in Telegram.</p></div><span class="button small">◎ 2 km radius</span></div>
+        <div class="tabs"><span class="tab active">Grid view</span><span class="tab">Map view</span><span class="tab">Recently active</span></div>
+        <div class="grid">
+          <article class="profile-card"><div class="portrait" style="background:linear-gradient(140deg,#b84b69,#59438c)"><span>A</span><b class="portrait-tag">ACTIVE NOW</b></div><div class="profile-info"><div class="person">Avery, 29 <span class="distance">0.8 km</span></div><p class="muted">Coffee, night walks, live music</p><div class="chips"><span class="chip">Music</span><span class="chip">Outdoors</span></div></div></article>
+          <article class="profile-card"><div class="portrait" style="background:linear-gradient(140deg,#448e91,#394c85)"><span>M</span><b class="portrait-tag">15 MIN AGO</b></div><div class="profile-info"><div class="person">Morgan, 31 <span class="distance">1.2 km</span></div><p class="muted">Art, food, weekend trips</p><div class="chips"><span class="chip">Art</span><span class="chip">Food</span></div></div></article>
+          <article class="profile-card"><div class="portrait" style="background:linear-gradient(140deg,#a36c3e,#76485f)"><span>R</span><b class="portrait-tag">ACTIVE TODAY</b></div><div class="profile-info"><div class="person">Riley, 27 <span class="distance">1.7 km</span></div><p class="muted">Gym, dogs, new places</p><div class="chips"><span class="chip">Fitness</span><span class="chip">Travel</span></div></div></article>
+        </div>`,
+      "map-view": `
+        <div class="heading-row"><div><h1>Map view</h1><p class="sub">Browse approximate nearby locations without exposing exact coordinates.</p></div><span class="button small">◎ Nearby</span></div>
+        <div class="two-col"><section class="map">
+          <div class="map-label" style="left:13%;top:16%">Central</div><div class="map-label" style="left:60%;top:23%">Sheung Wan</div><div class="map-label" style="left:32%;top:61%">Wan Chai</div>
+          <div class="pin" style="left:27%;top:34%"><span>A</span></div><div class="pin" style="left:58%;top:47%;background:#9c64df"><span>M</span></div><div class="pin" style="left:75%;top:28%;background:#e68b51"><span>R</span></div>
+          <div class="map-note">Approximate locations · sample map</div></section>
+          <section class="panel"><h2 style="margin:0 0 6px;font-size:18px">Nearby now</h2><p class="sub">3 profiles in your discovery range</p>
+            <div class="list-row"><div class="who"><div class="avatar-small">A</div><div><b>Avery, 29</b><div class="muted">Active now</div></div></div><span class="muted">0.8 km</span></div>
+            <div class="list-row"><div class="who"><div class="avatar-small" style="background:linear-gradient(135deg,#398b8e,#405b9c)">M</div><div><b>Morgan, 31</b><div class="muted">15 min ago</div></div></div><span class="muted">1.2 km</span></div>
+            <div class="list-row"><div class="who"><div class="avatar-small" style="background:linear-gradient(135deg,#ab7442,#8c4a63)">R</div><div><b>Riley, 27</b><div class="muted">Active today</div></div></div><span class="muted">1.7 km</span></div>
+            <div class="notice">Distances are rounded and locations are approximate to protect privacy.</div>
+          </section></div>`,
+      "profile-chat": `
+        <div class="heading-row"><div><h1>Profile preview</h1><p class="sub">View profile details and continue the conversation in Telegram.</p></div><span class="button small">← Back to nearby</span></div>
+        <section class="panel hero"><div class="hero-art"><span>AR</span></div><div><div class="chips"><span class="chip">SAMPLE PROFILE</span><span class="chip">0.8 km away</span></div><h2 style="font-size:34px;margin:17px 0 5px">Avery, 29</h2><p class="muted">Last seen just now · profile details are fictional</p><div class="divider"></div><h3 style="font-size:14px">A little about me</h3><p class="muted" style="font-size:14px;line-height:1.7">Always looking for a good coffee shop, live music, and someone to explore the city with.</p><div class="chips"><span class="chip">Music</span><span class="chip">Coffee</span><span class="chip">Outdoors</span></div><div style="margin-top:23px"><span class="button primary">Open Telegram chat ↗</span></div></div></section>`,
+      "preference-filters": `
+        <div class="heading-row"><div><h1>Preference filters</h1><p class="sub">Tune discovery with profile, interest, and location preferences.</p></div><span class="button small">Saved preferences</span></div>
+        <div class="two-col"><section class="panel"><h2 style="margin:0 0 18px;font-size:18px">Match preferences</h2>
+          <div class="field"><label class="label">Looking for</label><div class="select">People interested in men <span style="float:right;color:#9296a6">⌄</span></div></div>
+          <div class="field"><label class="label">Age range</label><div class="select">25 — 36 <span style="float:right;color:#9296a6">⌄</span></div></div>
+          <div class="field"><label class="label">Interests</label><div class="chips"><span class="chip">✓ Music</span><span class="chip">✓ Food</span><span class="chip">+ Outdoors</span><span class="chip">+ Art</span></div></div>
+          <div class="field"><label class="label">Discovery area</label><div class="select">Nearby · 2 km <span style="float:right;color:#9296a6">⌄</span></div></div>
+          <span class="button primary">Apply filters</span></section>
+          <section class="panel"><span class="role-tag vip">Filter access</span><h2 style="margin:16px 0 8px;font-size:18px">More precise discovery</h2><p class="muted" style="line-height:1.6">Filter options can use profile role, safety preferences, playstyle, group size, and location.</p><div class="divider"></div><div class="list-row"><span>Preference tags</span><span class="check">✓</span></div><div class="list-row"><span>Radius controls</span><span class="check">✓</span></div><div class="list-row"><span>Persist across sessions</span><span class="check">✓</span></div><div class="footer-note">Paid filter access is handled through Telegram Stars or VIP entitlement.</div></section></div>`,
+      "privacy-controls": `
+        <div class="heading-row"><div><h1>Privacy & safety</h1><p class="sub">Control profile visibility and keep age checks server-verified.</p></div><span class="button small">Account settings</span></div>
+        <div class="two-col"><section class="panel"><h2 style="margin:0;font-size:18px">Your visibility</h2>
+          <div class="switch-row"><div><div class="switch-title">Hide my age</div><div class="switch-desc">Age is hidden on your discovery card.</div></div><div class="switch"><i></i></div></div>
+          <div class="switch-row"><div><div class="switch-title">Invisible mode</div><div class="switch-desc">Pause your profile in nearby discovery.</div></div><div class="switch"><i></i></div></div>
+          <div class="switch-row"><div><div class="switch-title">Show approximate distance</div><div class="switch-desc">Exact coordinates are never shown.</div></div><div class="switch" style="background:#414553"><i style="margin-left:0"></i></div></div>
+          <div class="footer-note">Illustrative settings. Availability depends on account entitlements.</div></section>
+          <section class="panel"><span class="role-tag">Safety check</span><h2 style="margin:16px 0 7px;font-size:20px">18+ age verification</h2><p class="muted" style="line-height:1.6">The app checks eligibility on the server. A client-side setting cannot bypass the age gate.</p><div class="notice">Your date of birth is not returned in nearby search results. The app uses a derived age.</div><div class="metrics"><div class="metric"><strong>18+</strong><span>Minimum age</span></div><div class="metric"><strong>0</strong><span>Raw DOB in results</span></div><div class="metric"><strong>~</strong><span>Rounded distance</span></div></div></section></div>`,
+      "stars-purchases": `
+        <div class="heading-row"><div><h1>Telegram Stars perks</h1><p class="sub">Purchase optional app entitlements through Telegram's invoice flow.</p></div><span class="button small">★ 2,450 Stars</span></div>
+        <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+          <section class="panel"><span class="role-tag vip">30 days</span><h2 style="font-size:20px">Hide age</h2><p class="muted">Keep age off your public profile card.</p><div class="ticket-price" style="font-size:30px">1,000 <small style="font-size:13px;color:#a6a9b7">Stars</small></div><span class="button primary">Continue with Telegram</span></section>
+          <section class="panel"><span class="role-tag vip">30 days</span><h2 style="font-size:20px">Invisible mode</h2><p class="muted">Pause your profile in nearby discovery.</p><div class="ticket-price" style="font-size:30px">3,000 <small style="font-size:13px;color:#a6a9b7">Stars</small></div><span class="button primary">Continue with Telegram</span></section>
+          <section class="panel"><h2 style="font-size:20px">Filter subscription</h2><p class="muted">Unlock preference filters for 30 days.</p><div class="ticket-price" style="font-size:30px">1,000 <small style="font-size:13px;color:#a6a9b7">Stars</small></div></section>
+          <section class="panel"><h2 style="font-size:20px">Profile edit pass</h2><p class="muted">Make an eligible profile update.</p><div class="ticket-price" style="font-size:30px">1,000 <small style="font-size:13px;color:#a6a9b7">Stars</small></div></section>
+        </div><div class="notice">Telegram confirms payment. The Worker verifies the invoice and records each charge idempotently.</div>`,
+      "monthly-raffle": `
+        <div class="heading-row"><div><h1>Monthly raffle</h1><p class="sub">A ticket gives an eligible Telegram account an entry in the monthly draw.</p></div><span class="button small">★ Stars ticket</span></div>
+        <div class="two-col"><section class="ticket"><span class="role-tag">Monthly draw · 8:00 PM HKT</span><h2 style="margin:16px 0 0;font-size:24px">Get a raffle ticket</h2><p class="muted">Only accounts with a Telegram username can purchase.</p><div class="ticket-price">100 <small style="font-size:14px;color:#d6b6c7">Stars per ticket</small></div><span class="button primary">Buy ticket · 100 Stars</span><div class="countdown"><div class="count"><strong>03</strong><span>Days</span></div><div class="count"><strong>17</strong><span>Hours</span></div><div class="count"><strong>45</strong><span>Minutes</span></div><div class="count"><strong>08</strong><span>Seconds</span></div></div><p class="footer-note">Countdown shown is sample data, not a live timer.</p></section>
+          <section class="panel"><h2 style="margin:0 0 15px;font-size:19px">Four monthly prizes</h2><div class="list-row"><span>VIP access · 1 month</span><span class="role-tag vip">1 winner</span></div><div class="list-row"><span>Filter unlock</span><span class="role-tag">1 winner</span></div><div class="list-row"><span>Invisible mode</span><span class="role-tag">1 winner</span></div><div class="list-row"><span>Hide age</span><span class="role-tag">1 winner</span></div><div class="notice">Draw time: the first day of each month at 8:00 PM. Prizes reset after the draw. Winner announcements fly across the screen on login.</div></section></div>`,
+      "flying-messages": `
+        <div class="heading-row"><div><h1>Flying messages</h1><p class="sub">Short community messages animate across the app screen.</p></div><span class="button small">Community</span></div>
+        <section class="panel" style="height:550px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 72% 40%,#27203a,#171923 50%,#13151c)">
+          <span class="role-tag">Sample message</span><div class="fly">A little kindness goes a long way ✦</div>
+          <div style="position:absolute;left:9%;top:22%;color:#8e92a2;font-size:12px">Messages move across the app as users browse.</div>
+          <div style="position:absolute;right:10%;top:61%;width:250px;padding:17px;border:1px solid #343744;border-radius:14px;background:#1b1e28"><div class="who"><div class="avatar-small">S</div><div><b>Sample announcement</b><div class="muted">Shown on next login</div></div></div><p class="muted" style="line-height:1.5">Raffle results are announced with four separate flying messages.</p></div>
+          <div class="compose"><input class="input" value="Write a short message…" readonly><span class="button primary">Send</span></div>
+        </section><div class="footer-note">This example message is fictional and is not a production announcement.</div>`,
+      "admin-vip-management": `
+        <div class="heading-row"><div><h1>Admin & VIP access</h1><p class="sub">Managed roles persist in Supabase across sessions and both bot entry points.</p></div><span class="role-tag">Supabase-backed</span></div>
+        <section class="panel"><div class="heading-row" style="margin-bottom:14px"><div><h2 style="margin:0;font-size:19px">Managed access list</h2><p class="sub">Sample entries only · no production usernames</p></div><span class="button small">↻ Refresh</span></div>
+          <div class="table-head"><span>Account</span><span>Role</span><span>Protection</span></div>
+          <div class="table-row"><div class="who"><div class="avatar-small">O</div><div><b>Project owner</b><div class="muted">Always admin</div></div></div><span class="role-tag">Admin</span><span class="role-tag locked">Protected</span></div>
+          <div class="table-row"><div class="who"><div class="avatar-small" style="background:linear-gradient(135deg,#b84b69,#59438c)">A</div><div><b>sample_admin</b><div class="muted">Managed role</div></div></div><span class="role-tag">Admin</span><span class="button small">Remove</span></div>
+          <div class="table-row"><div class="who"><div class="avatar-small" style="background:linear-gradient(135deg,#aa8244,#76593d)">V</div><div><b>sample_vip</b><div class="muted">Managed role</div></div></div><span class="role-tag vip">VIP</span><span class="button small">Remove</span></div>
+          <div class="divider"></div><div class="two-col"><div><label class="label">Telegram username</label><input class="input" value="@sample_member" readonly></div><div><label class="label">Role</label><div class="select">VIP <span style="float:right">⌄</span></div></div></div>
+          <div style="margin-top:15px"><span class="button primary">Add to managed list</span></div>
+          <div class="notice">Admin changes are checked by the Worker and stored in Supabase. Browser state is not the source of truth.</div>
+        </section>`
+    };
+    const name = new URLSearchParams(location.search).get("screen") || "nearby-grid";
+    document.getElementById("screen").innerHTML = views[name] || views["nearby-grid"];
+    document.title = `Who's Nearby — ${name}`;
+  </script>
+</body>
+</html>

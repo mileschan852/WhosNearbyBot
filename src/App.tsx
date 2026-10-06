@@ -1125,9 +1125,8 @@ export default function App() {
         if (Number.isFinite(globalVipUntil)) setGlobalVipUntil(globalVipUntil);
         const unameLower = userUsername.toLowerCase();
         const tableRole = rolesList.find((r) => (r.username || '').toLowerCase() === unameLower)?.role;
-        // Owner (mileschan852) and hkmembersonly are always admin; everyone else
-        // derives their role from the managed list.
-        const checkIsAdmin = unameLower === 'mileschan852' || unameLower === 'hkmembersonly' || tableRole === 'admin';
+        // The owner is immutable; every other admin role comes from Supabase.
+        const checkIsAdmin = unameLower === 'mileschan852' || tableRole === 'admin';
         setIsAdmin(checkIsAdmin);
         setIsVip(tableRole === 'vip');
         const userId = existingProfile.id;

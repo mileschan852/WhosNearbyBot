@@ -15,6 +15,7 @@ const originalFetch = globalThis.fetch;
 let calls;
 let deleteStatus;
 let rolesReadStatus;
+let roleRows;
 let requestSequence = 1;
 
 function jsonResponse(value, status = 200) {
@@ -61,6 +62,7 @@ beforeEach(() => {
   calls = [];
   deleteStatus = 204;
   rolesReadStatus = 200;
+  roleRows = [];
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input);
     const method = init.method || "GET";
@@ -76,7 +78,7 @@ beforeEach(() => {
       throw new Error(`Unexpected request: ${url.hostname}${url.pathname}`);
     }
     if (url.pathname === "/rest/v1/app_roles" && method === "GET") {
-      return jsonResponse([], rolesReadStatus);
+      return jsonResponse(roleRows, rolesReadStatus);
     }
     if (url.pathname === "/rest/v1/app_roles" && method === "POST") {
       return jsonResponse([body]);
@@ -112,6 +114,53 @@ test("admin role upsert accepts the verified bot and writes the normalized role"
   const write = calls.find((call) => call.url.pathname === "/rest/v1/app_roles" && call.method === "POST");
   assert.ok(write);
   assert.deepEqual(write.body, { username: "test_vip", role: "vip" });
+});
+
+test("secondary admin privileges come from the Supabase role row", async () => {
+  roleRows = [{ username: "hkmembersonly", role: "admin" }];
+  const { response, result } = await send("/api/roles", {
+    action: "add",
+    username: "managed_vip",
+    role: "vip",
+  }, {
+    id: 987654,
+    first_name: "Managed",
+    username: "hkmembersonly",
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result, { ok: true });
+  assert.ok(calls.some((call) =>
+    call.url.pathname === "/rest/v1/app_roles" &&
+    call.url.searchParams.get("username") === "eq.hkmembersonly"
+  ));
+});
+
+test("a username is not an admin unless its role is stored in Supabase", async () => {
+  const { response } = await send("/api/roles", {
+    action: "add",
+    username: "managed_vip",
+    role: "vip",
+  }, {
+    id: 987654,
+    first_name: "Managed",
+    username: "hkmembersonly",
+  });
+
+  assert.equal(response.status, 403);
+  assert.ok(!calls.some((call) => call.method === "POST"));
+});
+
+test("managed admin and VIP entries are returned from Supabase", async () => {
+  roleRows = [
+    { username: "managed_admin", role: "admin", created_at: "2026-01-01T00:00:00Z" },
+    { username: "managed_vip", role: "vip", created_at: "2026-01-02T00:00:00Z" },
+  ];
+
+  const { response, result } = await send("/api/roles", {}, adminUser, "GET");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result, roleRows);
 });
 
 test("failed admin role deletion returns a failure instead of a false success", async () => {

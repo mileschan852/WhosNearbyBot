@@ -224,10 +224,9 @@ function safeOwnProfile(profile) {
 // Usernames that are always admin regardless of the managed list. The owner
 // (mileschan852) can never be demoted.
 const OWNER_USERNAME = "mileschan852";
-const ALWAYS_ADMIN = [OWNER_USERNAME, "hkmembersonly"];
+const ALWAYS_ADMIN = [OWNER_USERNAME];
 
-// True when the verified Telegram user is an admin: the hard-coded owner id,
-// an always-admin username, or a username stored as role=admin in app_roles.
+// The owner stays immutable; every other managed admin is stored in Supabase.
 async function isAdminCaller(env, authUser) {
   if (Number(authUser?.id) === ADMIN_ID) return true;
   const uname = (authUser?.username || "").toLowerCase();

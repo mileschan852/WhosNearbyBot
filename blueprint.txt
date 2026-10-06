@@ -84,11 +84,12 @@ see .env.example):
 
 Worker (Cloudflare — set with `wrangler secret put` or hosting env vars,
 NEVER committed; wrangler.toml deliberately contains none):
-  TELEGRAM_BOT_TOKEN — bot token (createInvoiceLink, answerPreCheckoutQuery,
-                       and initData HMAC verification)
+  BOT_A_TOKEN       — @HKMODate_bot token for its bot-scoped operations
+  BOT_B_TOKEN       — @WhosNearbyBot token for its bot-scoped operations
+  TELEGRAM_BOT_TOKEN — temporary legacy fallback for older deployments
   SUPABASE_URL       — Supabase project URL
   SUPABASE_ANON_KEY  — anon key for Supabase REST reads from the Worker
-  SUPABASE_SERVICE_ROLE_KEY — service-role key; used for Worker WRITES when
+  SUPABASE_SERVICE_KEY — service-role key; used for Worker WRITES when
                        present (since migration 004 the worker prefers it for
                        write operations; falls back to anon if unset — but with
                        hardened RLS anon writes are blocked, so this MUST be set)
@@ -104,9 +105,10 @@ https://mileschan852.github.io/WhosNearbyBot/tonconnect-manifest.json. The
 .env.example payment-worker URL remains a separate outdated example.
 
 Roles: admin, VIP, and the managed list (app_roles table):
-  - Two always-admin usernames are hard-coded: the owner 'mileschan852' and
-    'hkmembersonly' (case-insensitive). The owner can never be demoted.
-  - Beyond those, admin/VIP status is stored per Telegram USERNAME in the
+  - The owner (Telegram ID 1231127407 / username 'mileschan852') remains an
+    immutable admin. The legacy secondary admin is seeded into app_roles by
+    migration 012 instead of being hard-coded in the Worker or frontend.
+  - All other managed admin/VIP status is stored per Telegram USERNAME in the
     app_roles table (role = 'admin' | 'vip'), so entitlements survive across
     sessions and are shared across all clients.
   - VIP = all PAID functions unlocked indefinitely (hide age, invisible mode,
@@ -135,9 +137,9 @@ Roles: admin, VIP, and the managed list (app_roles table):
     authority.
   - Worker (authoritative): admin-only endpoints verify the caller's Telegram
     initData (HMAC signature + freshness) and decode the Telegram user id /
-    username from the signed payload. isAdminCaller() accepts the ADMIN_ID
-    constant (1231127407), the always-admin usernames, or a username stored as
-    role=admin in app_roles. A client-supplied caller_id is never trusted.
+    username from the signed payload. isAdminCaller() accepts the owner ID /
+    username or a username stored as role=admin in app_roles. A client-supplied
+    caller_id is never trusted.
     /api/reset-profile, /api/roles (add/remove), /api/global-vip, and
     /api/reset-all require isAdminCaller; /api/roles refuses to mutate the
     owner. Both reset endpoints set only weight to null, preserving all other
@@ -146,10 +148,10 @@ Roles: admin, VIP, and the managed list (app_roles table):
 ================================================================================
 4. DATABASE (Supabase PostgreSQL) — EVERY ITEM AND WHAT IT IS FOR
 ================================================================================
-Migrations in supabase/migrations/, run in order 001 -> 002 -> 003 ->
-    004_rls_hardening -> 005_webhook_secret -> 006_app_roles -> 007_app_settings
-    in the Supabase SQL
-Editor. All are idempotent.
+Migrations in supabase/migrations/, run in numeric order 001 -> 012 in the
+Supabase SQL Editor. Migration 006 creates the managed roles table; migration
+012 seeds the legacy secondary admin into that table. All migrations are
+idempotent.
 
 --- TABLE: public.app_roles (managed admin/VIP list, migration 006) ---
   username   — primary key, Telegram @username normalized (lowercase, no '@')
@@ -158,7 +160,8 @@ Editor. All are idempotent.
   created_at — timestamptz, used to order the list (owner pinned first in UI)
   RLS: SELECT open to everyone (clients derive entitlements); writes only via
   the worker service-role key. Owner 'mileschan852' is admin in code and is
-  never stored/removable here.
+  never stored/removable here. All other admin/VIP entries, including the
+  migrated secondary admin, are persisted here.
 
 --- TABLE: public.profiles (one row per user; id = 'tg_<telegram_id>') ---
   id                 — primary key, text, 'tg_<telegram_id>' (or local UUID
@@ -206,7 +209,7 @@ Editor. All are idempotent.
 
 RLS: enabled. Since migration 004_rls_hardening the anon role is READ-ONLY on
 profiles (SELECT only); INSERT/UPDATE are no longer open to anon. Writes go
-through the Worker using SUPABASE_SERVICE_ROLE_KEY (set it, or writes fail).
+through the Worker using SUPABASE_SERVICE_KEY (set it, or writes fail).
 Age is enforced server-side via trigger, not RLS.
 
 --- TABLE: public.transactions (payment receipts; idempotency source) ---
@@ -296,8 +299,8 @@ Age is enforced server-side via trigger, not RLS.
   GET  /api/roles      — list managed admin/VIP entries (public read), ordered
                          by created_at.
   POST /api/roles      — ADMIN-ONLY: requires valid initData and isAdminCaller
-                         (ADMIN_ID, an always-admin username, or role=admin in
-                         app_roles). Body { action:'add'|'remove', username,
+                         (owner identity or role=admin in app_roles). Body
+                         { action:'add'|'remove', username,
                          role:'admin'|'vip' }. Refuses to mutate the owner
                          (mileschan852). Usernames normalized (lowercase, no @).
   GET  /api/health, /health — {ok:true, version:'rls-hardened-1.2'}
@@ -329,7 +332,8 @@ A. Auth & onboarding
    - Telegram user auto-detection (id tg_<id>, name, username, photo);
      local UUID fallback outside Telegram.
    - Language auto-detected from Telegram language_code.
-   - Admin auto-detected from username (mileschan852 / hkmembersonly).
+   - Owner remains admin; other admin access is derived from the Supabase
+     app_roles list.
    - Initial setup sheet: dob (required), height picker (100-300cm in 5cm
      steps, shown as cm + ft/in), weight picker (35-160kg), gender/seeking
      (locked/disabled in gaymode).
@@ -403,7 +407,8 @@ H. Refresh limiter
      stored in localStorage, no visible countdown.
 
 I. Admin
-   - Admin UI unlocked client-side by username (mileschan852 / hkmembersonly).
+   - Admin UI unlocked for the immutable owner or a username whose Supabase
+     app_roles entry has role=admin.
     - Force Reset button on other users' profiles -> POST /api/reset-profile,
       authorized server-side by verified Telegram identity and admin role. It
       now clears only weight, preserving avatars and all other saved fields.
@@ -450,19 +455,18 @@ L. Misc
   build-time env vars from Actions secrets); vercel.json exists as an alternate
   target (Vite framework, SPA rewrite).
   Worker deploy: wrangler deploy (name whosnearby-bot); secrets via
-  wrangler secret put (TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, SUPABASE_URL,
-  SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY).
+  wrangler secret put (BOT_A_TOKEN, BOT_B_TOKEN, TELEGRAM_WEBHOOK_SECRET,
+  SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY).
 
 GOTCHAS FOR THE NEXT PERSON
   - profiles has RLS; since migration 004 anon is read-only. The 18+ guarantee
     comes from the trigger, not from permissions. Do not remove the trigger.
-  - flying_messages and raffle_state are not covered by any migration file.
-  - The Worker prefers SUPABASE_SERVICE_ROLE_KEY for writes (falls back to anon,
+  - The Worker prefers SUPABASE_SERVICE_KEY for writes (falls back to anon,
     which hardened RLS blocks) — set the service key or writes will fail.
   - start_param ('gaymode') / ?mode=gay is client-side only; anyone can open the
     default entry and pick any gender.
-  - Two admin mechanisms: frontend uses username; the worker reset endpoints use
-    caller_id === 1231127407 in the request body. Both are client-supplied.
+  - Admin UI state is client-side, but admin-only Worker operations derive the
+    caller from HMAC-verified Telegram initData and check app_roles in Supabase.
   - /api/invoice ignores any client-sent price — edit ALLOWED_TYPES in worker.js
     to change pricing, never the frontend.
   - i18n: every user-visible string goes through t(); add new keys to ALL 6
@@ -507,12 +511,12 @@ Hardened (done):
     charge ids (unique); duplicate/rejected inserts abort with HTTP 400.
   - 18+ gate enforced server-side by the enforce_age trigger.
   - Admin endpoints are initData-authenticated: /api/reset-profile and
-    /api/reset-all require isAdminCaller (ADMIN_ID, an always-admin username,
-    or role=admin in app_roles); /api/roles uses the same check. A client-supplied
+    /api/reset-all require isAdminCaller (owner ID/username or role=admin in
+    app_roles); /api/roles uses the same check. A client-supplied
     caller_id is never trusted, and the owner role is immutable.
 Still weak (known, unfixed):
   - The Worker still falls back to SUPABASE_ANON_KEY when
-    SUPABASE_SERVICE_ROLE_KEY is not set; without the service key, hardened RLS
+    SUPABASE_SERVICE_KEY is not set; without the service key, hardened RLS
     blocks its writes — set the service key.
   - Frontend admin/VIP gating (isAdmin/isVip/paidUnlocked) is client-side only
     convenience; server authority always comes from the initData-verified
@@ -530,14 +534,16 @@ GitHub Actions secrets (build-time, frontend):
   VITE_PAYMENT_WORKER_URL      — must be the CURRENT worker URL
                                  (whosnearbybot.mileschan852.workers.dev)
 Worker secrets (wrangler secret put / Cloudflare dashboard):
-  TELEGRAM_BOT_TOKEN
+  BOT_A_TOKEN                    — @HKMODate_bot
+  BOT_B_TOKEN                    — @WhosNearbyBot
+  TELEGRAM_BOT_TOKEN             — temporary legacy fallback
   TELEGRAM_WEBHOOK_SECRET      — same value as setWebhook secret_token
   SUPABASE_URL
   SUPABASE_ANON_KEY
-  SUPABASE_SERVICE_ROLE_KEY    — required for writes since migration 004
-Supabase: run migrations 001 -> 002 -> 003 -> 004_rls_hardening ->
-  004_webhook_secret, then hand-create public.flying_messages and
-  public.raffle_state (not covered by any migration).
+  SUPABASE_SERVICE_KEY         — server-only key required for Worker writes
+Supabase: run migrations 001 through 012 in numeric order. In an existing
+  deployment with the app_roles table missing, apply 006_app_roles.sql and
+  012_seed_secondary_admin.sql without resetting or clearing any other data.
 Telegram: setWebhook per bot with the matching secret_token.
 
 ================================================================================
@@ -546,7 +552,5 @@ Telegram: setWebhook per bot with the matching secret_token.
   - .env.example's VITE_PAYMENT_WORKER_URL still uses the retired
     teleclaw-dispatch.silent-flower-a7c2.workers.dev host; update it to the
     current Worker URL before payment testing. This does not affect TON Connect.
-  - flying_messages and raffle_state still lack migration files.
   - src/pages/MapPage.tsx and src/pages/MintPage.tsx are dead code (never
     imported) — delete on cleanup.
-  - Admin reset endpoints are not initData-authenticated (spoofable caller_id).
