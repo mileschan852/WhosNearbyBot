@@ -19,8 +19,9 @@ points.
 `006_app_roles.sql` creates `app_roles` with a normalized username primary key,
 a constrained `admin`/`vip` role, a creation timestamp, username normalization,
 and row-level security. Migration `013_private_app_roles.sql` removes the
-historical public read policy and revokes direct client access. Usernames are
-stored in lowercase without a leading `@`.
+historical public read policy and revokes table- and column-level access from
+`PUBLIC`, `anon`, and `authenticated`; the Worker service role retains access.
+Usernames are stored in lowercase without a leading `@`.
 
 The frontend loads the list through an admin-authenticated Worker request.
 List/add/remove requests require fresh, HMAC-verified Telegram `initData`; the
@@ -33,8 +34,8 @@ The Worker returns only the signed-in user's role from the session endpoint.
 For a fresh database, apply migration files `001` through `013` in numeric order.
 Migration `012_seed_secondary_admin.sql` inserts or promotes the legacy
 secondary admin row in an idempotent way.
-Migration `013_private_app_roles.sql` removes public role-list access without
-changing or deleting any role records.
+Migration `013_private_app_roles.sql` removes public role-list access and direct
+client grants without changing or deleting any role records.
 
 For an existing deployment where `app_roles` is missing, apply:
 

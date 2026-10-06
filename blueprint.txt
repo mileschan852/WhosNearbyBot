@@ -541,9 +541,10 @@ Worker secrets (wrangler secret put / Cloudflare dashboard):
   SUPABASE_URL
   SUPABASE_ANON_KEY
   SUPABASE_SERVICE_KEY         — server-only key required for Worker writes
-Supabase: run migrations 001 through 012 in numeric order. In an existing
+Supabase: run migrations 001 through 013 in numeric order. In an existing
   deployment with the app_roles table missing, apply 006_app_roles.sql and
-  012_seed_secondary_admin.sql without resetting or clearing any other data.
+  012_seed_secondary_admin.sql, then 013_private_app_roles.sql without
+  resetting or clearing any other data.
 Telegram: setWebhook per bot with the matching secret_token.
 
 ================================================================================

@@ -30,6 +30,7 @@ A Telegram Mini App for finding nearby Telegram users — React + TypeScript SPA
   - `008_privacy_and_payment_hardening.sql` — private profile/payment data, restricted RPC access, and atomic payment fulfillment.
   - `009_flying_messages.sql`, `010_monthly_raffle.sql`, and `011_raffle_ticket_shortfall.sql` — flying messages and monthly raffle behavior.
   - `012_seed_secondary_admin.sql` — moves the legacy secondary-admin permission into `app_roles`.
+  - `013_private_app_roles.sql` — removes public role-list access and direct client grants without deleting role records.
 
 The Worker verifies Telegram `initData` and derives the caller ID and admin status itself. The browser does not read or write profile rows. Nearby results contain derived age, coarse coordinates and rounded distance, never raw birth dates or exact coordinates.
 
