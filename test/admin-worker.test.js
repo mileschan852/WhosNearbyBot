@@ -15,6 +15,8 @@ const originalFetch = globalThis.fetch;
 let calls;
 let deleteStatus;
 let rolesReadStatus;
+let settingsReadStatus;
+let settingsRows;
 let roleRows;
 let requestSequence = 1;
 
@@ -41,8 +43,8 @@ function makeInitData(user) {
   return params.toString();
 }
 
-async function send(path, body = {}, user = adminUser, method = "POST") {
-  const headers = { "cf-connecting-ip": `192.0.2.${requestSequence++}` };
+async function send(path, body = {}, user = adminUser, method = "POST", ip) {
+  const headers = { "cf-connecting-ip": ip || `192.0.2.${requestSequence++}` };
   const init = { method, headers };
   if (method !== "GET") {
     headers["Content-Type"] = "application/json";
@@ -58,10 +60,20 @@ async function send(path, body = {}, user = adminUser, method = "POST") {
   return { response, result };
 }
 
+async function sendRawBody(path, ip, body = "{") {
+  return worker.fetch(new Request(`https://worker.test${path}`, {
+    method: "POST",
+    headers: { "cf-connecting-ip": ip, "Content-Type": "application/json" },
+    body,
+  }), env);
+}
+
 beforeEach(() => {
   calls = [];
   deleteStatus = 204;
   rolesReadStatus = 200;
+  settingsReadStatus = 200;
+  settingsRows = [{ key: "global_vip_until", value: "0" }];
   roleRows = [];
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input);
@@ -78,7 +90,11 @@ beforeEach(() => {
       throw new Error(`Unexpected request: ${url.hostname}${url.pathname}`);
     }
     if (url.pathname === "/rest/v1/app_roles" && method === "GET") {
-      return jsonResponse(roleRows, rolesReadStatus);
+      const usernameFilter = url.searchParams.get("username");
+      const rows = usernameFilter
+        ? roleRows.filter((row) => `eq.${row.username}` === usernameFilter)
+        : roleRows;
+      return jsonResponse(rows, rolesReadStatus);
     }
     if (url.pathname === "/rest/v1/app_roles" && method === "POST") {
       return jsonResponse([body]);
@@ -90,6 +106,12 @@ beforeEach(() => {
       return init.headers && new Headers(init.headers).get("Prefer")?.includes("return=minimal")
         ? new Response(null, { status: 204 })
         : jsonResponse([body]);
+    }
+    if (url.pathname === "/rest/v1/app_settings" && method === "GET") {
+      return jsonResponse(settingsRows, settingsReadStatus);
+    }
+    if (url.pathname === "/rest/v1/profiles" && method === "POST") {
+      return jsonResponse([body]);
     }
     if (url.pathname === "/rest/v1/profiles" && method === "PATCH") {
       return jsonResponse([{ id: url.searchParams.get("id")?.replace(/^eq\./, "") || "tg_654321" }]);
@@ -151,16 +173,21 @@ test("a username is not an admin unless its role is stored in Supabase", async (
   assert.ok(!calls.some((call) => call.method === "POST"));
 });
 
-test("managed admin and VIP entries are returned from Supabase", async () => {
+test("only an authenticated admin can list managed admin and VIP entries", async () => {
   roleRows = [
     { username: "managed_admin", role: "admin", created_at: "2026-01-01T00:00:00Z" },
     { username: "managed_vip", role: "vip", created_at: "2026-01-02T00:00:00Z" },
   ];
 
-  const { response, result } = await send("/api/roles", {}, adminUser, "GET");
+  const { response, result } = await send("/api/roles", { action: "list" });
 
   assert.equal(response.status, 200);
   assert.deepEqual(result, roleRows);
+});
+
+test("the old public role-list route is disabled", async () => {
+  const { response } = await send("/api/roles", {}, adminUser, "GET");
+  assert.equal(response.status, 405);
 });
 
 test("failed admin role deletion returns a failure instead of a false success", async () => {
@@ -212,10 +239,66 @@ test("single-profile reset clears only weight on the selected profile", async ()
 
 test("role-list database failures are surfaced rather than returned as an empty list", async () => {
   rolesReadStatus = 404;
-  const { response, result } = await send("/api/roles", {}, adminUser, "GET");
+  const { response, result } = await send("/api/roles", { action: "list" });
 
   assert.equal(response.status, 502);
   assert.equal(result.upstreamStatus, 404);
+});
+
+test("auth returns only the signed-in user's role and reads role state from Supabase", async () => {
+  roleRows = [
+    { username: "managed_admin", role: "admin", created_at: "2026-01-01T00:00:00Z" },
+    { username: "other_member", role: "vip", created_at: "2026-01-02T00:00:00Z" },
+  ];
+  const { response, result } = await send("/api/auth", {}, {
+    id: 987654,
+    first_name: "Managed",
+    username: "managed_admin",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(result.role, "admin");
+  assert.equal("roles" in result, false);
+  assert.ok(calls.some((call) =>
+    call.url.pathname === "/rest/v1/app_roles" &&
+    call.url.searchParams.get("username") === "eq.managed_admin"
+  ));
+});
+
+test("auth surfaces Supabase settings failures instead of returning a successful empty state", async () => {
+  settingsReadStatus = 500;
+  const { response, result } = await send("/api/auth");
+
+  assert.equal(response.status, 503);
+  assert.match(result.error, /temporarily unavailable/i);
+});
+
+test("nearby search rejects excessive malformed requests from one IP", async () => {
+  const ip = "203.0.113.240";
+  for (let index = 0; index < 120; index++) {
+    await sendRawBody("/api/nearby", ip);
+  }
+  const response = await sendRawBody("/api/nearby", ip);
+  assert.equal(response.status, 429);
+});
+
+test("request body limits reject oversized payloads before database access", async () => {
+  const response = await sendRawBody(
+    "/api/nearby",
+    "203.0.113.242",
+    JSON.stringify({ payload: "x".repeat(5000) }),
+  );
+  assert.equal(response.status, 413);
+  assert.equal(calls.length, 0);
+});
+
+test("invoice creation rejects excessive requests from one IP", async () => {
+  const ip = "203.0.113.241";
+  for (let index = 0; index < 10; index++) {
+    await sendRawBody("/api/invoice", ip);
+  }
+  const response = await sendRawBody("/api/invoice", ip);
+  assert.equal(response.status, 429);
 });
 
 test("non-admin callers are rejected before any admin write", async () => {

@@ -2,15 +2,14 @@
 // Covers: initialization, profile setup, grid/map views, filters, payments,
 // profile card, games menu, footer navigation.
 
-import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
-import L from 'leaflet';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 
 import bustaIcon from './assets/Bustagames.jpg';
 import tonflipIcon from './assets/Tonflip.jpg';
 import photifyIcon from './assets/Photify.jpg';
+
+const MapView = lazy(() => import('./components/MapView'));
 
 declare global {
   interface Window {
@@ -405,7 +404,7 @@ const translations: Record<LangKey, Record<string, string>> = {
   }
 };
 
-interface UserProfile {
+export interface UserProfile {
   id: string;
   name: string;
   username?: string;
@@ -570,39 +569,6 @@ const isOnlineWithin15Min = (isoString?: string | null) => {
   }
 };
 
-function MapController({ center }: { center: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (map) {
-      map.invalidateSize();
-      map.setView(center, 15, { animate: true });
-    }
-  }, [center, map]);
-  return null;
-}
-
-const createProfileIcon = (user: UserProfile, isEnabled: boolean, isSelf: boolean, isOnline: boolean) => {
-  let innerHtml = '';
-  if (user.avatar) {
-    innerHtml = `<img src="${user.avatar}" style="width: 100%; height: 100%; object-fit: cover;" />`;
-  } else {
-    const initial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
-    innerHtml = `<div style="width: 100%; height: 100%; background-color: #0088cc; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">${initial}</div>`;
-  }
-  const opacity = isEnabled ? '1' : '0.3';
-  const filter = isEnabled ? 'none' : 'grayscale(100%)';
-  const borderColor = isSelf ? '#00ffff' : (isEnabled ? '#007bff' : '#555');
-  const greenDotHtml = isOnline
-    ? `<div style="position: absolute; top: 0; right: 0; width: 10px; height: 10px; background-color: #4ade80; border-radius: 50%; border: 2px solid #121212; z-index: 10;"></div>`
-    : '';
-  return L.divIcon({
-    className: 'custom-map-pin',
-    html: `<div style="position: relative; width: 36px; height: 36px; border-radius: 50%; overflow: visible; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.6); background-color: #222; opacity: ${opacity}; filter: ${filter}; display: flex; align-items: center; justify-content: center;"><div style="width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;">${innerHtml}</div>${greenDotHtml}</div>`,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-  });
-};
-
 const flyingMessageLane = (id: string) => {
   let hash = 0;
   for (let index = 0; index < id.length; index++) {
@@ -650,6 +616,7 @@ export default function App() {
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
   const [view, setView] = useState<'grid' | 'map'>('grid');
+  const [hasOpenedMap, setHasOpenedMap] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const raffleUserId = currentUser?.id;
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -673,6 +640,8 @@ export default function App() {
   // VIP (personal or global) unlocks every paid function, just like admin.
   const paidUnlocked = isAdmin || isVip || temporaryVipActive || globalVipActive;
   const [roles, setRoles] = useState<{ username: string; role: string }[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesLoadError, setRolesLoadError] = useState('');
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
   const [showRolesModal, setShowRolesModal] = useState<boolean>(false);
   const [showVipPeriods, setShowVipPeriods] = useState<boolean>(false);
@@ -816,25 +785,6 @@ export default function App() {
     return result;
   };
 
-  const workerGet = async (path: string) => {
-    const response = await fetch(`${PAYMENT_WORKER_URL}${path}`, {
-      headers: { Accept: 'application/json' },
-    });
-    let result: any = {};
-    try { result = await response.json(); } catch {}
-    if (!response.ok) {
-      const error = new Error(result.error || `Request failed (${response.status})`) as Error & {
-        status?: number;
-        upstreamStatus?: number;
-      };
-      error.status = response.status;
-      const upstreamStatus = Number(result.upstreamStatus);
-      if (Number.isInteger(upstreamStatus) && upstreamStatus >= 400) error.upstreamStatus = upstreamStatus;
-      throw error;
-    }
-    return result;
-  };
-
   const formatAdminFailure = (error: unknown, fallback: string) => {
     if (!(error instanceof Error)) return fallback;
     const details = error as Error & { status?: number; upstreamStatus?: number };
@@ -945,7 +895,7 @@ export default function App() {
   refreshRaffleStateRef.current = refreshRaffleState;
 
   useEffect(() => {
-    if (!isReady || !currentUser) return;
+    if (!isReady || !raffleUserId) return;
     let active = true;
     let polling = false;
     const pollMessages = async () => {
@@ -970,7 +920,7 @@ export default function App() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [isReady, currentUser?.id]);
+  }, [isReady, raffleUserId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1116,19 +1066,13 @@ export default function App() {
         const existingProfile: any = authResponse.profile;
         if (!existingProfile?.id) throw new Error('Your profile could not be loaded.');
         const userUsername = existingProfile.username || tgUser?.username || '';
-        // Load the managed admin/VIP list so entitlements survive across sessions.
-        const rolesList: { username: string; role: string }[] =
-          Array.isArray(authResponse.roles) ? authResponse.roles : [];
-        setRoles(rolesList);
+        // Fetch the managed role list only when an admin opens its manager.
+        setRoles([]);
         // The Worker reads this server-side so no Supabase credential is sent to the browser.
         const globalVipUntil = Number(authResponse.globalVipUntil);
         if (Number.isFinite(globalVipUntil)) setGlobalVipUntil(globalVipUntil);
-        const unameLower = userUsername.toLowerCase();
-        const tableRole = rolesList.find((r) => (r.username || '').toLowerCase() === unameLower)?.role;
-        // The owner is immutable; every other admin role comes from Supabase.
-        const checkIsAdmin = unameLower === 'mileschan852' || tableRole === 'admin';
-        setIsAdmin(checkIsAdmin);
-        setIsVip(tableRole === 'vip');
+        setIsAdmin(authResponse.role === 'admin');
+        setIsVip(authResponse.role === 'vip');
         const userId = existingProfile.id;
         localStorage.setItem('whos_nearby_user_id', userId);
         const userName = existingProfile.name || tgUser?.first_name || 'Anonymous';
@@ -1336,7 +1280,12 @@ export default function App() {
       if (w?.openInvoice) {
         w.openInvoice(invoiceLink, (status: string) => resolve(status === 'paid' ? 'paid' : 'failed'));
       } else if (typeof invoiceLink === 'string' && invoiceLink.startsWith('https://t.me/')) {
-        try { w?.openTelegramLink?.(invoiceLink) ?? window.open(invoiceLink, '_blank'); } catch { window.open(invoiceLink, '_blank'); }
+        try {
+          if (w?.openTelegramLink) w.openTelegramLink(invoiceLink);
+          else window.open(invoiceLink, '_blank', 'noopener,noreferrer');
+        } catch {
+          window.open(invoiceLink, '_blank', 'noopener,noreferrer');
+        }
         resolve('unsupported'); // client UI can't observe the result; do NOT auto-apply perks
       } else {
         resolve('failed');
@@ -1619,6 +1568,7 @@ export default function App() {
       const result = await workerPost('/api/profile', { profile: { map_visible: nextVal } });
       applyOwnProfile(result.profile);
       setView(nextVal ? 'map' : 'grid');
+      if (nextVal) setHasOpenedMap(true);
       await fetchUsersData();
     } catch (error) {
       console.error('Could not update map visibility:', error);
@@ -1855,11 +1805,17 @@ export default function App() {
   };
 
   const loadRoles = async () => {
+    setRolesLoading(true);
+    setRolesLoadError('');
     try {
-      const data = await workerGet('/api/roles');
-      if (Array.isArray(data)) setRoles(data as { username: string; role: string }[]);
+      const data = await workerPost('/api/roles', { action: 'list' });
+      if (!Array.isArray(data)) throw new Error('Invalid admin/VIP list response');
+      setRoles(data as { username: string; role: string }[]);
     } catch (error) {
       console.error('Could not load managed roles:', error);
+      setRolesLoadError(t('roleUpdateFailed'));
+    } finally {
+      setRolesLoading(false);
     }
   };
 
@@ -2135,30 +2091,18 @@ export default function App() {
         </div>
 
         <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
-          <MapContainer center={[location.lat, location.lng]} zoom={15} style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }} zoomControl={false}>
-            <MapController center={[location.lat, location.lng]} />
-<TileLayer className="dark-map-tiles" url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' maxZoom={19} />
-            <MarkerClusterGroup chunkedLoading>
-              {/* Your own pin: ALWAYS visible to you only, at your live GPS coords, greyed out unless green. */}
-              {currentUser && typeof location.lat === 'number' && typeof location.lng === 'number' && (
-                <Marker
-                  key="self-pin"
-                  position={[location.lat, location.lng]}
-                  icon={createProfileIcon(currentUser, gridVisible, true, isOnlineWithin15Min(currentUser.last_seen))}
-                  eventHandlers={{ click: () => handleCardClick(currentUser) }}
-                />
-              )}
-              {mapFilteredUsers.map((user) => {
-                // Skip users with no known coordinates entirely: never fall back
-                // to the viewer's own location (that piled every user onto one spot).
-                if (typeof user.lat !== 'number' || typeof user.lng !== 'number') return null;
-                const isUserVisible = user.grid_visible !== false;
-                const isEnabled = isUserVisible;
-                const isOnline = isOnlineWithin15Min(user.last_seen);
-                return (<Marker key={user.id} position={[user.lat, user.lng]} icon={createProfileIcon(user, isEnabled, false, isOnline)} eventHandlers={{ click: () => handleCardClick(user) }} />);
-              })}
-            </MarkerClusterGroup>
-          </MapContainer>
+          {hasOpenedMap && (
+            <Suspense fallback={<div role="status" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>{t('map')}</div>}>
+              <MapView
+                location={location}
+                currentUser={currentUser}
+                users={mapFilteredUsers}
+                gridVisible={gridVisible}
+                isOnline={isOnlineWithin15Min}
+                onSelectProfile={handleCardClick}
+              />
+            </Suspense>
+          )}
         </div>
       </main>
 
@@ -2375,7 +2319,14 @@ export default function App() {
                 <span style={{ fontSize: '13px', color: '#aaa' }}>@mileschan852 <span style={{ fontSize: '11px', color: '#f5c518' }}>· {t('owner')}</span></span>
                 <span style={{ fontSize: '11px', color: '#666' }}>{t('admin')}</span>
               </div>
-              {roles
+              {rolesLoading && <div role="status" style={{ fontSize: '12px', color: '#aaa', textAlign: 'center', padding: '10px' }}>{t('loading')}</div>}
+              {rolesLoadError && (
+                <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#fca5a5', fontSize: '12px', padding: '10px' }}>
+                  <span>{rolesLoadError}</span>
+                  <button type="button" onClick={() => void loadRoles()} style={{ padding: '4px 8px', border: '1px solid #555', borderRadius: '5px', background: '#2a2a2a', color: '#fff', cursor: 'pointer' }}>{t('refresh')}</button>
+                </div>
+              )}
+              {!rolesLoading && !rolesLoadError && roles
                 .filter((r) => (r.username || '').toLowerCase() !== 'mileschan852')
                 .map((r) => (
                   <div key={r.username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', backgroundColor: '#232323', border: '1px solid #333', borderRadius: '8px' }}>
@@ -2383,7 +2334,7 @@ export default function App() {
                     <button type="button" onClick={() => handleRemoveRole(r.username)} style={{ padding: '4px 10px', backgroundColor: '#7f1d1d', border: '1px solid #991b1b', borderRadius: '6px', color: '#fff', fontSize: '12px', cursor: 'pointer' }}>{t('removeRole')}</button>
                   </div>
                 ))}
-              {roles.filter((r) => (r.username || '').toLowerCase() !== 'mileschan852').length === 0 && (
+              {!rolesLoading && !rolesLoadError && roles.filter((r) => (r.username || '').toLowerCase() !== 'mileschan852').length === 0 && (
                 <div style={{ fontSize: '12px', color: '#777', textAlign: 'center', padding: '10px' }}>{t('noRolesYet')}</div>
               )}
             </div>

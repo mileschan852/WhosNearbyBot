@@ -296,13 +296,13 @@ Age is enforced server-side via trigger, not RLS.
                          isAdminCaller. Sets only weight to null on
                          {target_id}'s profile, preserving all other fields,
                          including is_underage.
-  GET  /api/roles      — list managed admin/VIP entries (public read), ordered
-                         by created_at.
-  POST /api/roles      — ADMIN-ONLY: requires valid initData and isAdminCaller
-                         (owner identity or role=admin in app_roles). Body
-                         { action:'add'|'remove', username,
-                         role:'admin'|'vip' }. Refuses to mutate the owner
-                         (mileschan852). Usernames normalized (lowercase, no @).
+   GET  /api/roles      — disabled (405); role data is not publicly readable.
+   POST /api/roles      — ADMIN-ONLY: requires valid initData and isAdminCaller
+                          (owner identity or role=admin in app_roles). Supports
+                          { action:'list' } and { action:'add'|'remove',
+                          username, role:'admin'|'vip' }. Refuses to mutate the
+                          owner (mileschan852). Usernames normalized (lowercase,
+                          no @).
   GET  /api/health, /health — {ok:true, version:'rls-hardened-1.2'}
 
 Purchasable types (ALLOWED_TYPES, all XTR/Stars):

@@ -49,19 +49,42 @@ async function readJsonLimited(request, maxBytes = 4096) {
   if (declaredLength > maxBytes) {
     const error = new Error("Request body is too large");
     error.status = 413;
+    error.requestBodyError = true;
     throw error;
   }
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).byteLength > maxBytes) {
-    const error = new Error("Request body is too large");
-    error.status = 413;
-    throw error;
+
+  const chunks = [];
+  let totalBytes = 0;
+  const reader = request.body?.getReader();
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => {});
+        const error = new Error("Request body is too large");
+        error.status = 413;
+        error.requestBodyError = true;
+        throw error;
+      }
+      chunks.push(value);
+    }
   }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const raw = new TextDecoder().decode(bytes);
   try {
     return JSON.parse(raw);
   } catch {
     const error = new Error("Invalid JSON body");
     error.status = 400;
+    error.requestBodyError = true;
     throw error;
   }
 }
@@ -217,7 +240,8 @@ function parseTelegramId(value) {
 
 function safeOwnProfile(profile) {
   if (!profile) return null;
-  const { private_notes, ...safe } = profile;
+  const safe = { ...profile };
+  delete safe.private_notes;
   return safe;
 }
 
@@ -226,35 +250,44 @@ function safeOwnProfile(profile) {
 const OWNER_USERNAME = "mileschan852";
 const ALWAYS_ADMIN = [OWNER_USERNAME];
 
+async function getManagedRole(env, username) {
+  const normalized = String(username || "").trim().toLowerCase().replace(/^@/, "");
+  if (!normalized) return null;
+  const params = new URLSearchParams({
+    select: "role",
+    username: `eq.${normalized}`,
+    limit: "1",
+  });
+  const rows = await sbGetStrict(env, `rest/v1/app_roles?${params}`);
+  const role = (Array.isArray(rows) ? rows[0] : rows)?.role;
+  return role === "admin" || role === "vip" ? role : null;
+}
+
+async function getRoleForAuthUser(env, authUser) {
+  if (Number(authUser?.id) === ADMIN_ID) return "admin";
+  const username = (authUser?.username || "").toLowerCase();
+  if (ALWAYS_ADMIN.includes(username)) return "admin";
+  return getManagedRole(env, username);
+}
+
 // The owner stays immutable; every other managed admin is stored in Supabase.
 async function isAdminCaller(env, authUser) {
-  if (Number(authUser?.id) === ADMIN_ID) return true;
-  const uname = (authUser?.username || "").toLowerCase();
-  if (!uname) return false;
-  if (ALWAYS_ADMIN.includes(uname)) return true;
-  const rows = await sbGet(env, `rest/v1/app_roles?select=role&username=eq.${encodeURIComponent(uname)}`);
-  const role = (Array.isArray(rows) ? rows[0] : rows)?.role;
-  return role === "admin";
+  return (await getRoleForAuthUser(env, authUser)) === "admin";
 }
 
 async function isPaidUnlocked(env, authUser) {
-  if (await isAdminCaller(env, authUser)) return true;
-  const username = (authUser?.username || "").toLowerCase();
-  if (username) {
-    const rows = await sbGet(env, `rest/v1/app_roles?select=role&username=eq.${encodeURIComponent(username)}`);
-    const role = (Array.isArray(rows) ? rows[0] : rows)?.role;
-    if (role === "vip") return true;
-  }
+  const role = await getRoleForAuthUser(env, authUser);
+  if (role === "admin" || role === "vip") return true;
   const tgId = parseTelegramId(authUser?.id);
   if (tgId) {
-    const profiles = await sbGet(
+    const profiles = await sbGetStrict(
       env,
       `rest/v1/profiles?select=vip_expiry&id=eq.${encodeURIComponent(`tg_${tgId}`)}&limit=1`,
     );
     const expiry = Date.parse((Array.isArray(profiles) ? profiles[0] : profiles)?.vip_expiry || "");
     if (Number.isFinite(expiry) && expiry > Date.now()) return true;
   }
-  const settings = await sbGet(env, "rest/v1/app_settings?select=value&key=eq.global_vip_until");
+  const settings = await sbGetStrict(env, "rest/v1/app_settings?select=value&key=eq.global_vip_until&limit=1");
   const value = Number((Array.isArray(settings) ? settings[0] : settings)?.value);
   return Number.isFinite(value) && value > Date.now();
 }
@@ -285,15 +318,6 @@ function adminWriteFailure(action, error) {
     error: `${action} failed`,
     ...(Number.isInteger(status) && status >= 400 ? { upstreamStatus: status } : {}),
   }, 502);
-}
-
-async function sbGet(env, path) {
-  const res = await fetch(`${env.SUPABASE_URL}/${path}`, {
-    headers: sbHeaders(env),
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) return null;
-  return res.json();
 }
 
 async function sbGetStrict(env, path) {
@@ -791,7 +815,7 @@ export default {
         return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
       }
       try {
-        const { initData, bot } = await request.json();
+        const { initData, bot } = await readJsonLimited(request);
         if (!initData || !bot) return json({ error: "Missing initData or bot" }, 400);
         const authSession = await parseAuthUserForEitherBot(env, initData, bot);
         if (!authSession) return json({ error: "Invalid or expired Telegram session" }, 401);
@@ -800,33 +824,42 @@ export default {
         const profileData = { id: tgId, name: tgUser.first_name || "", username: tgUser.username || null, avatar: tgUser.photo_url || null, last_seen: new Date().toISOString() };
         const profile = await sbUpsertProfile(env, profileData);
         if (!profile) return json({ error: "Profile could not be loaded" }, 503);
-        const [rolesResult, settingsResult] = await Promise.allSettled([
-          sbGet(env, "rest/v1/app_roles?select=username,role"),
-          sbGet(env, "rest/v1/app_settings?select=value&key=eq.global_vip_until"),
+        const [role, settings] = await Promise.all([
+          getRoleForAuthUser(env, tgUser),
+          sbGetStrict(env, "rest/v1/app_settings?select=value&key=eq.global_vip_until&limit=1"),
         ]);
-        const roles = rolesResult.status === "fulfilled" && Array.isArray(rolesResult.value)
-          ? rolesResult.value
-          : [];
-        const settings = settingsResult.status === "fulfilled" && Array.isArray(settingsResult.value)
-          ? settingsResult.value
-          : [];
+        if (!Array.isArray(settings)) return json({ error: "Account information is temporarily unavailable." }, 503);
         const globalVipUntil = Number(settings[0]?.value);
         return json({
           profile: safeOwnProfile(profile),
-          roles,
+          role,
           globalVipUntil: Number.isFinite(globalVipUntil) ? globalVipUntil : 0,
           bot: verifiedBot,
         });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) {
+        if (e?.requestBodyError) return json({ error: e.message }, e.status || 400);
+        console.error("[worker] authentication data load failed", e && e.message);
+        return json({ error: "Account information is temporarily unavailable." }, 503);
+      }
     }
 
     // POST /api/nearby — identity, location and admin scope are server-derived.
     if (path === "/api/nearby" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "nearby", 120, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
       try {
-        const { initData, bot } = await request.json();
+        const { initData, bot } = await readJsonLimited(request);
         const authUser = await parseAuthUser(env, initData, bot);
         if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
-        const profileId = `tg_${parseTelegramId(authUser.id)}`;
+        const tgId = parseTelegramId(authUser.id);
+        if (!tgId) return json({ error: "Invalid Telegram user" }, 401);
+        const userRetryAfter = rateLimit(request, `nearby-user:${tgId}`, 60, 60_000);
+        if (userRetryAfter) {
+          return json({ error: "Too many nearby searches" }, 429, { "retry-after": String(userRetryAfter) });
+        }
+        const profileId = `tg_${tgId}`;
         const ownRows = await sbGetStrict(
           env,
           `rest/v1/profiles?select=lat,lng&id=eq.${encodeURIComponent(profileId)}`,
@@ -845,26 +878,48 @@ export default {
         });
         if (!Array.isArray(nearby)) return json({ error: "Nearby search returned invalid data" }, 502);
         return json(nearby.map(sanitizeNearbyProfile));
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) {
+        if (e?.requestBodyError) return json({ error: e.message }, e.status || 400);
+        console.error("[worker] nearby search failed", e && e.message);
+        return json({ error: "Nearby search is temporarily unavailable." }, 503);
+      }
     }
 
     // POST /api/profile
     if (path === "/api/profile" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "profile-update", 60, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
       try {
-        const { initData, bot, profile } = await request.json();
+        const { initData, bot, profile } = await readJsonLimited(request);
         const authUser = await parseAuthUser(env, initData, bot);
         if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        const tgId = parseTelegramId(authUser.id);
+        if (!tgId) return json({ error: "Invalid Telegram user" }, 401);
+        const userRetryAfter = rateLimit(request, `profile-update-user:${tgId}`, 60, 60_000);
+        if (userRetryAfter) {
+          return json({ error: "Too many profile updates" }, 429, { "retry-after": String(userRetryAfter) });
+        }
         const result = await updateOwnProfile(env, authUser, profile);
         return result.error
           ? json({ error: result.error }, result.status || 400)
           : json({ updated: true, profile: result.profile });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) {
+        if (e?.requestBodyError) return json({ error: e.message }, e.status || 400);
+        console.error("[worker] profile update failed", e && e.message);
+        return json({ error: "Profile update is temporarily unavailable." }, 503);
+      }
     }
 
     // POST /api/invoice  (alias: /create-invoice)
     if ((path === "/api/invoice" || path === "/create-invoice") && request.method === "POST") {
+      const retryAfter = rateLimit(request, "create-invoice", 10, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many invoice requests" }, 429, { "retry-after": String(retryAfter) });
+      }
       try {
-        const body = await request.json();
+        const body = await readJsonLimited(request);
         const { userId, initData, bot } = body;
         const type = body.type;
         const cfg = ALLOWED_TYPES[type];
@@ -875,6 +930,10 @@ export default {
         const tgId = parseTelegramId(authUser.id);
         if (userId !== undefined && parseTelegramId(userId) !== tgId) {
           return json({ error: "Invoice user does not match Telegram session" }, 403);
+        }
+        const userRetryAfter = rateLimit(request, `create-invoice-user:${tgId}`, 10, 60_000);
+        if (userRetryAfter) {
+          return json({ error: "Too many invoice requests" }, 429, { "retry-after": String(userRetryAfter) });
         }
         const token = getBotToken(env, bot);
         if (!token) return json({ error: "Payment bot is not configured" }, 503);
@@ -890,11 +949,16 @@ export default {
             prices: [{ label: cfg.title, amount: finalAmount }],
           }),
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(8000),
         });
         const data = await res.json();
         if (!res.ok || !data.ok) return json({ error: data.description || "Telegram invoice request failed" }, 502);
         return json({ invoiceLink: data.result });
-      } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
+      } catch (e) {
+        if (e?.requestBodyError) return json({ error: e.message }, e.status || 400);
+        console.error("[worker] invoice creation failed", e && e.message);
+        return json({ error: "Could not create an invoice. Please try again." }, 502);
+      }
     }
 
     // POST /api/raffle/state — signed Telegram identity; exposes aggregate
@@ -1390,26 +1454,30 @@ export default {
       } catch (e) { return adminWriteFailure("Profile reset", e); }
     }
 
-    // GET /api/roles — list managed admin/VIP entries (public read).
+    // The managed admin/VIP list is only available to authenticated admins.
     if (path === "/api/roles" && request.method === "GET") {
-      try {
-        const rows = await sbGetStrict(env, "rest/v1/app_roles?select=username,role,created_at&order=created_at.asc");
-        if (!Array.isArray(rows)) return json({ error: "Admin role list returned an invalid response" }, 502);
-        return json(rows);
-      } catch (e) { return adminWriteFailure("Admin role list", e); }
+      return json({ error: "Use the authenticated admin role-list request." }, 405);
     }
 
-    // POST /api/roles — admin-only add/remove of admin/VIP entries.
+    // POST /api/roles — admin-only list/add/remove of admin/VIP entries.
     // Authorization comes from verified initData; the caller must be an admin.
     // The owner (mileschan852) role can never be added or removed here.
     if (path === "/api/roles" && request.method === "POST") {
       const retryAfter = rateLimit(request, "admin-role-update", 30, 60_000);
       if (retryAfter) return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
       try {
-        const { action, username, role, initData, bot } = await request.json();
+        const { action, username, role, initData, bot } = await readJsonLimited(request);
         const authUser = await parseAuthUser(env, initData || "", bot);
         if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
         if (!(await isAdminCaller(env, authUser))) return json({ error: "Forbidden" }, 403);
+        if (action === "list") {
+          const rows = await sbGetStrict(
+            env,
+            "rest/v1/app_roles?select=username,role,created_at&order=created_at.asc",
+          );
+          if (!Array.isArray(rows)) return json({ error: "Admin role list returned an invalid response" }, 502);
+          return json(rows);
+        }
         const uname = String(username || "").trim().toLowerCase().replace(/^@/, "");
         if (!/^[a-z0-9_]{5,32}$/.test(uname)) return json({ error: "Invalid username" }, 400);
         if (uname === OWNER_USERNAME) return json({ error: "Owner role is immutable" }, 403);
@@ -1437,7 +1505,10 @@ export default {
           return json({ ok: true });
         }
         return json({ error: "Invalid action" }, 400);
-      } catch (e) { return adminWriteFailure("Admin role update", e); }
+      } catch (e) {
+        if (e?.requestBodyError) return json({ error: e.message }, e.status || 400);
+        return adminWriteFailure("Admin role update", e);
+      }
     }
 
     // POST /api/global-vip — admin-only. Grants EVERY user all paid functions
