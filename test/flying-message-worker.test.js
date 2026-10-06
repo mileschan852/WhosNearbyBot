@@ -7,7 +7,7 @@ const botToken = "test-bot-token";
 const env = {
   BOT_A_TOKEN: botToken,
   SUPABASE_URL: "https://supabase.test",
-  SUPABASE_SERVICE_KEY: "test-service-key",
+  SUPABASE_SERVICE_KEY: "test-key",
 };
 
 const originalFetch = globalThis.fetch;
@@ -67,6 +67,12 @@ beforeEach(() => {
       }
       if (url.pathname === "/rest/v1/app_settings" && url.searchParams.get("key") === "eq.global_vip_until") {
         return jsonResponse([]);
+      }
+      if (url.pathname === "/rest/v1/profiles" && url.searchParams.get("select") === "vip_expiry") {
+        return jsonResponse([]);
+      }
+      if (url.pathname === "/rest/v1/profiles" && url.searchParams.get("select") === "dob,is_underage") {
+        return jsonResponse([{ dob: "1990-01-01", is_underage: false }]);
       }
       if (url.pathname === "/rest/v1/app_roles") {
         const username = (url.searchParams.get("username") || "").replace(/^eq\./, "");

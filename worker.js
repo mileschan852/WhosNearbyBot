@@ -68,6 +68,42 @@ async function readJsonLimited(request, maxBytes = 4096) {
 
 const MAX_FLYING_MESSAGE_LENGTH = 200;
 const MAX_FLYING_MESSAGE_PRICE = 10_000;
+const RAFFLE_TICKET_AMOUNT = 100;
+
+function parseRaffleTicketInvoicePayload(value) {
+  const match = /^rt1\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|(botA|botB)\|([0-9]{1,20})\|100$/i.exec(String(value || ""));
+  if (!match) return null;
+  const tgId = parseTelegramId(match[3]);
+  if (!tgId) return null;
+  return { intentId: match[1], bot: match[2], tgId, amount: RAFFLE_TICKET_AMOUNT };
+}
+
+function isValidTelegramUsername(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_]{5,32}$/.test(value);
+}
+
+async function refundRaffleStarsPayment(env, bot, tgId, chargeId) {
+  const token = getBotToken(env, bot);
+  const numericTgId = Number(tgId);
+  if (!token || !Number.isSafeInteger(numericTgId) || !chargeId) {
+    throw new Error("Raffle payment refund cannot be submitted");
+  }
+  const response = await fetch(`https://api.telegram.org/bot${token}/refundStarPayment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: numericTgId,
+      telegram_payment_charge_id: chargeId,
+    }),
+    signal: AbortSignal.timeout(8000),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    const description = String(result.description || "");
+    if (/already refunded|payment was refunded/i.test(description)) return;
+    throw new Error(`Telegram Stars refund failed (${response.status})`);
+  }
+}
 
 function parseFlyingMessageInvoicePayload(value) {
   const match = /^fm1\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|(botA|botB)\|([0-9]{1,20})\|([0-9]{1,5})$/i.exec(String(value || ""));
@@ -209,6 +245,15 @@ async function isPaidUnlocked(env, authUser) {
     const rows = await sbGet(env, `rest/v1/app_roles?select=role&username=eq.${encodeURIComponent(username)}`);
     const role = (Array.isArray(rows) ? rows[0] : rows)?.role;
     if (role === "vip") return true;
+  }
+  const tgId = parseTelegramId(authUser?.id);
+  if (tgId) {
+    const profiles = await sbGet(
+      env,
+      `rest/v1/profiles?select=vip_expiry&id=eq.${encodeURIComponent(`tg_${tgId}`)}&limit=1`,
+    );
+    const expiry = Date.parse((Array.isArray(profiles) ? profiles[0] : profiles)?.vip_expiry || "");
+    if (Number.isFinite(expiry) && expiry > Date.now()) return true;
   }
   const settings = await sbGet(env, "rest/v1/app_settings?select=value&key=eq.global_vip_until");
   const value = Number((Array.isArray(settings) ? settings[0] : settings)?.value);
@@ -378,9 +423,10 @@ async function handlePaymentUpdate(env, update) {
   if (update.pre_checkout_query) {
     const query = update.pre_checkout_query;
     const flyingInvoice = parseFlyingMessageInvoicePayload(query.invoice_payload);
+    const raffleTicket = parseRaffleTicketInvoicePayload(query.invoice_payload);
     let payment = null;
     try { payment = JSON.parse(query.invoice_payload || "null"); } catch {}
-    const bot = flyingInvoice?.bot || (payment?.bot === "botA" ? "botA" : "botB");
+    const bot = flyingInvoice?.bot || raffleTicket?.bot || (payment?.bot === "botA" ? "botA" : "botB");
     const token = getBotToken(env, bot);
     if (!token) return new Response("Payment bot is not configured", { status: 503 });
     let valid = false;
@@ -405,6 +451,32 @@ async function handlePaymentUpdate(env, update) {
           valid = result?.ok === true;
         } catch (error) {
           console.error("[worker] flying message pre-checkout verification failed", error && error.message);
+          valid = false;
+        }
+      }
+    } else if (raffleTicket) {
+      valid = Boolean(
+        String(query.from?.id || "") === raffleTicket.tgId &&
+        isValidTelegramUsername(query.from?.username) &&
+        query.currency === "XTR" &&
+        query.total_amount === raffleTicket.amount
+      );
+      if (valid) {
+        try {
+          const result = unwrapRpcResult(await sbPostStrict(
+            env,
+            "rest/v1/rpc/mark_raffle_ticket_prechecked",
+            {
+              p_intent_id: raffleTicket.intentId,
+              p_tg_id: raffleTicket.tgId,
+              p_username: query.from.username,
+              p_bot: raffleTicket.bot,
+              p_amount: raffleTicket.amount,
+            },
+          ));
+          valid = result?.ok === true;
+        } catch (error) {
+          console.error("[worker] raffle pre-checkout verification failed", error && error.message);
           valid = false;
         }
       }
@@ -436,6 +508,7 @@ async function handlePaymentUpdate(env, update) {
   if (update.message?.successful_payment) {
     const payment = update.message.successful_payment;
     const flyingInvoice = parseFlyingMessageInvoicePayload(payment.invoice_payload);
+    const raffleTicket = parseRaffleTicketInvoicePayload(payment.invoice_payload);
     if (flyingInvoice) {
       if (
         String(update.message.from?.id || "") !== flyingInvoice.tgId ||
@@ -453,6 +526,45 @@ async function handlePaymentUpdate(env, update) {
         p_currency: payment.currency,
         p_telegram_payment_charge_id: payment.telegram_payment_charge_id,
         p_provider_payment_charge_id: payment.provider_payment_charge_id || null,
+      });
+      return new Response("OK");
+    }
+    if (raffleTicket) {
+      const payerTgId = parseTelegramId(update.message.from?.id);
+      if (
+        payerTgId !== raffleTicket.tgId ||
+        payment.currency !== "XTR" ||
+        payment.total_amount !== raffleTicket.amount ||
+        !payment.telegram_payment_charge_id
+      ) {
+        return new Response("Invalid raffle ticket payment", { status: 400 });
+      }
+
+      const result = unwrapRpcResult(await sbPostStrict(
+        env,
+        "rest/v1/rpc/complete_raffle_ticket_payment",
+        {
+          p_intent_id: raffleTicket.intentId,
+          p_tg_id: raffleTicket.tgId,
+          p_bot: raffleTicket.bot,
+          p_amount: payment.total_amount,
+          p_currency: payment.currency,
+          p_telegram_payment_charge_id: payment.telegram_payment_charge_id,
+          p_provider_payment_charge_id: payment.provider_payment_charge_id || null,
+        },
+      ));
+
+      if (result?.ok === true) return new Response("OK");
+
+      await refundRaffleStarsPayment(
+        env,
+        raffleTicket.bot,
+        raffleTicket.tgId,
+        payment.telegram_payment_charge_id,
+      );
+      await sbPostStrict(env, "rest/v1/rpc/mark_raffle_ticket_refunded", {
+        p_intent_id: raffleTicket.intentId,
+        p_telegram_payment_charge_id: payment.telegram_payment_charge_id,
       });
       return new Response("OK");
     }
@@ -786,6 +898,158 @@ export default {
       } catch (e) { console.error("[worker]", e && e.message); return json({ error: "Internal error" }, 500); }
     }
 
+    // POST /api/raffle/state — signed Telegram identity; exposes aggregate
+    // ticket counts and the latest public winners, never purchaser IDs.
+    if (path === "/api/raffle/state" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "raffle-state", 30, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const { initData, bot } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        const tgId = parseTelegramId(authUser.id);
+        const state = unwrapRpcResult(await sbPostStrict(
+          env,
+          "rest/v1/rpc/get_raffle_state",
+          { p_tg_id: tgId },
+        ));
+        const hasUsername = isValidTelegramUsername(authUser.username);
+        const isAdult = await isEligibleAdultMessageUser(env, authUser);
+        return json({
+          ...state,
+          canPurchase: hasUsername && isAdult,
+          usernameRequired: !hasUsername,
+        });
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] raffle state failed", e && e.message);
+        return json({ error: "Raffle information is temporarily unavailable." }, 503);
+      }
+    }
+
+    // POST /api/raffle/ticket — one fixed-price Stars ticket per invoice.
+    // Telegram username and adult eligibility are derived from signed initData
+    // and rechecked transactionally by the database RPC.
+    if (path === "/api/raffle/ticket" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "raffle-ticket-invoice", 10, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      let intentId = "";
+      let tgId = "";
+      try {
+        const { initData, bot } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (!isValidTelegramUsername(authUser.username)) {
+          return json({ error: "A Telegram username is required to buy raffle tickets." }, 403);
+        }
+        if (!(await isEligibleAdultMessageUser(env, authUser))) {
+          return json({ error: "Complete an adult profile before buying raffle tickets." }, 403);
+        }
+        if (bot !== "botA" && bot !== "botB") return json({ error: "Invalid bot" }, 400);
+        const token = getBotToken(env, bot);
+        if (!token) return json({ error: "Payment bot is not configured" }, 503);
+        tgId = parseTelegramId(authUser.id);
+        intentId = crypto.randomUUID();
+
+        const prepared = unwrapRpcResult(await sbPostStrict(
+          env,
+          "rest/v1/rpc/create_raffle_ticket_intent",
+          {
+            p_intent_id: intentId,
+            p_tg_id: tgId,
+            p_username: authUser.username,
+            p_bot: bot,
+          },
+        ));
+        if (!prepared?.ok) {
+          const reason = prepared?.reason;
+          const status = reason === "profile" ? 403
+            : reason === "closed" || reason === "pending_invoice" ? 409
+              : 400;
+          const error = reason === "profile"
+            ? "Complete an adult profile before buying raffle tickets."
+            : reason === "closed"
+              ? "Ticket sales for this draw are closed."
+              : reason === "pending_invoice"
+                ? "Finish or cancel your existing raffle ticket invoice first."
+                : "A raffle ticket invoice could not be prepared.";
+          return json({ error }, status);
+        }
+
+        const title = "Monthly raffle ticket";
+        const response = await fetch(`https://api.telegram.org/bot${token}/createInvoiceLink`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            description: "One ticket for the monthly raffle. Draw at 8:00 PM Hong Kong time on the 1st.",
+            payload: `rt1|${intentId}|${bot}|${tgId}|${RAFFLE_TICKET_AMOUNT}`,
+            provider_token: "",
+            currency: "XTR",
+            prices: [{ label: title, amount: RAFFLE_TICKET_AMOUNT }],
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok || typeof data.result !== "string") {
+          throw new Error("Telegram invoice creation failed");
+        }
+        return json({
+          invoiceLink: data.result,
+          intentId,
+          roundKey: prepared.roundKey,
+          amount: RAFFLE_TICKET_AMOUNT,
+        });
+      } catch (e) {
+        if (intentId && tgId) {
+          try {
+            await sbPatchStrict(
+              env,
+              `rest/v1/raffle_ticket_intents?id=eq.${encodeURIComponent(intentId)}&tg_id=eq.${encodeURIComponent(tgId)}&status=eq.pending`,
+              { status: "cancelled", updated_at: new Date().toISOString() },
+            );
+          } catch {}
+        }
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] raffle ticket invoice failed", e && e.message);
+        return json({ error: "Could not create a Telegram Stars invoice. Please try again." }, 502);
+      }
+    }
+
+    // POST /api/raffle/cancel — only cancels the caller's outstanding invoice.
+    if (path === "/api/raffle/cancel" && request.method === "POST") {
+      const retryAfter = rateLimit(request, "raffle-ticket-cancel", 20, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const { initData, bot, intentId } = await readJsonLimited(request);
+        const authUser = await parseAuthUser(env, initData || "", bot);
+        if (!authUser) return json({ error: "Invalid or expired Telegram session" }, 401);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(intentId || ""))) {
+          return json({ error: "Invalid invoice reference." }, 400);
+        }
+        const tgId = parseTelegramId(authUser.id);
+        await sbPatchStrict(
+          env,
+          `rest/v1/raffle_ticket_intents?id=eq.${encodeURIComponent(intentId)}&tg_id=eq.${encodeURIComponent(tgId)}&audience_bot=eq.${bot}&status=in.(pending,prechecked)`,
+          { status: "cancelled", updated_at: new Date().toISOString() },
+        );
+        return json({ ok: true });
+      } catch (e) {
+        const status = Number(e?.status);
+        if (status >= 400 && status < 500) return json({ error: e.message }, status);
+        console.error("[worker] raffle ticket cancellation failed", e && e.message);
+        return json({ error: "Could not cancel the raffle ticket invoice." }, 502);
+      }
+    }
+
     // POST /api/webhook — verify Telegram's secret-token header first so
     // forged updates can't grant paid entitlements. TELEGRAM_WEBHOOK_SECRET
     // must match the secret_token passed to setWebhook.
@@ -1081,10 +1345,26 @@ export default {
       return json({ error: "Use the authenticated messages feed." }, 405);
     }
 
-    // GET /api/raffle
+    // GET /api/raffle — public aggregate state for compatibility. The mini app
+    // uses the authenticated POST endpoint to also get its own ticket count.
     if (path === "/api/raffle" && request.method === "GET") {
-      const state = await sbGet(env, "rest/v1/raffle_state?id=eq.1");
-      return json(Array.isArray(state) ? state[0] : state || { prize_name: "Ultimate Bundle", tickets_sold: 0 });
+      const retryAfter = rateLimit(request, "raffle-public-state", 120, 60_000);
+      if (retryAfter) {
+        return json({ error: "Too many requests" }, 429, { "retry-after": String(retryAfter) });
+      }
+      try {
+        const state = unwrapRpcResult(await sbPostStrict(
+          env,
+          "rest/v1/rpc/get_raffle_state",
+          { p_tg_id: null },
+        ));
+        const publicState = state && typeof state === "object" ? { ...state } : {};
+        delete publicState.userTicketCount;
+        return json(publicState);
+      } catch (e) {
+        console.error("[worker] public raffle state failed", e && e.message);
+        return json({ error: "Raffle information is temporarily unavailable." }, 503);
+      }
     }
 
     // POST /api/reset-profile — admin-only force reset of a single profile.
@@ -1221,5 +1501,21 @@ export default {
     if (path === "/api/health" || path === "/health") return json({ ok: true, version: "rls-hardened-1.2" });
 
     return json({ error: "Not found" }, 404);
+  },
+
+  async scheduled(controller, env, context) {
+    context.waitUntil((async () => {
+      try {
+        const result = unwrapRpcResult(await sbPostStrict(
+          env,
+          "rest/v1/rpc/draw_due_raffle_rounds",
+          {},
+        ));
+        console.log("[worker] raffle draw check completed", result?.drawnRounds ?? 0);
+      } catch (error) {
+        console.error("[worker] raffle draw check failed", error && error.message);
+        throw error;
+      }
+    })());
   },
 };

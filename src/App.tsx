@@ -70,6 +70,197 @@ type FlyingMessage = {
   audience_bot: 'botA' | 'botB';
 };
 
+type RafflePrizeKey = 'vip' | 'filter' | 'invisible' | 'hide_age';
+
+type RaffleWinner = {
+  prizeKey: RafflePrizeKey;
+  username: string;
+  expiresAt: string;
+  isYou: boolean;
+};
+
+type RaffleDraw = {
+  roundKey: string;
+  drawnAt: string;
+  winners: RaffleWinner[];
+};
+
+type RaffleState = {
+  roundKey: string;
+  closesAt: string;
+  serverNow: string;
+  ticketCount: number;
+  userTicketCount: number;
+  canPurchase: boolean;
+  usernameRequired: boolean;
+  latestDraw: RaffleDraw | null;
+};
+
+const raffleUiCopy: Record<LangKey, {
+  button: string;
+  summary: string;
+  drawTime: string;
+  shortfallRule: string;
+  countdown: string;
+  pool: string;
+  yours: string;
+  usernameRequired: string;
+  adultProfileRequired: string;
+  processing: string;
+  ticketPurchased: string;
+  paymentProcessing: string;
+  invoiceFallback: string;
+  paymentCancelled: string;
+  announcement: string;
+  winnerMessage: string;
+  prizes: Record<RafflePrizeKey, string>;
+}> = {
+  en: {
+    button: 'Buy ticket',
+    summary: 'VIP · filters · invisible · hide age',
+    drawTime: '1st · 8 PM HKT',
+    shortfallRule: '4+ eligible users: 4 distinct winners; fewer: VIP only; no rollover',
+    countdown: '{d}d {h}:{m}:{s}',
+    pool: 'Pool: {count}',
+    yours: 'Yours: {count}',
+    usernameRequired: 'Set a Telegram username before buying a ticket.',
+    adultProfileRequired: 'Complete an adult profile before buying a ticket.',
+    processing: 'Opening payment…',
+    ticketPurchased: 'Ticket confirmed.',
+    paymentProcessing: 'Payment received; the ticket is still being confirmed.',
+    invoiceFallback: 'Continue in Telegram; the ticket appears after payment is confirmed.',
+    paymentCancelled: 'Payment cancelled.',
+    announcement: 'Raffle',
+    winnerMessage: '{prize} winner: @{username}',
+    prizes: {
+      vip: '1-month VIP',
+      filter: '1-month filter unlock',
+      invisible: '1-month invisible mode',
+      hide_age: '1-month hide age',
+    },
+  },
+  'zh-CN': {
+    button: '购买抽奖券',
+    summary: 'VIP · 筛选 · 隐身 · 隐藏年龄',
+    drawTime: '每月1日 · 香港时间20:00',
+    shortfallRule: '至少4名合资格用户抽4奖；不足仅抽VIP；奖项不结转',
+    countdown: '{d}天 {h}:{m}:{s}',
+    pool: '本期票数：{count}',
+    yours: '你的票：{count}',
+    usernameRequired: '请先设置 Telegram 用户名，再购买抽奖券。',
+    adultProfileRequired: '请先完成成人资料，再购买抽奖券。',
+    processing: '正在打开付款…',
+    ticketPurchased: '抽奖券已确认。',
+    paymentProcessing: '已收到付款，正在确认抽奖券。',
+    invoiceFallback: '请在 Telegram 中继续付款；确认后抽奖券会显示。',
+    paymentCancelled: '付款已取消。',
+    announcement: '抽奖结果',
+    winnerMessage: '{prize}得主：@{username}',
+    prizes: {
+      vip: '一个月 VIP',
+      filter: '一个月筛选解锁',
+      invisible: '一个月隐身模式',
+      hide_age: '一个月隐藏年龄',
+    },
+  },
+  'zh-TW': {
+    button: '購買抽獎券',
+    summary: 'VIP · 篩選 · 隱形 · 隱藏年齡',
+    drawTime: '每月1日 · 香港時間20:00',
+    shortfallRule: '至少4名合資格用戶抽4獎；不足僅抽VIP；獎項不結轉',
+    countdown: '{d}天 {h}:{m}:{s}',
+    pool: '本期票數：{count}',
+    yours: '你的票：{count}',
+    usernameRequired: '請先設定 Telegram 使用者名稱，再購買抽獎券。',
+    adultProfileRequired: '請先完成成人資料，再購買抽獎券。',
+    processing: '正在開啟付款…',
+    ticketPurchased: '抽獎券已確認。',
+    paymentProcessing: '已收到付款，正在確認抽獎券。',
+    invoiceFallback: '請在 Telegram 中繼續付款；確認後抽獎券會顯示。',
+    paymentCancelled: '付款已取消。',
+    announcement: '抽獎結果',
+    winnerMessage: '{prize}得主：@{username}',
+    prizes: {
+      vip: '一個月 VIP',
+      filter: '一個月篩選解鎖',
+      invisible: '一個月隱形模式',
+      hide_age: '一個月隱藏年齡',
+    },
+  },
+  ja: {
+    button: 'チケット購入',
+    summary: 'VIP・フィルター・透明化・年齢非表示',
+    drawTime: '毎月1日 · 香港時間20:00',
+    shortfallRule: '対象ユーザー4人以上で4賞、未満ならVIPのみ。繰越なし',
+    countdown: '{d}日 {h}:{m}:{s}',
+    pool: '販売数: {count}',
+    yours: '所持数: {count}',
+    usernameRequired: 'チケット購入にはTelegramユーザー名が必要です。',
+    adultProfileRequired: '成人プロフィールを完了してから購入してください。',
+    processing: '決済を開いています…',
+    ticketPurchased: 'チケットが確定しました。',
+    paymentProcessing: '決済を受け付けました。チケットを確認中です。',
+    invoiceFallback: 'Telegramで決済を続けてください。確認後にチケットが表示されます。',
+    paymentCancelled: '決済はキャンセルされました。',
+    announcement: '抽選結果',
+    winnerMessage: '{prize}の当選者: @{username}',
+    prizes: {
+      vip: '1か月VIP',
+      filter: '1か月フィルター解除',
+      invisible: '1か月透明モード',
+      hide_age: '1か月年齢非表示',
+    },
+  },
+  ko: {
+    button: '티켓 구매',
+    summary: 'VIP · 필터 · 비공개 · 나이 숨기기',
+    drawTime: '매월 1일 · 홍콩 시간 20:00',
+    shortfallRule: '적격 사용자 4명 이상이면 4명 당첨, 미만이면 VIP만. 이월 없음',
+    countdown: '{d}일 {h}:{m}:{s}',
+    pool: '총 티켓: {count}',
+    yours: '내 티켓: {count}',
+    usernameRequired: '티켓을 구매하려면 Telegram 사용자 이름이 필요합니다.',
+    adultProfileRequired: '성인 프로필을 완료한 뒤 구매할 수 있습니다.',
+    processing: '결제 창을 여는 중…',
+    ticketPurchased: '티켓이 확인되었습니다.',
+    paymentProcessing: '결제가 접수되었습니다. 티켓을 확인 중입니다.',
+    invoiceFallback: 'Telegram에서 결제를 계속하세요. 확인 후 티켓이 표시됩니다.',
+    paymentCancelled: '결제가 취소되었습니다.',
+    announcement: '추첨 결과',
+    winnerMessage: '{prize} 당첨자: @{username}',
+    prizes: {
+      vip: '1개월 VIP',
+      filter: '1개월 필터 잠금 해제',
+      invisible: '1개월 비공개 모드',
+      hide_age: '1개월 나이 숨기기',
+    },
+  },
+  ru: {
+    button: 'Купить билет',
+    summary: 'VIP · фильтры · невидимость · скрытие возраста',
+    drawTime: '1-го числа · 20:00 по Гонконгу',
+    shortfallRule: '4+ допущенных участников — 4 победителя; иначе только VIP; без переноса',
+    countdown: '{d}д {h}:{m}:{s}',
+    pool: 'Билетов: {count}',
+    yours: 'Ваши: {count}',
+    usernameRequired: 'Для покупки билета нужен username в Telegram.',
+    adultProfileRequired: 'Перед покупкой заполните профиль совершеннолетнего.',
+    processing: 'Открываем оплату…',
+    ticketPurchased: 'Билет подтверждён.',
+    paymentProcessing: 'Оплата получена, билет ещё подтверждается.',
+    invoiceFallback: 'Продолжите оплату в Telegram; билет появится после подтверждения.',
+    paymentCancelled: 'Оплата отменена.',
+    announcement: 'Розыгрыш',
+    winnerMessage: 'Победитель ({prize}): @{username}',
+    prizes: {
+      vip: 'VIP на 1 месяц',
+      filter: 'Фильтр на 1 месяц',
+      invisible: 'Невидимость на 1 месяц',
+      hide_age: 'Скрытие возраста на 1 месяц',
+    },
+  },
+};
+
 const flyingMessageCopy: Record<LangKey, FlyingMessageCopy> = {
   en: {
     placeholder: 'Send a flying message…', send: 'Send', free: 'FREE',
@@ -243,6 +434,7 @@ interface UserProfile {
   hide_age_expiry?: string | null;
   invisible_expiry?: string | null;
   filter_sub_expiry?: string | null;
+  vip_expiry?: string | null;
 }
 
 const formatDistanceBigUnit = (meters?: number) => {
@@ -419,12 +611,47 @@ const flyingMessageLane = (id: string) => {
   return 8 + (Math.abs(hash) % 82);
 };
 
+const getNextRaffleCloseAt = (now: number) => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Hong_Kong',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(now));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+  const hour = Number(values.hour);
+  const isBeforeThisMonthDraw = day === 1 && hour < 20;
+  const targetMonthIndex = month - 1 + (isBeforeThisMonthDraw ? 0 : 1);
+  // Hong Kong is UTC+8 year-round, so 20:00 local is 12:00 UTC.
+  return Date.UTC(year, targetMonthIndex, 1, 12, 0, 0);
+};
+
+const formatRaffleCountdown = (deadline: number, now: number, lang: LangKey) => {
+  const remainingSeconds = Math.max(0, Math.floor((deadline - now) / 1000));
+  const days = Math.floor(remainingSeconds / 86_400);
+  const hours = Math.floor((remainingSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((remainingSeconds % 3_600) / 60);
+  const seconds = remainingSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return raffleUiCopy[lang].countdown
+    .replace('{d}', String(days))
+    .replace('{h}', pad(hours))
+    .replace('{m}', pad(minutes))
+    .replace('{s}', pad(seconds));
+};
+
 export default function App() {
   const verifiedBotKeyRef = useRef<'botA' | 'botB' | null>(null);
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
   const [view, setView] = useState<'grid' | 'map'>('grid');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const raffleUserId = currentUser?.id;
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
   const [isReady, setIsReady] = useState<boolean>(false);
@@ -435,12 +662,16 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isVip, setIsVip] = useState<boolean>(false);
+  const [vipExpiry, setVipExpiry] = useState<string | null>(null);
+  const [raffleClock, setRaffleClock] = useState<number>(Date.now());
+  const [raffleServerOffset, setRaffleServerOffset] = useState<number>(0);
+  const temporaryVipActive = Boolean(vipExpiry && Date.parse(vipExpiry) > raffleClock);
   // Global VIP: while this timestamp is in the future, EVERY user gets all paid
   // functions unlocked (an admin-granted, time-boxed VIP for everyone).
   const [globalVipUntil, setGlobalVipUntil] = useState<number>(0);
   const globalVipActive = globalVipUntil > Date.now();
   // VIP (personal or global) unlocks every paid function, just like admin.
-  const paidUnlocked = isAdmin || isVip || globalVipActive;
+  const paidUnlocked = isAdmin || isVip || temporaryVipActive || globalVipActive;
   const [roles, setRoles] = useState<{ username: string; role: string }[]>([]);
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
   const [showRolesModal, setShowRolesModal] = useState<boolean>(false);
@@ -452,6 +683,14 @@ export default function App() {
   const effectiveFlyingMessagePrice = paidUnlocked ? 0 : flyingMessagePrice;
   const [flyingMessageText, setFlyingMessageText] = useState<string>('');
   const [flyingMessages, setFlyingMessages] = useState<FlyingMessage[]>([]);
+  const [raffleState, setRaffleState] = useState<RaffleState | null>(null);
+  const [rafflePurchasing, setRafflePurchasing] = useState<boolean>(false);
+  const [raffleNotice, setRaffleNotice] = useState<string>('');
+  const raffleAnnouncementRoundRef = useRef<string | null>(null);
+  const raffleAnnouncementOwnerRef = useRef<string | null>(null);
+  const pendingRafflePurchaseRef = useRef<{ previousCount: number; expiresAt: number } | null>(null);
+  const applyRaffleStateRef = useRef<((value: RaffleState) => void) | null>(null);
+  const refreshRaffleStateRef = useRef<(() => Promise<RaffleState>) | null>(null);
   const [flyingMessageNotice, setFlyingMessageNotice] = useState<string>('');
   const [sendingFlyingMessage, setSendingFlyingMessage] = useState<boolean>(false);
   const [flyingCooldownUntil, setFlyingCooldownUntil] = useState<number>(0);
@@ -629,6 +868,82 @@ export default function App() {
     });
   };
 
+  const applyRaffleState = (value: RaffleState) => {
+    if (!value || typeof value !== 'object') return;
+    setRaffleState(value);
+    const serverNow = Date.parse(value.serverNow);
+    if (Number.isFinite(serverNow)) {
+      const offset = serverNow - Date.now();
+      setRaffleServerOffset(offset);
+      setRaffleClock(Date.now() + offset);
+    }
+
+    const pendingPurchase = pendingRafflePurchaseRef.current;
+    if (pendingPurchase && Date.now() > pendingPurchase.expiresAt) {
+      pendingRafflePurchaseRef.current = null;
+    } else if (pendingPurchase && value.userTicketCount > pendingPurchase.previousCount) {
+      pendingRafflePurchaseRef.current = null;
+      setRaffleNotice(raffleUiCopy[lang].ticketPurchased);
+    }
+
+    const draw = value.latestDraw;
+    if (!draw?.roundKey || raffleAnnouncementRoundRef.current === draw.roundKey) return;
+    raffleAnnouncementRoundRef.current = draw.roundKey;
+    const copy = raffleUiCopy[lang];
+    const prizeTitles = copy.prizes;
+    const winners = Array.isArray(draw.winners) ? draw.winners : [];
+    const messages = winners
+      .filter((winner) => winner.username && prizeTitles[winner.prizeKey])
+      .map((winner) => ({
+        id: `raffle:${draw.roundKey}:${winner.prizeKey}`,
+        tg_id: 'raffle',
+        from_name: copy.announcement,
+        text: copy.winnerMessage
+          .replace('{prize}', prizeTitles[winner.prizeKey])
+          .replace('{username}', winner.username),
+        created_at: new Date().toISOString(),
+        audience_bot: getActiveBotKey(),
+      }));
+    if (messages.length) mergeFlyingMessages(messages);
+
+    for (const winner of winners) {
+      if (!winner.isYou || !winner.expiresAt) continue;
+      const expiry = winner.expiresAt;
+      if (winner.prizeKey === 'vip') {
+        setVipExpiry(expiry);
+        setCurrentUser((previous) => previous ? { ...previous, vip_expiry: expiry } : previous);
+      } else if (winner.prizeKey === 'filter') {
+        const until = Date.parse(expiry);
+        if (Number.isFinite(until)) {
+          setFilterSubUntil(until);
+          filterSubUntilRef.current = until;
+          setHasFilterSub(true);
+        }
+      } else if (winner.prizeKey === 'invisible') {
+        setInvisibleExpiry(expiry);
+        setGridVisible(false);
+        setMapVisible(false);
+        setCurrentUser((previous) => previous
+          ? { ...previous, grid_visible: false, map_visible: false, invisible_expiry: expiry }
+          : previous);
+      } else if (winner.prizeKey === 'hide_age') {
+        setHideAge(true);
+        setHideAgeExpiry(expiry);
+        setCurrentUser((previous) => previous
+          ? { ...previous, hide_age: true, hide_age_expiry: expiry }
+          : previous);
+      }
+    }
+  };
+
+  const refreshRaffleState = async () => {
+    const value = await workerPost('/api/raffle/state');
+    applyRaffleState(value as RaffleState);
+    return value as RaffleState;
+  };
+  applyRaffleStateRef.current = applyRaffleState;
+  refreshRaffleStateRef.current = refreshRaffleState;
+
   useEffect(() => {
     if (!isReady || !currentUser) return;
     let active = true;
@@ -656,6 +971,53 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [isReady, currentUser?.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setRaffleClock(Date.now() + raffleServerOffset);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [raffleServerOffset]);
+
+  useEffect(() => {
+    if (!isReady || !raffleUserId) return;
+    if (raffleAnnouncementOwnerRef.current !== raffleUserId) {
+      raffleAnnouncementOwnerRef.current = raffleUserId;
+      raffleAnnouncementRoundRef.current = null;
+      pendingRafflePurchaseRef.current = null;
+    }
+    let active = true;
+    let polling = false;
+    const pollRaffle = async () => {
+      if (!active || polling) return;
+      polling = true;
+      try {
+        const value = await workerPost('/api/raffle/state');
+        if (active) applyRaffleStateRef.current?.(value as RaffleState);
+      } catch {
+        // The countdown has a local Hong Kong-time fallback; retry on the next interval.
+      } finally {
+        polling = false;
+      }
+    };
+    void pollRaffle();
+    const timer = window.setInterval(() => void pollRaffle(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [isReady, raffleUserId]);
+
+  useEffect(() => {
+    if (!isReady || !raffleUserId || !raffleState?.closesAt) return;
+    const deadline = Date.parse(raffleState.closesAt);
+    if (!Number.isFinite(deadline)) return;
+    const delay = Math.max(0, deadline - (Date.now() + raffleServerOffset) + 1000);
+    const timer = window.setTimeout(() => {
+      void refreshRaffleStateRef.current?.().catch(() => {});
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [isReady, raffleUserId, raffleState?.closesAt, raffleServerOffset]);
 
   useEffect(() => {
     if (!flyingCooldownUntil) return;
@@ -807,6 +1169,7 @@ export default function App() {
         );
         let initialGridVisible = true;
         if (existingProfile) {
+          setVipExpiry(existingProfile.vip_expiry || null);
           if (existingProfile.dob) setDob(existingProfile.dob);
           if (existingProfile.height) setHeight(existingProfile.height);
           if (existingProfile.weight) setWeight(existingProfile.weight);
@@ -846,9 +1209,9 @@ export default function App() {
         setLocation(currentLoc);
         if (!isFullySetup) {
           setShowProfileSetup(true);
-          setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null });
+          setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null, vip_expiry: existingProfile?.vip_expiry || null });
         } else {
-          const myProfile: UserProfile = { id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), gender: initialGender, seeking: initialSeeking, dob: existingProfile.dob, height: existingProfile.height, weight: existingProfile.weight, role_pref: isManSeekingMan ? existingProfile.role_pref : null, safety_pref: isManSeekingMan ? existingProfile.safety_pref : null, playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null, where_pref: isManSeekingMan ? existingProfile.where_pref : null, how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null, non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode, is_underage: false, hide_age: existingProfile.hide_age || false, grid_visible: initialGridVisible, map_visible: existingProfile.map_visible ?? false, hide_age_expiry: existingProfile.hide_age_expiry || null, invisible_expiry: existingProfile.invisible_expiry || null };
+          const myProfile: UserProfile = { id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), gender: initialGender, seeking: initialSeeking, dob: existingProfile.dob, height: existingProfile.height, weight: existingProfile.weight, role_pref: isManSeekingMan ? existingProfile.role_pref : null, safety_pref: isManSeekingMan ? existingProfile.safety_pref : null, playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null, where_pref: isManSeekingMan ? existingProfile.where_pref : null, how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null, non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode, is_underage: false, hide_age: existingProfile.hide_age || false, grid_visible: initialGridVisible, map_visible: existingProfile.map_visible ?? false, hide_age_expiry: existingProfile.hide_age_expiry || null, invisible_expiry: existingProfile.invisible_expiry || null, vip_expiry: existingProfile.vip_expiry || null };
           setCurrentUser(myProfile);
           const { profile: refreshedProfile } = await workerPost('/api/profile', { profile: { lat: currentLoc.lat, lng: currentLoc.lng } });
           setCurrentUser((previous) => previous ? { ...previous, ...refreshedProfile } : refreshedProfile);
@@ -986,6 +1349,69 @@ export default function App() {
     const result = await workerPost('/create-invoice', { userId: currentUser?.id, type });
     if (!result.invoiceLink) throw new Error('The payment service did not return an invoice link.');
     return startInvoice(result.invoiceLink as string);
+  };
+
+  const handleBuyRaffleTicket = async () => {
+    if (rafflePurchasing) return;
+    const copy = raffleUiCopy[lang];
+    if (!currentUser?.username) {
+      setRaffleNotice(copy.usernameRequired);
+      return;
+    }
+    if (raffleState && !raffleState.canPurchase) {
+      setRaffleNotice(raffleState.usernameRequired ? copy.usernameRequired : copy.adultProfileRequired);
+      return;
+    }
+
+    setRaffleNotice('');
+    setRafflePurchasing(true);
+    let intentId: string | null = null;
+    const previousCount = raffleState?.userTicketCount || 0;
+    try {
+      const result = await workerPost('/api/raffle/ticket');
+      if (typeof result.invoiceLink !== 'string' || typeof result.intentId !== 'string') {
+        throw new Error('The payment service did not return a raffle invoice.');
+      }
+      intentId = result.intentId;
+      pendingRafflePurchaseRef.current = {
+        previousCount,
+        expiresAt: Date.now() + 15 * 60_000,
+      };
+      setRaffleNotice(copy.processing);
+      const invoiceStatus = await startInvoice(result.invoiceLink);
+      if (invoiceStatus === 'paid') {
+        let confirmed = false;
+        for (let attempt = 0; attempt < 12; attempt++) {
+          try {
+            const updated = await refreshRaffleState();
+            if (updated.userTicketCount > previousCount) {
+              confirmed = true;
+              break;
+            }
+          } catch {
+            // Payment webhooks can arrive after Telegram closes the invoice.
+          }
+          if (attempt < 11) await new Promise((resolve) => window.setTimeout(resolve, 500));
+        }
+        setRaffleNotice(confirmed ? copy.ticketPurchased : copy.paymentProcessing);
+      } else if (invoiceStatus === 'unsupported') {
+        // Keep the intent open: the user may finish the invoice in Telegram,
+        // and the next state poll will confirm the ticket if paid.
+        setRaffleNotice(copy.invoiceFallback);
+      } else {
+        pendingRafflePurchaseRef.current = null;
+        try { await workerPost('/api/raffle/cancel', { intentId }); } catch {}
+        setRaffleNotice(copy.paymentCancelled);
+      }
+    } catch (error) {
+      pendingRafflePurchaseRef.current = null;
+      if (intentId) {
+        try { await workerPost('/api/raffle/cancel', { intentId }); } catch {}
+      }
+      setRaffleNotice(error instanceof Error ? error.message : 'Could not start raffle ticket purchase.');
+    } finally {
+      setRafflePurchasing(false);
+    }
   };
 
   const handleSendFlyingMessage = async () => {
@@ -1516,6 +1942,11 @@ export default function App() {
   const passesFilterForActive = activeProfile ? checkFilterPass(activeProfile) : true;
   const flyingMessageWaitSeconds = Math.max(0, Math.ceil((flyingCooldownUntil - cooldownClock) / 1000));
   const flyingCopy = flyingMessageCopy[lang];
+  const raffleCopy = raffleUiCopy[lang];
+  const raffleDeadline = raffleState?.closesAt && Number.isFinite(Date.parse(raffleState.closesAt))
+    ? Date.parse(raffleState.closesAt)
+    : getNextRaffleCloseAt(raffleClock);
+  const raffleCountdown = formatRaffleCountdown(raffleDeadline, raffleClock, lang);
   const flyingComposerStatus = flyingMessageNotice || (
     flyingMessageWaitSeconds > 0
       ? flyingCopy.cooldown.replace('{seconds}', String(flyingMessageWaitSeconds))
@@ -1600,7 +2031,7 @@ export default function App() {
           </button>
           {showFilterDropdown && (
             <div style={{ position: 'absolute', top: '44px', right: '0', zIndex: 2000, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '12px', width: '280px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: isAdmin ? '#4ade80' : isVip ? '#f5c518' : globalVipActive ? '#f5c518' : filterSubStatusInfo.color }}>{isAdmin ? t('admin') : isVip ? t('vipUnlimited') : globalVipActive ? `${t('vip')} · ${t('expires')} ${new Date(globalVipUntil).toLocaleDateString()}` : `${filterSubStatusInfo.label}${filterSubUntil > Date.now() ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: isAdmin ? '#4ade80' : isVip || temporaryVipActive ? '#f5c518' : globalVipActive ? '#f5c518' : filterSubStatusInfo.color }}>{isAdmin ? t('admin') : isVip ? t('vipUnlimited') : temporaryVipActive ? `${t('vip')} · ${t('expires')} ${new Date(vipExpiry as string).toLocaleDateString()}` : globalVipActive ? `${t('vip')} · ${t('expires')} ${new Date(globalVipUntil).toLocaleDateString()}` : `${filterSubStatusInfo.label}${filterSubUntil > Date.now() ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
               <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => handleToggleFilterItem('age')}>
                   <input type="checkbox" checked={filterAgeOn} onChange={() => {}} style={{ width: '16px', height: '16px', accentColor: '#007bff', cursor: 'pointer' }} />
@@ -1871,6 +2302,31 @@ export default function App() {
           <img src={bustaIcon} alt="Busta" onClick={() => handleOpenExternalApp('https://t.me/bustagift_xbot/app?startapp=pal1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
           <img src={tonflipIcon} alt="TonFlip" onClick={() => handleOpenExternalApp('https://app.tonflip.tg?r=mbab62ov')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
           <img src={photifyIcon} alt="Photify" onClick={() => handleOpenExternalApp('https://t.me/PhotifyAIOfficialBot?start=referral_1231127407')} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid #555' }} />
+          <button
+            type="button"
+            onClick={() => void handleBuyRaffleTicket()}
+            disabled={!currentUser || rafflePurchasing}
+            title={`${raffleCopy.button} · 100 Telegram Stars · ${raffleCopy.summary}`}
+            aria-label={`${raffleCopy.button}, 100 Telegram Stars. ${raffleCopy.summary}. ${raffleCountdown}`}
+            style={{ width: '82px', minHeight: '78px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '6px 3px', backgroundColor: '#3a2f00', border: '1px solid #9a7b00', borderRadius: '12px', color: '#ffe082', cursor: rafflePurchasing ? 'wait' : 'pointer', opacity: rafflePurchasing ? 0.72 : 1, boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }}
+          >
+            <span aria-hidden="true" style={{ fontSize: '18px', lineHeight: 1 }}>🎟️</span>
+            <span style={{ fontSize: '10px', lineHeight: 1.1, fontWeight: 'bold', textAlign: 'center' }}>{rafflePurchasing ? raffleCopy.processing : raffleCopy.button}</span>
+            <span style={{ fontSize: '10px', lineHeight: 1, fontWeight: 'bold' }}>100 ⭐</span>
+            <span style={{ fontSize: '8px', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{raffleCountdown}</span>
+          </button>
+          <div style={{ maxWidth: '100px', textAlign: 'center', color: '#d4d4d4', fontSize: '8px', lineHeight: 1.35 }}>
+            <div>{raffleCopy.pool.replace('{count}', String(raffleState?.ticketCount || 0))}</div>
+            <div>{raffleCopy.yours.replace('{count}', String(raffleState?.userTicketCount || 0))}</div>
+            <div style={{ marginTop: '3px', color: '#ffe082' }}>{raffleCopy.drawTime}</div>
+            <div style={{ marginTop: '3px', color: '#aaa' }}>{raffleCopy.summary}</div>
+            <div style={{ marginTop: '3px', color: '#999' }}>{raffleCopy.shortfallRule}</div>
+          </div>
+          {raffleNotice && (
+            <div role="status" aria-live="polite" style={{ maxWidth: '118px', padding: '5px 6px', borderRadius: '6px', border: '1px solid #665500', backgroundColor: '#211b05', color: '#ffe082', fontSize: '9px', lineHeight: 1.3, textAlign: 'center', overflowWrap: 'anywhere' }}>
+              {raffleNotice}
+            </div>
+          )}
         </div>)}
       </div>
 
