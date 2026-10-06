@@ -986,6 +986,12 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [flyingMessageNotice]);
 
+  useEffect(() => {
+    if (!raffleNotice) return;
+    const timer = window.setTimeout(() => setRaffleNotice(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [raffleNotice]);
+
   const applyDefaultFiltersFromPreferences = (pRole: string, pSafety: string, pPlaystyle: string, pHowMany: string) => {
     if (pRole === 'Top') setFilterRoleVal('Bottom');
     else if (pRole === 'Bottom') setFilterRoleVal('Top');
@@ -1079,12 +1085,8 @@ export default function App() {
         const userAvatar = existingProfile.avatar || '';
         if (existingProfile.is_underage) { setIsUnderageLocked(true); setIsReady(true); return; }
         if (!navigator.geolocation) { setIsLocationDenied(true); setIsReady(true); return; }
-        // Try hard for a fix: high accuracy (WiFi hotspot triangulation can be
-        // slow), then cached/low-accuracy, then a last low-accuracy retry with
-        // a long timeout. maximumAge allows cached fixes so WiFi-only devices
-        // aren't failed out on a 10s timer.
-        // Track the actual fix in a local var: `location` state is stale within
-        // this async function (setState doesn't apply mid-execution).
+        // Don't keep Telegram on the loading screen while waiting on a slow GPS lock.
+        // Prefer a recent cached fix; otherwise continue with the saved profile location.
         let fix: { lat: number; lng: number } | null = null;
         const tryGeolocation = (opts: PositionOptions): Promise<boolean> =>
           new Promise((resolve) => {
@@ -1094,11 +1096,7 @@ export default function App() {
               opts
             );
           });
-        const hasLocation =
-          (await tryGeolocation({ enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 })) ||
-          (await tryGeolocation({ enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 })) ||
-          (await tryGeolocation({ enableHighAccuracy: false, timeout: 20000, maximumAge: Infinity }));
-        if (!hasLocation) { setLocation({ lat: 22.3193, lng: 114.1694 }); }
+        await tryGeolocation({ enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 });
         let initialGender = existingProfile?.gender || 'man';
         let initialSeeking = existingProfile?.seeking || 'women';
         if (!existingProfile && startParam === 'gaymode') { initialGender = 'man'; initialSeeking = 'men'; }
@@ -1159,6 +1157,26 @@ export default function App() {
           const { profile: refreshedProfile } = await workerPost('/api/profile', { profile: { lat: currentLoc.lat, lng: currentLoc.lng } });
           setCurrentUser((previous) => previous ? { ...previous, ...refreshedProfile } : refreshedProfile);
           await fetchUsersData();
+           // Improve the location after the first screen is ready without delaying startup.
+           navigator.geolocation.getCurrentPosition(
+             (position) => {
+               const preciseLocation = {
+                 lat: position.coords.latitude,
+                 lng: position.coords.longitude,
+               };
+               void workerPost('/api/profile', { profile: preciseLocation })
+                 .then(() => {
+                   setLocation(preciseLocation);
+                   setCurrentUser((previous) => previous && previous.id === userId
+                     ? { ...previous, ...preciseLocation }
+                     : previous);
+                   return fetchUsersData();
+                 })
+                 .catch((error) => console.warn('Could not update precise location:', error));
+             },
+             () => {},
+             { enableHighAccuracy: true, timeout: 12000, maximumAge: 600000 }
+           );
           loadFilterPrefs();
         }
       } catch (err) {
@@ -2075,13 +2093,13 @@ export default function App() {
               const isSelf = currentUser && user.id === currentUser.id;
               const passesFilter = checkFilterPass(user);
               const isUserVisible = user.grid_visible !== false;
-              const opacity = isUserVisible ? 1 : 0.3;
-              const filterStyle = passesFilter ? 'none' : 'grayscale(100%)';
+              const opacity = isUserVisible ? (passesFilter ? 1 : 0.68) : 0.32;
               const bigDistanceText = formatDistanceBigUnit(user.distance);
               const online15 = isOnlineWithin15Min(user.last_seen);
               return (
-                <div key={user.id || index} onClick={() => handleCardClick(user)} style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity, filter: filterStyle }}>
-                  {user.avatar ? (<img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : (<div style={{ width: '100%', height: '100%', backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</div>)}
+                <div key={user.id || index} onClick={() => handleCardClick(user)} style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity }}>
+                  <div aria-hidden="true" style={{ position: 'absolute', inset: 0, backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</div>
+                  {user.avatar && <img src={user.avatar} alt={user.name} onError={(event) => { event.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                   {online15 && (<div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />)}
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>{isSelf ? t('you') : bigDistanceText}</div>
                 </div>
@@ -2249,29 +2267,25 @@ export default function App() {
             type="button"
             onClick={() => void handleBuyRaffleTicket()}
             disabled={!currentUser || rafflePurchasing}
-            title={`${raffleCopy.button} · 100 Telegram Stars · ${raffleCopy.summary}`}
             aria-label={`${raffleCopy.button}, 100 Telegram Stars. ${raffleCopy.summary}. ${raffleCountdown}`}
-            style={{ width: '82px', minHeight: '78px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '6px 3px', backgroundColor: '#3a2f00', border: '1px solid #9a7b00', borderRadius: '12px', color: '#ffe082', cursor: rafflePurchasing ? 'wait' : 'pointer', opacity: rafflePurchasing ? 0.72 : 1, boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }}
+             style={{ position: 'relative', width: '82px', height: '82px', flex: '0 0 82px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, overflow: 'hidden', background: 'radial-gradient(circle at 32% 25%, #6b5310 0%, #332700 60%, #1e1e1e 100%)', border: '2px solid #f5c518', borderRadius: '50%', color: '#ffe082', cursor: rafflePurchasing ? 'wait' : 'pointer', opacity: rafflePurchasing ? 0.72 : 1, boxShadow: '0 2px 10px rgba(0,0,0,0.45), inset 0 0 0 3px rgba(245,197,24,0.14)' }}
           >
-            <span aria-hidden="true" style={{ fontSize: '18px', lineHeight: 1 }}>🎟️</span>
-            <span style={{ fontSize: '10px', lineHeight: 1.1, fontWeight: 'bold', textAlign: 'center' }}>{rafflePurchasing ? raffleCopy.processing : raffleCopy.button}</span>
-            <span style={{ fontSize: '10px', lineHeight: 1, fontWeight: 'bold' }}>100 ⭐</span>
-            <span style={{ fontSize: '8px', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{raffleCountdown}</span>
+             <svg aria-hidden="true" width="50" height="50" viewBox="0 0 48 48" fill="none" style={{ position: 'absolute', inset: 0, margin: 'auto', opacity: 0.72 }}>
+               <path d="M9 12h30v7a5 5 0 0 0 0 10v7H9v-7a5 5 0 0 0 0-10v-7Z" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
+               <path d="M24 14v20" stroke="currentColor" strokeWidth="2" strokeDasharray="2 3" />
+             </svg>
+             <span style={{ position: 'relative', zIndex: 1, padding: '3px 4px', borderRadius: '4px', backgroundColor: 'rgba(28,22,4,0.92)', color: '#fff5c7', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '7px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1, letterSpacing: '-0.3px', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.55)' }}>
+               {raffleCountdown}
+             </span>
           </button>
-          <div style={{ maxWidth: '100px', textAlign: 'center', color: '#d4d4d4', fontSize: '8px', lineHeight: 1.35 }}>
-            <div>{raffleCopy.pool.replace('{count}', String(raffleState?.ticketCount || 0))}</div>
-            <div>{raffleCopy.yours.replace('{count}', String(raffleState?.userTicketCount || 0))}</div>
-            <div style={{ marginTop: '3px', color: '#ffe082' }}>{raffleCopy.drawTime}</div>
-            <div style={{ marginTop: '3px', color: '#aaa' }}>{raffleCopy.summary}</div>
-            <div style={{ marginTop: '3px', color: '#999' }}>{raffleCopy.shortfallRule}</div>
-          </div>
-          {raffleNotice && (
-            <div role="status" aria-live="polite" style={{ maxWidth: '118px', padding: '5px 6px', borderRadius: '6px', border: '1px solid #665500', backgroundColor: '#211b05', color: '#ffe082', fontSize: '9px', lineHeight: 1.3, textAlign: 'center', overflowWrap: 'anywhere' }}>
-              {raffleNotice}
-            </div>
-          )}
         </div>)}
       </div>
+
+      {raffleNotice && (
+        <div role="status" aria-live="polite" style={{ position: 'fixed', right: '12px', bottom: '72px', zIndex: 6000, maxWidth: 'min(260px, calc(100vw - 24px))', padding: '8px 10px', borderRadius: '8px', border: '1px solid #665500', backgroundColor: '#211b05', color: '#ffe082', fontSize: '12px', lineHeight: 1.35, textAlign: 'center', overflowWrap: 'anywhere', boxShadow: '0 4px 14px rgba(0,0,0,0.45)' }}>
+          {raffleNotice}
+        </div>
+      )}
 
       <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
         <button onClick={handleToggleGrid} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}>
