@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "defaultEntryId": "nearby",
+  "tonConnectManifestUrl": "https://mileschan852.github.io/WhosNearbyBot/tonconnect-manifest.json",
+  "startParamEntries": {
+    "gaymode": "hkmo-date"
+  },
+  "queryEntries": {
+    "mode": {
+      "gay": "hkmo-date"
+    }
+  },
+  "entries": {
+    "nearby": {
+      "id": "nearby",
+      "label": "Who's Nearby",
+      "botKey": "botB",
+      "chatUrl": "https://t.me/whosnearby",
+      "useConfiguredLabelForHeader": false,
+      "profileSetup": {
+        "titleKey": "completeProfile",
+        "warningKey": "profileWarning",
+        "defaultGender": "man",
+        "defaultSeeking": "women",
+        "lockIdentity": false,
+        "sectionOrder": ["birthdate", "identity", "measurements", "preferences", "mode"]
+      }
+    },
+    "hkmo-date": {
+      "id": "hkmo-date",
+      "label": "HKMO Date",
+      "botKey": "botA",
+      "chatUrl": "https://t.me/hkmochat",
+      "useConfiguredLabelForHeader": true,
+      "profileSetup": {
+        "titleKey": "completeProfile",
+        "warningKey": "profileWarning",
+        "defaultGender": "man",
+        "defaultSeeking": "men",
+        "lockIdentity": true,
+        "sectionOrder": ["birthdate", "identity", "measurements", "preferences", "mode"]
+      }
+    }
+  }
+}

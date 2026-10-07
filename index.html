@@ -10,6 +10,14 @@
     <script type="module" crossorigin src="./src/main.tsx"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><main style="padding:24px;color:#fff;background:#111;min-height:100vh;font-family:system-ui,sans-serif">Loading app…</main></div>
+    <script>
+      window.setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.dataset.appMounted !== 'true') {
+          root.innerHTML = '<main role="alert" style="padding:24px;color:#fff;background:#111;min-height:100vh;font-family:system-ui,sans-serif"><h1>App did not load</h1><p>Check your connection and reload this page.</p></main>';
+        }
+      }, 12000);
+    </script>
   </body>
 </html>

@@ -8,7 +8,11 @@ import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import bustaIcon from './assets/Bustagames.jpg';
 import tonflipIcon from './assets/Tonflip.jpg';
 import photifyIcon from './assets/Photify.jpg';
-import { APP_ENTRIES, resolveAppEntry, type AppEntryId } from './config/entries';
+import {
+  resolveAppEntry,
+  type AppEntryId,
+  type AppRuntimeConfig,
+} from './config/entries';
 import {
   BottomNavigationModule,
   NearbyGridModule,
@@ -615,7 +619,7 @@ const formatRaffleCountdown = (deadline: number, now: number, lang: LangKey) => 
     .replace('{s}', pad(seconds));
 };
 
-export default function App() {
+export default function App({ config }: { config: AppRuntimeConfig }) {
   const verifiedBotKeyRef = useRef<'botA' | 'botB' | null>(null);
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
@@ -703,11 +707,12 @@ export default function App() {
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState<boolean>(false);
   const [entryId, setEntryId] = useState<AppEntryId>(() =>
     resolveAppEntry(
+      config,
       window.Telegram?.WebApp?.initDataUnsafe?.start_param,
       window.location.search,
     ).id,
   );
-  const entry = APP_ENTRIES[entryId];
+  const entry = config.entries[entryId];
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('women');
@@ -767,7 +772,7 @@ export default function App() {
   const getActiveBotKey = () => {
     if (verifiedBotKeyRef.current) return verifiedBotKeyRef.current;
     const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    return resolveAppEntry(startParam, window.location.search).botKey;
+    return resolveAppEntry(config, startParam || config.defaultStartParam, window.location.search).botKey;
   };
 
   const workerPost = async (path: string, body: Record<string, unknown> = {}) => {
@@ -1078,14 +1083,14 @@ export default function App() {
         }
         let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param ||
-          (resolveAppEntry(null, window.location.search).id === 'hkmo-date' ? 'gaymode' : '');
+          config.defaultStartParam || '';
         if (!tgUser) {
           await new Promise((res) => setTimeout(res, 300));
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
           startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || startParam ||
-            (resolveAppEntry(null, window.location.search).id === 'hkmo-date' ? 'gaymode' : '');
+            config.defaultStartParam || '';
         }
-        const activeEntry = resolveAppEntry(startParam, window.location.search);
+        const activeEntry = resolveAppEntry(config, startParam, window.location.search);
         setEntryId(activeEntry.id);
         const tgLangCode = (tgUser?.language_code || navigator.language || 'en').toLowerCase();
         if (tgLangCode.startsWith('zh')) {
@@ -2031,7 +2036,7 @@ export default function App() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{entry.id === 'hkmo-date' ? entry.label : t('whosNearby')} ({gridFilteredUsers.length})</h1>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{entry.useConfiguredLabelForHeader ? entry.label : t('whosNearby')} ({gridFilteredUsers.length})</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
           <button onClick={handleToggleFilterDropdown} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={t('filter')}>
@@ -2083,43 +2088,6 @@ export default function App() {
           </button>
         </div>
       </header>
-
-      <div style={{ position: 'relative', zIndex: 11, height: '52px', minHeight: '52px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', padding: '6px 12px' }}>
-        <form
-          onSubmit={(event) => { event.preventDefault(); void handleSendFlyingMessage(); }}
-          style={{ height: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
-          <input
-            type="text"
-            value={flyingMessageText}
-            onChange={(event) => setFlyingMessageText(event.target.value)}
-            maxLength={200}
-            placeholder={flyingCopy.placeholder}
-            aria-label={flyingCopy.placeholder}
-            disabled={!currentUser || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
-            style={{ flex: 1, minWidth: 0, height: '38px', borderRadius: '8px', border: '1px solid #3f4652', backgroundColor: '#121212', color: '#fff', padding: '0 12px', fontSize: '14px', outline: 'none' }}
-          />
-          <span style={{ minWidth: '42px', textAlign: 'center', color: effectiveFlyingMessagePrice > 0 ? '#f5c518' : '#4ade80', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-            {effectiveFlyingMessagePrice > 0 ? `${effectiveFlyingMessagePrice} ⭐` : flyingCopy.free}
-          </span>
-          <button
-            type="submit"
-            title={flyingCopy.send}
-            aria-label={flyingCopy.send}
-            disabled={!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
-            style={{ width: '38px', height: '38px', flex: '0 0 38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: '8px', color: '#fff', backgroundColor: (!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0) ? '#3b4656' : '#007bff', cursor: 'pointer' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
-            </svg>
-          </button>
-        </form>
-        {flyingComposerStatus && (
-          <div role="status" aria-live="polite" style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', zIndex: 12, padding: '5px 8px', borderRadius: '0 0 6px 6px', backgroundColor: '#202938', color: '#dbeafe', fontSize: '11px', textAlign: 'center', boxShadow: '0 3px 8px rgba(0,0,0,0.35)' }}>
-            {flyingComposerStatus}
-          </div>
-        )}
-      </div>
 
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', flex: 1 }}>
@@ -2294,14 +2262,14 @@ export default function App() {
             onClick={() => void handleBuyRaffleTicket()}
             disabled={!currentUser || rafflePurchasing}
             aria-label={`${raffleCopy.button}, 100 Telegram Stars. ${raffleCopy.summary}. ${raffleCountdown}`}
-             style={{ position: 'relative', width: '82px', height: '82px', flex: '0 0 82px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, overflow: 'hidden', background: 'radial-gradient(circle at 32% 25%, #6b5310 0%, #332700 60%, #1e1e1e 100%)', border: '2px solid #f5c518', borderRadius: '50%', color: '#ffe082', cursor: rafflePurchasing ? 'wait' : 'pointer', opacity: rafflePurchasing ? 0.72 : 1, boxShadow: '0 2px 10px rgba(0,0,0,0.45), inset 0 0 0 3px rgba(245,197,24,0.14)' }}
+             style={{ position: 'relative', width: '42px', height: '42px', flex: '0 0 42px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, overflow: 'hidden', background: 'radial-gradient(circle at 32% 25%, #6b5310 0%, #332700 60%, #1e1e1e 100%)', border: '2px solid #f5c518', borderRadius: '50%', color: '#ffe082', cursor: rafflePurchasing ? 'wait' : 'pointer', opacity: rafflePurchasing ? 0.72 : 1, boxShadow: '0 2px 10px rgba(0,0,0,0.45), inset 0 0 0 3px rgba(245,197,24,0.14)' }}
           >
-             <svg aria-hidden="true" width="50" height="50" viewBox="0 0 48 48" fill="none" style={{ position: 'absolute', inset: 0, margin: 'auto', opacity: 0.72 }}>
+              <svg aria-hidden="true" width="30" height="30" viewBox="0 0 48 48" fill="none" style={{ position: 'absolute', inset: 0, margin: 'auto', opacity: 0.72 }}>
                <path d="M9 12h30v7a5 5 0 0 0 0 10v7H9v-7a5 5 0 0 0 0-10v-7Z" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
                <path d="M24 14v20" stroke="currentColor" strokeWidth="2" strokeDasharray="2 3" />
              </svg>
-             <span style={{ position: 'relative', zIndex: 1, padding: '3px 4px', borderRadius: '4px', backgroundColor: 'rgba(28,22,4,0.92)', color: '#fff5c7', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '7px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1, letterSpacing: '-0.3px', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.55)' }}>
-               {raffleCountdown}
+              <span style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', padding: '2px 1px', borderRadius: '4px', backgroundColor: 'rgba(28,22,4,0.94)', color: '#fff5c7', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '6px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1, letterSpacing: '-0.35px', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.55)' }}>
+                {raffleCountdown.split(' ').map((part, index) => <span key={index}>{part}</span>)}
              </span>
           </button>
         </div>)}
@@ -2324,6 +2292,43 @@ export default function App() {
         onMap={handleToggleMap}
         t={t}
       />
+
+      <div style={{ position: 'relative', zIndex: 11, height: '52px', minHeight: '52px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', padding: '6px 12px' }}>
+        <form
+          onSubmit={(event) => { event.preventDefault(); void handleSendFlyingMessage(); }}
+          style={{ height: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <input
+            type="text"
+            value={flyingMessageText}
+            onChange={(event) => setFlyingMessageText(event.target.value)}
+            maxLength={200}
+            placeholder={flyingCopy.placeholder}
+            aria-label={flyingCopy.placeholder}
+            disabled={!currentUser || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
+            style={{ flex: 1, minWidth: 0, height: '38px', borderRadius: '8px', border: '1px solid #3f4652', backgroundColor: '#121212', color: '#fff', padding: '0 12px', fontSize: '14px', outline: 'none' }}
+          />
+          <span style={{ minWidth: '42px', textAlign: 'center', color: effectiveFlyingMessagePrice > 0 ? '#f5c518' : '#4ade80', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            {effectiveFlyingMessagePrice > 0 ? `${effectiveFlyingMessagePrice} ⭐` : flyingCopy.free}
+          </span>
+          <button
+            type="submit"
+            title={flyingCopy.send}
+            aria-label={flyingCopy.send}
+            disabled={!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
+            style={{ width: '38px', height: '38px', flex: '0 0 38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: '8px', color: '#fff', backgroundColor: (!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0) ? '#3b4656' : '#007bff', cursor: 'pointer' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
+        </form>
+        {flyingComposerStatus && (
+          <div role="status" aria-live="polite" style={{ position: 'absolute', bottom: 'calc(100% + 60px)', left: '12px', right: '12px', zIndex: 12, padding: '5px 8px', borderRadius: '6px', backgroundColor: '#202938', color: '#dbeafe', fontSize: '11px', textAlign: 'center', boxShadow: '0 -3px 8px rgba(0,0,0,0.35)' }}>
+            {flyingComposerStatus}
+          </div>
+        )}
+      </div>
 
       {showRolesModal && (
         <div onClick={() => setShowRolesModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 3000, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>

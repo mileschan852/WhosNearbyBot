@@ -23,9 +23,9 @@ html, body, #root {
 
 .flying-message-layer {
   position: fixed;
-  top: 112px;
+  top: 60px;
   right: 0;
-  bottom: 60px;
+  bottom: 112px;
   left: 0;
   overflow: hidden;
   z-index: 8;
