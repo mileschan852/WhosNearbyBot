@@ -49,6 +49,7 @@ declare global {
 }
 
 const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
+const WORKER_REQUEST_TIMEOUT_MS = 12_000;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
 
@@ -772,27 +773,42 @@ export default function App() {
   const workerPost = async (path: string, body: Record<string, unknown> = {}) => {
     const initData = window.Telegram?.WebApp?.initData || '';
     if (!initData) throw new Error('Open Who’s Nearby from Telegram to continue.');
-    const response = await fetch(`${PAYMENT_WORKER_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, initData, bot: getActiveBotKey() }),
-    });
-    let result: any = {};
-    try { result = await response.json(); } catch {}
-    if (!response.ok) {
-      const error = new Error(result.error || `Request failed (${response.status})`) as Error & {
-        retryAfter?: number;
-        status?: number;
-        upstreamStatus?: number;
-      };
-      error.status = response.status;
-      const upstreamStatus = Number(result.upstreamStatus);
-      if (Number.isInteger(upstreamStatus) && upstreamStatus >= 400) error.upstreamStatus = upstreamStatus;
-      const retryAfter = Number(result.retryAfter || response.headers.get('retry-after'));
-      if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      WORKER_REQUEST_TIMEOUT_MS,
+    );
+    try {
+      const response = await fetch(`${PAYMENT_WORKER_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, initData, bot: getActiveBotKey() }),
+        signal: controller.signal,
+      });
+      let result: any = {};
+      try { result = await response.json(); } catch {}
+      if (!response.ok) {
+        const error = new Error(result.error || `Request failed (${response.status})`) as Error & {
+          retryAfter?: number;
+          status?: number;
+          upstreamStatus?: number;
+        };
+        error.status = response.status;
+        const upstreamStatus = Number(result.upstreamStatus);
+        if (Number.isInteger(upstreamStatus) && upstreamStatus >= 400) error.upstreamStatus = upstreamStatus;
+        const retryAfter = Number(result.retryAfter || response.headers.get('retry-after'));
+        if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+        throw error;
+      }
+      return result;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('The server took too long to respond. Check your connection and try again.');
+      }
       throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
-    return result;
   };
 
   const formatAdminFailure = (error: unknown, fallback: string) => {
@@ -1104,11 +1120,29 @@ export default function App() {
         let fix: { lat: number; lng: number } | null = null;
         const tryGeolocation = (opts: PositionOptions): Promise<boolean> =>
           new Promise((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => { fix = { lat: pos.coords.latitude, lng: pos.coords.longitude }; setLocation(fix); resolve(true); },
-              () => resolve(false),
-              opts
-            );
+            let settled = false;
+            const finish = (success: boolean) => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(fallbackTimer);
+              resolve(success);
+            };
+            // Some Telegram WebViews do not start the browser's geolocation
+            // timeout until the user dismisses the permission prompt.
+            const fallbackTimer = window.setTimeout(() => finish(false), 4_500);
+            try {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  fix = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                  setLocation(fix);
+                  finish(true);
+                },
+                () => finish(false),
+                opts,
+              );
+            } catch {
+              finish(false);
+            }
           });
         await tryGeolocation({ enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 });
         let initialGender = existingProfile?.gender || activeEntry.profileSetup.defaultGender;
@@ -1167,9 +1201,18 @@ export default function App() {
         } else {
           const myProfile: UserProfile = { id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), gender: initialGender, seeking: initialSeeking, dob: existingProfile.dob, height: existingProfile.height, weight: existingProfile.weight, role_pref: isManSeekingMan ? existingProfile.role_pref : null, safety_pref: isManSeekingMan ? existingProfile.safety_pref : null, playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null, where_pref: isManSeekingMan ? existingProfile.where_pref : null, how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null, non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode, is_underage: false, hide_age: existingProfile.hide_age || false, grid_visible: initialGridVisible, map_visible: existingProfile.map_visible ?? false, hide_age_expiry: existingProfile.hide_age_expiry || null, invisible_expiry: existingProfile.invisible_expiry || null, vip_expiry: existingProfile.vip_expiry || null };
           setCurrentUser(myProfile);
-          const { profile: refreshedProfile } = await workerPost('/api/profile', { profile: { lat: currentLoc.lat, lng: currentLoc.lng } });
-          setCurrentUser((previous) => previous ? { ...previous, ...refreshedProfile } : refreshedProfile);
-          await fetchUsersData();
+          void workerPost('/api/profile', { profile: { lat: currentLoc.lat, lng: currentLoc.lng } })
+            .then(({ profile: refreshedProfile }) => {
+              if (refreshedProfile && typeof refreshedProfile === 'object') {
+                setCurrentUser((previous) => previous?.id === userId
+                  ? { ...previous, ...refreshedProfile }
+                  : previous);
+              }
+            })
+            .catch((error) => console.warn('Could not refresh profile location:', error));
+          // The existing profile is enough to show the app. Nearby results
+          // and the saved location refresh can finish after the first render.
+          void fetchUsersData();
            // Improve the location after the first screen is ready without delaying startup.
            navigator.geolocation.getCurrentPosition(
              (position) => {
@@ -1769,7 +1812,7 @@ export default function App() {
     return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('locationRequired')}</h2><p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>{t('locationMessage')}</p></div>;
   }
   if (startupError) {
-    return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '22px', marginBottom: '12px' }}>{t('accessDenied')}</h2><p style={{ maxWidth: '360px', lineHeight: '1.5', color: '#ffb4b4' }}>{startupError}</p></div>;
+    return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '22px', marginBottom: '12px' }}>{t('accessDenied')}</h2><p style={{ maxWidth: '360px', lineHeight: '1.5', color: '#ffb4b4' }}>{startupError}</p><button type="button" onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '12px 22px', border: 0, borderRadius: '10px', background: '#3b82f6', color: '#fff', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>{t('refresh')}</button></div>;
   }
   if (isUnderageLocked) {
     return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('accessDenied')}</h2><p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>{t('underageMessage')}</p></div>;
