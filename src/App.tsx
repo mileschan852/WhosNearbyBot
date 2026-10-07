@@ -8,8 +8,14 @@ import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import bustaIcon from './assets/Bustagames.jpg';
 import tonflipIcon from './assets/Tonflip.jpg';
 import photifyIcon from './assets/Photify.jpg';
+import { APP_ENTRIES, resolveAppEntry, type AppEntryId } from './config/entries';
+import {
+  BottomNavigationModule,
+  NearbyGridModule,
+  ProfileCompletionModule,
+} from './modules';
 
-const MapView = lazy(() => import('./components/MapView'));
+const MapView = lazy(() => import('./modules/map/NearbyMapModule'));
 
 declare global {
   interface Window {
@@ -42,10 +48,7 @@ declare global {
   }
 }
 
-const DEFAULT_PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
-const PAYMENT_WORKER_URL = (import.meta.env.DEV && import.meta.env.VITE_PAYMENT_WORKER_URL)
-  ? import.meta.env.VITE_PAYMENT_WORKER_URL.replace(/\/+$/, '')
-  : DEFAULT_PAYMENT_WORKER_URL;
+const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
 
@@ -697,6 +700,13 @@ export default function App() {
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState<boolean>(false);
+  const [entryId, setEntryId] = useState<AppEntryId>(() =>
+    resolveAppEntry(
+      window.Telegram?.WebApp?.initDataUnsafe?.start_param,
+      window.location.search,
+    ).id,
+  );
+  const entry = APP_ENTRIES[entryId];
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('man');
   const [seeking, setSeeking] = useState<string>('women');
@@ -755,8 +765,8 @@ export default function App() {
 
   const getActiveBotKey = () => {
     if (verifiedBotKeyRef.current) return verifiedBotKeyRef.current;
-    const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || (window.location.search.includes('mode=gay') ? 'gaymode' : '');
-    return startParam === 'gaymode' ? 'botA' : 'botB';
+    const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    return resolveAppEntry(startParam, window.location.search).botKey;
   };
 
   const workerPost = async (path: string, body: Record<string, unknown> = {}) => {
@@ -1051,12 +1061,16 @@ export default function App() {
           window.Telegram.WebApp.expand?.();
         }
         let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || (window.location.search.includes('mode=gay') ? 'gaymode' : '');
+        let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param ||
+          (resolveAppEntry(null, window.location.search).id === 'hkmo-date' ? 'gaymode' : '');
         if (!tgUser) {
           await new Promise((res) => setTimeout(res, 300));
           tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-          startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || startParam || (window.location.search.includes('mode=gay') ? 'gaymode' : '');
+          startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || startParam ||
+            (resolveAppEntry(null, window.location.search).id === 'hkmo-date' ? 'gaymode' : '');
         }
+        const activeEntry = resolveAppEntry(startParam, window.location.search);
+        setEntryId(activeEntry.id);
         const tgLangCode = (tgUser?.language_code || navigator.language || 'en').toLowerCase();
         if (tgLangCode.startsWith('zh')) {
           setLang(tgLangCode.includes('tw') || tgLangCode.includes('hk') || tgLangCode.includes('hant') ? 'zh-TW' : 'zh-CN');
@@ -1097,9 +1111,8 @@ export default function App() {
             );
           });
         await tryGeolocation({ enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 });
-        let initialGender = existingProfile?.gender || 'man';
-        let initialSeeking = existingProfile?.seeking || 'women';
-        if (!existingProfile && startParam === 'gaymode') { initialGender = 'man'; initialSeeking = 'men'; }
+        let initialGender = existingProfile?.gender || activeEntry.profileSetup.defaultGender;
+        let initialSeeking = existingProfile?.seeking || activeEntry.profileSetup.defaultSeeking;
         setGender(initialGender); setSeeking(initialSeeking);
         const isManSeekingMan = initialGender === 'man' && initialSeeking === 'men';
         const isFullySetup = Boolean(
@@ -1911,7 +1924,6 @@ export default function App() {
   const mapFilteredUsers = users.filter((u) => (u.id === currentUser?.id ? false : (u.map_visible === true)));
   const isManSeekingManInput = gender === 'man' && seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
-  const isHkModEntry = (window.Telegram?.WebApp?.initDataUnsafe?.start_param === 'gaymode' || window.location.search.includes('mode=gay'));
   const passesFilterForActive = activeProfile ? checkFilterPass(activeProfile) : true;
   const flyingMessageWaitSeconds = Math.max(0, Math.ceil((flyingCooldownUntil - cooldownClock) / 1000));
   const flyingCopy = flyingMessageCopy[lang];
@@ -1930,67 +1942,47 @@ export default function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
 
       {(showProfileSetup || showProfileEditModal) && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '12px', boxSizing: 'border-box' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '16px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
-            {showProfileEditModal && (<button onClick={() => setShowProfileEditModal(false)} style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'transparent', border: 'none', color: '#aaa', fontSize: '18px', cursor: 'pointer' }}>✕</button>)}
-            <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{t('completeProfile')}</h2>
-            <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>{t('profileWarning')}</p>
-            {errorMessage && (<div style={{ backgroundColor: 'rgba(255, 77, 77, 0.25)', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '6px', borderRadius: '4px', fontSize: '11px', textAlign: 'center' }}>{errorMessage}</div>)}
-            <form onSubmit={handleSaveInitialProfile} style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('dob')}</label>
-                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={{ padding: '6px 8px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px', colorScheme: 'dark' }} required />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap' }}>{t('imA')}</span>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} disabled={isHkModEntry} style={{ flex: 1, minWidth: 0, padding: '6px 4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
-                    <option value="man">{t('man')}</option><option value="woman">{t('woman')}</option><option value="non-binary">{t('nonBinary')}</option>
-                  </select>
-                  <span style={{ whiteSpace: 'nowrap' }}>{t('seeking')}</span>
-                  <select value={seeking} onChange={(e) => setSeeking(e.target.value)} disabled={isHkModEntry} style={{ flex: 1, minWidth: 0, padding: '6px 4px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }}>
-                    <option value="men">{t('men')}</option><option value="women">{t('women')}</option><option value="everyone">{t('everyone')}</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('height')}</label>
-                  <select value={height} onChange={(e) => setHeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
-                    <option value="" disabled>{t('selectHeight')}</option>
-                    {heightOptions.map((h, idx) => (<option key={idx} value={h}>{h}</option>))}
-                  </select>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('weight')}</label>
-                  <select value={weight} onChange={(e) => setWeight(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '12px' }} required>
-                    <option value="" disabled>{t('selectWeight')}</option>
-                    {weightOptions.map((w, idx) => (<option key={idx} value={w}>{w}</option>))}
-                  </select>
-                </div>
-              </div>
-              <div style={{ width: '100%', borderTop: '1px solid #444', margin: '4px 0' }} />
-              {isManSeekingManInput ? (<>
-                <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', textAlign: 'center' }}>{t('tapToChange')}</div>
-                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                  <button type="button" onClick={() => setRolePref(cycleNext(rolePref, roleCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>{t(rolePref)}</button>
-                  <button type="button" onClick={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>{t(safetyPref)}</button>
-                  <button type="button" onClick={() => setPlaystylePref(cycleNext(playstylePref, ['Clean', 'Party']))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>{t(playstylePref)}</button>
-                  <button type="button" onClick={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>{t(`${howManyPref}_setup`)}</button>
-                  <button type="button" onClick={() => setWherePref(cycleWhere(wherePref, whereCycleOptions))} style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}>{wherePref === null ? t('Anywhere') : t(wherePref)}</button>
-                </div>
-              </>) : (<div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#38bdf8' }}>{t('mode')}</label>
-                <select value={nonManMode} onChange={(e) => setNonManMode(e.target.value)} style={{ padding: '6px', backgroundColor: '#222', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '10px' }} required>
-                  <option value="Browsing only - You cannot send not receive private message from others">{t('browsingOnly')}</option>
-                  <option value="Online only - You are visible on grid but not on map, map is inaccessible">{t('onlineOnly')}</option>
-                  <option value="Meet up - You are visible on grid and map">{t('meetUp')}</option>
-                </select>
-              </div>)}
-              <button type="submit" style={{ marginTop: '4px', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>{t('saveProfile')}</button>
-            </form>
-          </div>
-        </div>
+        <ProfileCompletionModule
+          entry={entry}
+          values={{
+            dob,
+            gender,
+            seeking,
+            height,
+            weight,
+            rolePref,
+            safetyPref,
+            playstylePref,
+            howManyPref,
+            wherePref,
+            nonManMode,
+          }}
+          onChange={{
+            dob: setDob,
+            gender: setGender,
+            seeking: setSeeking,
+            height: setHeight,
+            weight: setWeight,
+            rolePref: setRolePref,
+            safetyPref: setSafetyPref,
+            playstylePref: setPlaystylePref,
+            howManyPref: setHowManyPref,
+            wherePref: setWherePref,
+            nonManMode: setNonManMode,
+          }}
+          onSubmit={handleSaveInitialProfile}
+          onClose={() => setShowProfileEditModal(false)}
+          showCloseButton={showProfileEditModal}
+          errorMessage={errorMessage}
+          heightOptions={heightOptions}
+          weightOptions={weightOptions}
+          t={t}
+          onCycleRole={() => setRolePref(cycleNext(rolePref, roleCycleOptions))}
+          onCycleSafety={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))}
+          onCyclePlaystyle={() => setPlaystylePref(cycleNext(playstylePref, ['Clean', 'Party']))}
+          onCycleHowMany={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))}
+          onCycleWhere={() => setWherePref(cycleWhere(wherePref, whereCycleOptions))}
+        />
       )}
 
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
@@ -2087,25 +2079,16 @@ export default function App() {
       </div>
 
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', overflowY: 'auto', flex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', padding: '4px' }}>
-            {gridFilteredUsers.map((user, index) => {
-              const isSelf = currentUser && user.id === currentUser.id;
-              const passesFilter = checkFilterPass(user);
-              const isUserVisible = user.grid_visible !== false;
-              const opacity = isUserVisible ? (passesFilter ? 1 : 0.68) : 0.32;
-              const bigDistanceText = formatDistanceBigUnit(user.distance);
-              const online15 = isOnlineWithin15Min(user.last_seen);
-              return (
-                <div key={user.id || index} onClick={() => handleCardClick(user)} style={{ position: 'relative', aspectRatio: '1/1', cursor: 'pointer', backgroundColor: '#222', overflow: 'hidden', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity }}>
-                  <div aria-hidden="true" style={{ position: 'absolute', inset: 0, backgroundColor: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</div>
-                  {user.avatar && <img src={user.avatar} alt={user.name} onError={(event) => { event.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
-                  {online15 && (<div style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />)}
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>{isSelf ? t('you') : bigDistanceText}</div>
-                </div>
-              );
-            })}
-          </div>
+        <div style={{ display: view === 'grid' ? 'block' : 'none', height: '100%', flex: 1 }}>
+          <NearbyGridModule
+            users={gridFilteredUsers}
+            currentUserId={currentUser?.id || null}
+            isOnline={isOnlineWithin15Min}
+            passesFilter={checkFilterPass}
+            formatDistance={formatDistanceBigUnit}
+            onSelectProfile={handleCardClick}
+            t={t}
+          />
         </div>
 
         <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
@@ -2287,27 +2270,17 @@ export default function App() {
         </div>
       )}
 
-      <footer style={{ display: 'flex', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', zIndex: 10 }}>
-        <button onClick={handleToggleGrid} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'grid' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-          <span style={{ fontSize: '12px', marginTop: '4px', color: gridVisible ? '#007bff' : '#ff4d4d' }}>{t('grid')}</span>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '75%', height: '3px', backgroundColor: gridVisible ? '#4ade80' : '#ff4d4d' }} />
-        </button>
-        <button onClick={() => handleOpenExternalApp(isHkModEntry ? 'https://t.me/hkmochat' : 'https://t.me/whosnearby')} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#888', cursor: 'pointer', position: 'relative' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('chat')}</span>
-        </button>
-        <button onClick={handleWalletClick} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: isWalletConnected ? '#007bff' : '#ff4d4d', cursor: 'pointer', position: 'relative' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
-          <span style={{ fontSize: '12px', marginTop: '4px', color: isWalletConnected ? '#007bff' : '#ff4d4d' }}>{t('wallet')}</span>
-          <div style={{ position: 'absolute', bottom: 0, left: '25%', right: '50%', height: '3px', backgroundColor: isWalletConnected ? '#007bff' : '#ff4d4d' }} />
-        </button>
-        <button onClick={handleToggleMap} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: view === 'map' ? '#007bff' : '#888', cursor: 'pointer', position: 'relative' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
-          <span style={{ fontSize: '12px', marginTop: '4px' }}>{t('map')}</span>
-          <div style={{ position: 'absolute', bottom: 0, left: '50%', right: 0, height: '3px', backgroundColor: mapVisible ? '#4ade80' : '#ff4d4d' }} />
-        </button>
-      </footer>
+      <BottomNavigationModule
+        view={view}
+        gridVisible={gridVisible}
+        mapVisible={mapVisible}
+        walletConnected={isWalletConnected}
+        onGrid={handleToggleGrid}
+        onChat={() => handleOpenExternalApp(entry.chatUrl)}
+        onWallet={handleWalletClick}
+        onMap={handleToggleMap}
+        t={t}
+      />
 
       {showRolesModal && (
         <div onClick={() => setShowRolesModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 3000, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>

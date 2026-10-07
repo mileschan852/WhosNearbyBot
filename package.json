@@ -1,5 +1,5 @@
 {
-  "name": "whos-nearby",
+  "name": "whos-nearby-gui",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,6 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --test",
     "preview": "vite preview"
   },
   "dependencies": {
