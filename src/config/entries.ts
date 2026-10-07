@@ -23,6 +23,8 @@ export interface AppEntryConfig {
   };
 }
 
+export const DEFAULT_ENTRY_ID: AppEntryId = 'nearby';
+
 export const DEFAULT_PROFILE_SETUP_ORDER: ProfileSetupSection[] = [
   'birthdate',
   'identity',
@@ -70,5 +72,5 @@ export function resolveAppEntry(
   if (new URLSearchParams(search).get('mode') === 'gay') {
     return APP_ENTRIES['hkmo-date'];
   }
-  return APP_ENTRIES.nearby;
+  return APP_ENTRIES[DEFAULT_ENTRY_ID];
 }

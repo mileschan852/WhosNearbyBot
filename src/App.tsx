@@ -2031,7 +2031,7 @@ export default function App() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{t('whosNearby')} ({gridFilteredUsers.length})</h1>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{entry.id === 'hkmo-date' ? entry.label : t('whosNearby')} ({gridFilteredUsers.length})</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
           <button onClick={handleToggleFilterDropdown} style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={t('filter')}>
