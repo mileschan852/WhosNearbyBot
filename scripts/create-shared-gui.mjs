@@ -1,4 +1,4 @@
-import { copyFile, readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,8 +23,14 @@ const stylesheet = assetFromHtml(/<link\b[^>]*\bhref=["']((?:\.\/)?assets\/[^"']
 const sharedDirectory = path.join(distRoot, 'assets');
 
 await Promise.all([
-  copyFile(javascript, path.join(sharedDirectory, 'shared-gui.js')),
-  copyFile(stylesheet, path.join(sharedDirectory, 'shared-gui.css')),
+  writeFile(
+    path.join(sharedDirectory, 'shared-gui.js'),
+    `import './${path.basename(javascript)}';\n`,
+  ),
+  writeFile(
+    path.join(sharedDirectory, 'shared-gui.css'),
+    `@import url('./${path.basename(stylesheet)}');\n`,
+  ),
 ]);
 
-console.log('Published stable shared GUI assets into dist/assets.');
+console.log('Published stable shared GUI entry wrappers into dist/assets.');
