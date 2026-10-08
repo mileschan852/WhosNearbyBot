@@ -412,6 +412,109 @@ const translations: Record<LangKey, Record<string, string>> = {
   }
 };
 
+type VipGrantWindow = 'today' | 'week' | 'month';
+type VipGrantNotice = { claimIds: string[]; days: number; vipUntil: string | null };
+
+const vipGrantCopy: Record<LangKey, {
+  trigger: string;
+  today: string;
+  week: string;
+  month: string;
+  hongKongTime: string;
+  random: string;
+  randomHint: string;
+  allowNewUsers: string;
+  campaignCreated: string;
+  popupTitle: string;
+  popupBody: string;
+  popupClose: string;
+}> = {
+  en: {
+    trigger: 'Triggered when a user logs in within',
+    today: 'Today',
+    week: 'This week',
+    month: 'This month',
+    hongKongTime: 'Hong Kong time',
+    random: 'Random VIP days per user',
+    randomHint: '1 day up to the selected duration',
+    allowNewUsers: 'Allow new users created before the cutoff',
+    campaignCreated: 'VIP campaign created. Eligible users will receive their VIP days when they log in.',
+    popupTitle: 'VIP reward received',
+    popupBody: 'Your account received {days} VIP days.',
+    popupClose: 'Continue',
+  },
+  'zh-CN': {
+    trigger: '用户在以下期限内登录时触发',
+    today: '今天',
+    week: '本周',
+    month: '本月',
+    hongKongTime: '香港时间',
+    random: '为每位用户随机分配 VIP 天数',
+    randomHint: '1 天至所选时长',
+    allowNewUsers: '允许截止时间前注册的新用户参加',
+    campaignCreated: 'VIP 活动已创建。符合条件的用户登录后会收到 VIP 天数。',
+    popupTitle: '已收到 VIP 奖励',
+    popupBody: '你的账户已获得 {days} 天 VIP。',
+    popupClose: '继续',
+  },
+  'zh-TW': {
+    trigger: '使用者在以下期限內登入時觸發',
+    today: '今天',
+    week: '本週',
+    month: '本月',
+    hongKongTime: '香港時間',
+    random: '為每位使用者隨機分配 VIP 天數',
+    randomHint: '1 天至所選時長',
+    allowNewUsers: '允許截止時間前建立的新使用者參加',
+    campaignCreated: 'VIP 活動已建立。符合條件的使用者登入後會收到 VIP 天數。',
+    popupTitle: '已收到 VIP 獎勵',
+    popupBody: '你的帳戶已獲得 {days} 天 VIP。',
+    popupClose: '繼續',
+  },
+  ja: {
+    trigger: '次の期間内にログインしたユーザーに付与',
+    today: '今日',
+    week: '今週',
+    month: '今月',
+    hongKongTime: '香港時間',
+    random: 'ユーザーごとにVIP日数をランダムにする',
+    randomHint: '1日から選択した期間まで',
+    allowNewUsers: '締切前に登録した新規ユーザーも対象にする',
+    campaignCreated: 'VIPキャンペーンを作成しました。対象ユーザーはログイン時にVIP日数を受け取ります。',
+    popupTitle: 'VIP特典を受け取りました',
+    popupBody: 'アカウントにVIPが{days}日分追加されました。',
+    popupClose: '続ける',
+  },
+  ko: {
+    trigger: '다음 기간 내 로그인한 사용자에게 지급',
+    today: '오늘',
+    week: '이번 주',
+    month: '이번 달',
+    hongKongTime: '홍콩 시간',
+    random: '사용자별 VIP 일수를 무작위로 지급',
+    randomHint: '1일부터 선택한 기간까지',
+    allowNewUsers: '마감 전 가입한 신규 사용자도 포함',
+    campaignCreated: 'VIP 캠페인이 생성되었습니다. 대상 사용자는 로그인할 때 VIP 일수를 받습니다.',
+    popupTitle: 'VIP 보상을 받았습니다',
+    popupBody: '계정에 VIP {days}일이 추가되었습니다.',
+    popupClose: '계속',
+  },
+  ru: {
+    trigger: 'Начислять пользователям, вошедшим в течение',
+    today: 'Сегодня',
+    week: 'Этой недели',
+    month: 'Этого месяца',
+    hongKongTime: 'время Гонконга',
+    random: 'Случайное число VIP-дней для каждого пользователя',
+    randomHint: 'От 1 дня до выбранного срока',
+    allowNewUsers: 'Включить новых пользователей, зарегистрированных до срока',
+    campaignCreated: 'VIP-кампания создана. Подходящие пользователи получат VIP-дни при входе.',
+    popupTitle: 'VIP-награда получена',
+    popupBody: 'Ваш аккаунт получил VIP на {days} дн.',
+    popupClose: 'Продолжить',
+  },
+};
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -653,6 +756,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
   const [showRolesModal, setShowRolesModal] = useState<boolean>(false);
   const [showVipPeriods, setShowVipPeriods] = useState<boolean>(false);
+  const [vipGrantWindowEnabled, setVipGrantWindowEnabled] = useState<boolean>(false);
+  const [vipGrantWindow, setVipGrantWindow] = useState<VipGrantWindow>('today');
+  const [randomVipDaysEnabled, setRandomVipDaysEnabled] = useState<boolean>(false);
+  const [allowNewVipUsers, setAllowNewVipUsers] = useState<boolean>(false);
+  const [savingVipGrant, setSavingVipGrant] = useState<boolean>(false);
+  const vipGrantSaveLockRef = useRef<boolean>(false);
+  const [vipGrantNotice, setVipGrantNotice] = useState<VipGrantNotice | null>(null);
   const [showFlyingPriceEditor, setShowFlyingPriceEditor] = useState<boolean>(false);
   const [flyingPriceDraft, setFlyingPriceDraft] = useState<string>('0');
   const [savingFlyingPrice, setSavingFlyingPrice] = useState<boolean>(false);
@@ -1112,6 +1222,17 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         // The Worker reads this server-side so no Supabase credential is sent to the browser.
         const globalVipUntil = Number(authResponse.globalVipUntil);
         if (Number.isFinite(globalVipUntil)) setGlobalVipUntil(globalVipUntil);
+        const pendingVipGrant = authResponse.vipGrantNotice;
+        if (pendingVipGrant && Array.isArray(pendingVipGrant.claimIds) &&
+            Number.isSafeInteger(Number(pendingVipGrant.days)) && Number(pendingVipGrant.days) > 0) {
+          setVipGrantNotice({
+            claimIds: pendingVipGrant.claimIds
+              .filter((id: unknown): id is string => typeof id === 'string')
+              .slice(0, 50),
+            days: Number(pendingVipGrant.days),
+            vipUntil: typeof pendingVipGrant.vipUntil === 'string' ? pendingVipGrant.vipUntil : null,
+          });
+        }
         setIsAdmin(authResponse.role === 'admin');
         setIsVip(authResponse.role === 'vip');
         const userId = existingProfile.id;
@@ -1918,13 +2039,47 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
 
   const handleGrantGlobalVip = async (ms: number) => {
-    const until = ms > 0 ? Date.now() + ms : 0;
+    if (ms <= 0) {
+      try {
+        await workerPost('/api/global-vip', { until: 0 });
+        setGlobalVipUntil(0);
+        setShowVipPeriods(false);
+        setShowAdminMenu(false);
+      } catch (e) { console.error(e); alert(formatAdminFailure(e, t('roleUpdateFailed'))); }
+      return;
+    }
+    if (vipGrantSaveLockRef.current) return;
+    vipGrantSaveLockRef.current = true;
+    setSavingVipGrant(true);
     try {
-      await workerPost('/api/global-vip', { until });
-      setGlobalVipUntil(until);
+      await workerPost('/api/vip-campaigns', {
+        requestId: crypto.randomUUID(),
+        durationDays: Math.round(ms / 86_400_000),
+        eligibilityWindow: vipGrantWindowEnabled ? vipGrantWindow : null,
+        randomize: randomVipDaysEnabled,
+        allowNewUsers: vipGrantWindowEnabled && allowNewVipUsers,
+      });
       setShowVipPeriods(false);
       setShowAdminMenu(false);
+      alert(vipGrantCopy[lang].campaignCreated);
     } catch (e) { console.error(e); alert(formatAdminFailure(e, t('roleUpdateFailed'))); }
+    finally {
+      vipGrantSaveLockRef.current = false;
+      setSavingVipGrant(false);
+    }
+  };
+
+  const handleAcknowledgeVipGrant = async () => {
+    const notice = vipGrantNotice;
+    setVipGrantNotice(null);
+    if (!notice?.claimIds.length) return;
+    try {
+      await workerPost('/api/vip-grants/ack', { claimIds: notice.claimIds });
+    } catch (error) {
+      // The server will show the popup again at the next login if the
+      // acknowledgement could not be saved.
+      console.error('VIP reward acknowledgement failed:', error);
+    }
   };
 
   const handleSaveFlyingPrice = async () => {
@@ -2192,11 +2347,57 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     <button type="button" onClick={() => setShowVipPeriods((v) => !v)} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}><span>{t('grantVipAll')}</span><span style={{ color: '#f5c518', fontSize: '11px' }}>{showVipPeriods ? '▾' : '▸'}</span></button>
                     {globalVipActive && (<div style={{ fontSize: '10px', color: '#f5c518', padding: '0 4px' }}>{t('vip')} · {t('expires')} {new Date(globalVipUntil).toLocaleDateString()}</div>)}
                     {showVipPeriods && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '2px 0 4px 10px', borderLeft: '2px solid #f5c518', marginLeft: '2px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px 0 4px 10px', borderLeft: '2px solid #f5c518', marginLeft: '2px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', color: '#eee', fontSize: '12px', lineHeight: '1.35' }}>
+                            <input
+                              type="checkbox"
+                              checked={vipGrantWindowEnabled}
+                              onChange={(event) => {
+                                setVipGrantWindowEnabled(event.target.checked);
+                                if (!event.target.checked) setAllowNewVipUsers(false);
+                              }}
+                            />
+                            <span>{vipGrantCopy[lang].trigger}</span>
+                          </label>
+                          <select
+                            value={vipGrantWindow}
+                            disabled={!vipGrantWindowEnabled || savingVipGrant}
+                            onChange={(event) => setVipGrantWindow(event.target.value as VipGrantWindow)}
+                            aria-label={vipGrantCopy[lang].trigger}
+                            style={{ padding: '7px 9px', backgroundColor: '#121212', border: '1px solid #555', borderRadius: '5px', color: vipGrantWindowEnabled ? '#fff' : '#888', fontSize: '12px' }}
+                          >
+                            <option value="today">{vipGrantCopy[lang].today}</option>
+                            <option value="week">{vipGrantCopy[lang].week}</option>
+                            <option value="month">{vipGrantCopy[lang].month}</option>
+                          </select>
+                          <span style={{ fontSize: '10px', color: '#999' }}>{vipGrantCopy[lang].hongKongTime}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', color: '#eee', fontSize: '12px', lineHeight: '1.35' }}>
+                            <input
+                              type="checkbox"
+                              checked={randomVipDaysEnabled}
+                              disabled={savingVipGrant}
+                              onChange={(event) => setRandomVipDaysEnabled(event.target.checked)}
+                            />
+                            <span>{vipGrantCopy[lang].random}</span>
+                          </label>
+                          <span style={{ paddingLeft: '22px', fontSize: '10px', color: '#999' }}>{vipGrantCopy[lang].randomHint}</span>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', color: vipGrantWindowEnabled ? '#eee' : '#777', fontSize: '12px', lineHeight: '1.35' }}>
+                          <input
+                            type="checkbox"
+                            checked={allowNewVipUsers}
+                            disabled={!vipGrantWindowEnabled || savingVipGrant}
+                            onChange={(event) => setAllowNewVipUsers(event.target.checked)}
+                          />
+                          <span>{vipGrantCopy[lang].allowNewUsers}</span>
+                        </label>
                         {([['1w', 7 * 864e5], ['1mo', 30 * 864e5], ['3mo', 90 * 864e5], ['6mo', 180 * 864e5], ['1y', 365 * 864e5]] as [string, number][]).map(([key, ms]) => (
-                          <button key={key} type="button" onClick={() => handleGrantGlobalVip(ms)} style={{ padding: '7px 10px', backgroundColor: '#3a2f00', border: '1px solid #665500', borderRadius: '6px', fontSize: '12px', color: '#f5c518', cursor: 'pointer', textAlign: 'left' }}>{t(`period_${key}`)}</button>
+                          <button key={key} type="button" disabled={savingVipGrant} onClick={() => handleGrantGlobalVip(ms)} style={{ padding: '7px 10px', backgroundColor: '#3a2f00', border: '1px solid #665500', borderRadius: '6px', fontSize: '12px', color: '#f5c518', cursor: savingVipGrant ? 'wait' : 'pointer', textAlign: 'left', opacity: savingVipGrant ? 0.65 : 1 }}>{savingVipGrant ? `${t(`period_${key}`)}…` : t(`period_${key}`)}</button>
                         ))}
-                        {globalVipActive && (<button type="button" onClick={() => handleGrantGlobalVip(0)} style={{ padding: '7px 10px', backgroundColor: '#3a1010', border: '1px solid #663333', borderRadius: '6px', fontSize: '12px', color: '#f87171', cursor: 'pointer', textAlign: 'left' }}>{t('revokeVipAll')}</button>)}
+                        {globalVipActive && (<button type="button" disabled={savingVipGrant} onClick={() => handleGrantGlobalVip(0)} style={{ padding: '7px 10px', backgroundColor: '#3a1010', border: '1px solid #663333', borderRadius: '6px', fontSize: '12px', color: '#f87171', cursor: savingVipGrant ? 'wait' : 'pointer', textAlign: 'left' }}>{t('revokeVipAll')}</button>)}
                       </div>
                     )}
                     <button type="button" onClick={handleResetAll} style={{ padding: '9px 10px', backgroundColor: '#7f1d1d', border: '1px solid #991b1b', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('forceResetAll')}</button>
@@ -2373,6 +2574,31 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 <div style={{ fontSize: '12px', color: '#777', textAlign: 'center', padding: '10px' }}>{t('noRolesYet')}</div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {vipGrantNotice && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vip-grant-notice-title"
+          style={{ position: 'fixed', inset: 0, zIndex: 3100, backgroundColor: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+        >
+          <div style={{ width: '100%', maxWidth: '360px', padding: '22px', backgroundColor: '#1e1e1e', border: '1px solid #665500', borderRadius: '14px', boxShadow: '0 14px 48px rgba(0,0,0,0.75)', textAlign: 'center' }}>
+            <div aria-hidden="true" style={{ fontSize: '36px', marginBottom: '8px' }}>⭐</div>
+            <h2 id="vip-grant-notice-title" style={{ margin: '0 0 10px', color: '#f5c518', fontSize: '19px' }}>{vipGrantCopy[lang].popupTitle}</h2>
+            <p style={{ margin: '0 0 20px', color: '#eee', fontSize: '14px', lineHeight: 1.5 }}>
+              {vipGrantCopy[lang].popupBody.replace('{days}', String(vipGrantNotice.days))}
+            </p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => void handleAcknowledgeVipGrant()}
+              style={{ width: '100%', padding: '11px 14px', border: 0, borderRadius: '8px', backgroundColor: '#d4a900', color: '#171717', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              {vipGrantCopy[lang].popupClose}
+            </button>
           </div>
         </div>
       )}
