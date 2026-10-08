@@ -1,21 +1,8 @@
-# GUI modules and entry configuration
+# GUI modules
 
-The GUI is separated from the authenticated Worker API. Both Telegram entrances continue to use the same profile table and the same `/api/profile` contract; this customization layer changes presentation and defaults, not database ownership or prize rules.
+Who's Nearby is the default base template and canonical source for the shared React GUI. Start new GUI or module work in `mileschan852/WhosNearbyBot`. HKMO Date keeps its launch URL, config, wallet manifest, and a thin Pages loader; it does not duplicate the React source.
 
-## Entry configuration
-
-Edit the public `config.json` served beside the app to configure entry modes. The template host's version is in `public/config.json`; a separately branded site such as HKMO Date supplies its own same-origin `config.json` beside its small loader page.
-
-- `defaultEntryId` selects the entry when no Telegram start parameter or query mapping matches.
-- `startParamEntries` maps Telegram `startapp` values, and `queryEntries` maps URL query values, to entry IDs.
-- Each entry has its own bot key, chat destination, profile defaults, identity-control presentation, title/warning translation keys, header-label behavior, and profile section order.
-- `tonConnectManifestUrl` selects the public wallet manifest for that app host.
-
-`src/config/entries.ts` validates this file at startup. Invalid or missing config produces a visible retry screen rather than leaving the app blank.
-
-The profile setup page renders the required sections for the selected profile type. `sectionOrder` can reorder sections, but required sections are appended if omitted so the form continues to collect the values expected by the existing API. Existing saved profile values take precedence over entry defaults.
-
-The `lockIdentity` option disables the gender and seeking selectors in that entry's UI. It is a presentation setting, not an authorization rule. Do not use a client-side setting as a security or eligibility check; any rule that must be enforced for every client belongs in the Worker.
+For the complete, field-by-field config instructions and working JSON example, see the [Runtime configuration reference](configuration.md). In short, edit `public/config.json` here for Who's Nearby defaults, and edit HKMO Date's `docs/config.json` for its own launch/profile settings. Shared module and style changes are published from Who's Nearby and loaded by HKMO Date.
 
 ## Replaceable UI modules
 
@@ -28,10 +15,10 @@ The default module exports are collected in `src/modules/index.ts`:
 | Map | `src/modules/map/NearbyMapModule.tsx` | Map presentation, backed by the existing map component. |
 | Bottom navigation | `src/modules/navigation/BottomNavigationModule.tsx` | Grid, chat, wallet, and map navigation presentation. |
 
-To replace a module, keep its exported prop contract or update the import in `src/modules/index.ts` and the corresponding call site in `src/App.tsx`. Keep API requests, Telegram authentication, payment handling, role checks, profile validation, and state updates in the application/Worker layer rather than in a presentation module.
+To replace a module, keep its exported prop contract or update the import in `src/modules/index.ts` and the corresponding call site in `src/App.tsx`. Module configuration does not replace module source; behavior outside the documented entry settings requires a GUI source change.
 
 ## Public GUI/private backend boundary
 
-This repository contains the shared GUI only. The HKMO Date repository does not duplicate the React app; its Pages entry is a small loader plus public configuration. The Worker implementation, Supabase migrations, and backend tests are maintained in the private `dating-app-backend` repository. The browser sends Telegram-authenticated requests to the existing Worker API; its endpoint is an application constant rather than a GUI module setting. Supabase service credentials and server-side prize rules must remain in the Worker.
+This repository contains the public GUI only. The Worker implementation, Supabase migrations, and backend tests are maintained separately in the private `dating-app-backend` repository. Both Telegram entrances continue to use the same Worker API and production data. Its endpoint is an application constant, not a config field.
 
-The supported customization surface is the entry configuration and replaceable UI modules above. Those changes do not alter the production database, raffle rules, prize pool, or server permissions. Stable files `dist/assets/shared-gui.js` and `dist/assets/shared-gui.css` are generated as part of every template build for the HKMO Date loader. Since the GUI source is public, this cannot prevent someone from editing their own fork; a fork does not inherit production secrets or gain access to production data. Older public commits and existing forks are not rewritten by this split and may still contain old backend source.
+Entry config and replaceable UI modules change presentation, not production data, payment or raffle rules, prizes, or server permissions. Stable files `dist/assets/shared-gui.js` and `dist/assets/shared-gui.css` are generated by the Who's Nearby build for the HKMO Date loader; do not hand-edit them. Never put Supabase credentials, bot tokens, or server-side rules in public config. A public fork can be changed independently, but it does not receive production secrets or access to production data. Earlier public commits and existing forks may still contain old backend files.
