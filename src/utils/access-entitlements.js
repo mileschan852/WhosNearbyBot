@@ -137,11 +137,18 @@ export function shouldContinueAccessRechecks(attempts, startedAt, now = Date.now
     now - started < ACCESS_RECHECK_TIMEOUT_MS;
 }
 
+export function getPendingAccessRecheckPhase(marker, accountId, now = Date.now()) {
+  if (typeof accountId !== 'string' || !accountId.trim() ||
+      !isPendingAccessRecheck(marker, now) || marker.accountId !== accountId) {
+    return null;
+  }
+  return shouldContinueAccessRechecks(marker.attempts, marker.startedAt, now)
+    ? 'checking'
+    : 'retry';
+}
+
 export function canRetryPendingPaymentCheck(marker, accountId, now = Date.now()) {
-  return typeof accountId === 'string' &&
-    isPendingAccessRecheck(marker, now) &&
-    marker.accountId === accountId &&
-    !shouldContinueAccessRechecks(marker.attempts, marker.startedAt, now);
+  return getPendingAccessRecheckPhase(marker, accountId, now) === 'retry';
 }
 
 export function isPendingAccessConfirmed(marker, profile, now = Date.now()) {

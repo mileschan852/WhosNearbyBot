@@ -12,6 +12,7 @@ import {
   getMinimumPaidEntitlementExpiry,
   getPaidEntitlementOutcome,
   getActiveAccessState,
+  getPendingAccessRecheckPhase,
   hasFilterOptionAccess,
   hasUnresolvedPaidPurchase,
   isPaidEntitlementActive,
@@ -423,6 +424,51 @@ test('delayed access rechecks stop at the attempt limit or two-minute timeout', 
   assert.equal(shouldContinueAccessRechecks(12, startedAt, startedAt + 119_999), false);
   assert.equal(shouldContinueAccessRechecks(11, startedAt, startedAt + 120_000), false);
   assert.equal(shouldContinueAccessRechecks(0, startedAt, startedAt - 1), false);
+});
+
+test('reopened payment status names its feature, stays account-scoped, and switches after timeout', () => {
+  const marker = createPendingAccessRecheck({
+    accountId: 'tg_101',
+    entitlement: 'hideAge',
+    startedAt: now,
+    minimumExpiry: now + 29 * 24 * 60 * 60 * 1000,
+  }, now);
+
+  assert.ok(marker);
+  assert.equal(getPendingAccessRecheckPhase(marker, 'tg_101', now + 30_000), 'checking');
+  assert.equal(getPendingAccessRecheckPhase(marker, 'tg_202', now + 30_000), null);
+  assert.equal(getPendingAccessRecheckPhase(marker, null, now + 30_000), null);
+  assert.equal(
+    getPendingAccessRecheckPhase(marker, 'tg_101', now + ACCESS_RECHECK_TIMEOUT_MS),
+    'retry',
+    'the active checking state ends when the automatic verification window expires',
+  );
+  assert.equal(
+    getPendingAccessRecheckPhase({ ...marker, attempts: ACCESS_RECHECK_MAX_ATTEMPTS }, 'tg_101', now + 30_000),
+    'retry',
+    'reaching the retry limit also ends the active checking state',
+  );
+
+  assert.equal(getPaidEntitlementOutcome('cancelled', null, 'hideAge', marker.minimumExpiry), 'cancelled');
+  assert.equal(getPendingAccessRecheckPhase(null, 'tg_101', now), null);
+
+  const storage = createStorage();
+  assert.equal(savePendingAccessRecheck(storage, marker, now), true);
+  assert.equal(isPendingAccessConfirmed(marker, {
+    id: 'tg_101',
+    hide_age: true,
+    hide_age_expiry: new Date(marker.minimumExpiry).toISOString(),
+  }, now), true);
+  assert.equal(clearPendingAccessRecheck(storage, marker), true);
+  assert.equal(
+    getPendingAccessRecheckPhase(
+      loadPendingAccessRecheck(storage, 'tg_101', now),
+      'tg_101',
+      now,
+    ),
+    null,
+    'a confirmed purchase clears its visible verification status',
+  );
 });
 
 test('paid access markers persist after automatic timeout and account changes', () => {

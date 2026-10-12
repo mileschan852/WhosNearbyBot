@@ -77,6 +77,12 @@ export function shouldContinueAccessRechecks(
   startedAt: number,
   now?: number,
 ): boolean;
+export type PendingAccessRecheckPhase = 'checking' | 'retry';
+export function getPendingAccessRecheckPhase(
+  marker: PendingAccessRecheck | null | undefined,
+  accountId: string | null | undefined,
+  now?: number,
+): PendingAccessRecheckPhase | null;
 export function canRetryPendingPaymentCheck(
   marker: PendingAccessRecheck | null | undefined,
   accountId: string | null | undefined,

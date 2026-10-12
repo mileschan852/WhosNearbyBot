@@ -12,11 +12,11 @@ import {
   VipCampaignPanel,
   writeVipFailureAlertCursor,
 } from './components/vip-campaign-panel';
-import { RafflePaymentReviewPanel } from './components/RafflePaymentReviewPanel';
+import { PaymentReviewPanel } from './components/PaymentReviewPanel';
 import type {
-  RafflePaymentIntent,
-  RafflePaymentReviewCopy,
-} from './components/RafflePaymentReviewPanel';
+  PaymentRecord,
+  PaymentReviewCopy,
+} from './components/PaymentReviewPanel';
 import type {
   VipCampaign,
   VipFailedRewardClaim,
@@ -44,6 +44,7 @@ import {
   getActiveAccessState,
   hasUnresolvedPaidPurchase,
   hasFilterOptionAccess,
+  getPendingAccessRecheckPhase,
   isPaidEntitlementActive,
   isPendingAccessConfirmed,
   isPaidEntitlementConfirmed,
@@ -90,6 +91,7 @@ import {
   ProfileCompletionModule,
   StarMenuRaffleModule,
 } from './modules';
+import { buildProfileHeightOptions } from './modules/profile-completion/profile-completion-options.js';
 
 const reportFilterRenewalConfirmed = createFilterRenewalConfirmationReporter();
 
@@ -129,12 +131,59 @@ const PAYMENT_RECHECK_COPY: Record<LangKey, {
   checkAgain: string;
   checkingButton: string;
 }> = {
-  en: { checking: 'Checking your payment status…', pending: 'Payment is not confirmed yet.', checkAgain: 'Check again', checkingButton: 'Checking…' },
-  'zh-CN': { checking: '正在确认付款状态…', pending: '付款尚未确认。', checkAgain: '重新检查', checkingButton: '正在检查…' },
-  'zh-TW': { checking: '正在確認付款狀態…', pending: '付款尚未確認。', checkAgain: '重新檢查', checkingButton: '正在檢查…' },
-  ja: { checking: 'お支払いを確認しています…', pending: 'お支払いはまだ確認されていません。', checkAgain: 'もう一度確認', checkingButton: '確認中…' },
-  ko: { checking: '결제 상태를 확인하고 있습니다…', pending: '결제가 아직 확인되지 않았습니다.', checkAgain: '다시 확인', checkingButton: '확인 중…' },
-  ru: { checking: 'Проверяем статус платежа…', pending: 'Платёж ещё не подтверждён.', checkAgain: 'Проверить снова', checkingButton: 'Проверяем…' },
+  en: { checking: 'Checking your {entitlement} purchase…', pending: 'Your {entitlement} purchase is not confirmed yet.', checkAgain: 'Check again', checkingButton: 'Checking…' },
+  'zh-CN': { checking: '正在确认您的{entitlement}订单…', pending: '您的{entitlement}订单尚未确认。', checkAgain: '重新检查', checkingButton: '正在检查…' },
+  'zh-TW': { checking: '正在確認您的{entitlement}訂單…', pending: '您的{entitlement}訂單尚未確認。', checkAgain: '重新檢查', checkingButton: '正在檢查…' },
+  ja: { checking: '購入した{entitlement}を確認しています…', pending: '購入した{entitlement}はまだ確認されていません。', checkAgain: 'もう一度確認', checkingButton: '確認中…' },
+  ko: { checking: '구매한 {entitlement}을 확인하고 있습니다…', pending: '구매한 {entitlement}이 아직 확인되지 않았습니다.', checkAgain: '다시 확인', checkingButton: '확인 중…' },
+  ru: { checking: 'Проверяем покупку: {entitlement}…', pending: 'Покупка «{entitlement}» ещё не подтверждена.', checkAgain: 'Проверить снова', checkingButton: 'Проверяем…' },
+};
+const PAYMENT_RECHECK_ENTITLEMENT_COPY: Record<
+  LangKey,
+  Record<PendingAccessRecheck['entitlement'], string>
+> = {
+  en: {
+    filter: 'filter subscription',
+    vip: 'VIP access',
+    invisible: 'invisibility pass',
+    hideAge: 'Hide Age pass',
+    editProfile: 'profile editing pass',
+  },
+  'zh-CN': {
+    filter: '筛选订阅',
+    vip: 'VIP 权限',
+    invisible: '隐身权限',
+    hideAge: '隐藏年龄权限',
+    editProfile: '资料编辑权限',
+  },
+  'zh-TW': {
+    filter: '篩選訂閱',
+    vip: 'VIP 權限',
+    invisible: '隱身權限',
+    hideAge: '隱藏年齡權限',
+    editProfile: '資料編輯權限',
+  },
+  ja: {
+    filter: 'フィルター利用権',
+    vip: 'VIP利用権',
+    invisible: '非表示パス',
+    hideAge: '年齢非表示パス',
+    editProfile: 'プロフィール編集パス',
+  },
+  ko: {
+    filter: '필터 이용권',
+    vip: 'VIP 이용권',
+    invisible: '비공개 이용권',
+    hideAge: '나이 숨김 이용권',
+    editProfile: '프로필 편집 이용권',
+  },
+  ru: {
+    filter: 'подписка на фильтры',
+    vip: 'доступ VIP',
+    invisible: 'режим невидимости',
+    hideAge: 'скрытие возраста',
+    editProfile: 'редактирование профиля',
+  },
 };
 const FILTER_EARLY_RENEWAL_PROMPT_COPY: Record<LangKey, string> = {
   en: 'Extend your filter subscription by 30 days from its current expiry for 1,000 Telegram Stars?',
@@ -504,178 +553,256 @@ const raffleUiCopy: Record<LangKey, {
   },
 };
 
-const rafflePaymentReviewCopy: Record<LangKey, RafflePaymentReviewCopy> = {
+const paymentReviewCopy: Record<LangKey, PaymentReviewCopy> = {
   en: {
-    title: 'Raffle payment review',
+    title: 'Payment review',
     privacy: 'Admin-only. Telegram payment charge IDs are not displayed.',
-    searchPlaceholder: 'Ticket reference or Telegram user ID',
+    searchPlaceholder: 'Payment reference or Telegram user ID',
     search: 'Search',
     refresh: 'Refresh',
-    loading: 'Loading raffle payments…',
-    loadError: 'Could not load raffle payment records. Try again.',
-    empty: 'No raffle ticket intents found.',
+    loading: 'Loading payments…',
+    loadError: 'Could not load payment records. Try again.',
+    empty: 'No payment records found.',
     loadMore: 'Load more',
     close: 'Close',
-    reference: 'Ticket reference',
+    reference: 'Payment reference',
     telegramId: 'Telegram ID',
-    app: 'App',
+    type: 'Type',
+    amount: 'Amount',
     status: 'Status',
-    updated: 'Updated',
-    fulfilled: 'Ticket issued',
+    date: 'Date / time',
+    paid: 'Paid',
+    fulfilled: 'Completed',
     refunded: 'Refunded',
     rejected: 'Rejected',
     pending: 'Pending',
     prechecked: 'Checking',
     cancelled: 'Cancelled',
+    failed: 'Failed',
+    typeLabels: {
+      hide_age: 'Hide Age',
+      invisible: 'Invisible',
+      edit_profile: 'Edit Profile Pass',
+      change_filter: 'Filter Subscription',
+      change_preference: 'Preference Change',
+      raffle_ticket: 'Raffle Ticket',
+      flying_message: 'Flying Message',
+    },
   },
   'zh-CN': {
-    title: '抽奖付款记录',
-    privacy: '仅管理员可见。不显示 Telegram 付款交易编号。',
-    searchPlaceholder: '抽奖券参考号或 Telegram 用户 ID',
+    title: '付款记录审核',
+    privacy: '仅管理员可查看。不显示 Telegram 付款交易编号。',
+    searchPlaceholder: '付款参考号或 Telegram 用户 ID',
     search: '搜索',
     refresh: '刷新',
-    loading: '正在加载抽奖付款记录…',
-    loadError: '无法加载抽奖付款记录，请重试。',
-    empty: '未找到抽奖券记录。',
+    loading: '正在加载付款记录…',
+    loadError: '无法加载付款记录，请重试。',
+    empty: '未找到付款记录。',
     loadMore: '加载更多',
     close: '关闭',
-    reference: '抽奖券参考号',
+    reference: '付款参考号',
     telegramId: 'Telegram 用户 ID',
-    app: '应用',
+    type: '类型',
+    amount: '金额',
     status: '状态',
-    updated: '更新时间',
-    fulfilled: '已发券',
+    date: '日期 / 时间',
+    paid: '已付款',
+    fulfilled: '已完成',
     refunded: '已退款',
     rejected: '已拒绝',
     pending: '待处理',
     prechecked: '检查中',
     cancelled: '已取消',
+    failed: '失败',
+    typeLabels: {
+      hide_age: '隐藏年龄',
+      invisible: '隐身模式',
+      edit_profile: '编辑个人资料通行证',
+      change_filter: '筛选订阅',
+      change_preference: '更改偏好',
+      raffle_ticket: '抽奖券',
+      flying_message: '飞行消息',
+    },
   },
   'zh-TW': {
-    title: '抽獎付款紀錄',
-    privacy: '僅管理員可見。不顯示 Telegram 付款交易編號。',
-    searchPlaceholder: '抽獎券參考號或 Telegram 使用者 ID',
+    title: '付款紀錄審核',
+    privacy: '僅管理員可查看。不顯示 Telegram 付款交易編號。',
+    searchPlaceholder: '付款參考號或 Telegram 使用者 ID',
     search: '搜尋',
     refresh: '重新整理',
-    loading: '正在載入抽獎付款紀錄…',
-    loadError: '無法載入抽獎付款紀錄，請重試。',
-    empty: '找不到抽獎券紀錄。',
+    loading: '正在載入付款紀錄…',
+    loadError: '無法載入付款紀錄，請重試。',
+    empty: '找不到付款紀錄。',
     loadMore: '載入更多',
     close: '關閉',
-    reference: '抽獎券參考號',
+    reference: '付款參考號',
     telegramId: 'Telegram 使用者 ID',
-    app: '應用程式',
+    type: '類型',
+    amount: '金額',
     status: '狀態',
-    updated: '更新時間',
-    fulfilled: '已發券',
+    date: '日期 / 時間',
+    paid: '已付款',
+    fulfilled: '已完成',
     refunded: '已退款',
     rejected: '已拒絕',
     pending: '待處理',
     prechecked: '檢查中',
     cancelled: '已取消',
+    failed: '失敗',
+    typeLabels: {
+      hide_age: '隱藏年齡',
+      invisible: '隱身模式',
+      edit_profile: '編輯個人資料通行證',
+      change_filter: '篩選訂閱',
+      change_preference: '更改偏好',
+      raffle_ticket: '抽獎券',
+      flying_message: '飛行訊息',
+    },
   },
   ja: {
-    title: '抽選決済の確認',
+    title: '決済の確認',
     privacy: '管理者のみ表示できます。Telegramの決済取引IDは表示されません。',
-    searchPlaceholder: 'チケット参照番号またはTelegramユーザーID',
+    searchPlaceholder: '決済参照番号またはTelegramユーザーID',
     search: '検索',
     refresh: '更新',
-    loading: '抽選決済を読み込み中…',
-    loadError: '抽選決済を読み込めませんでした。もう一度お試しください。',
-    empty: '抽選チケットの記録がありません。',
+    loading: '決済記録を読み込み中…',
+    loadError: '決済記録を読み込めませんでした。もう一度お試しください。',
+    empty: '決済記録がありません。',
     loadMore: 'さらに表示',
     close: '閉じる',
-    reference: 'チケット参照番号',
+    reference: '決済参照番号',
     telegramId: 'Telegram ID',
-    app: 'アプリ',
+    type: '種類',
+    amount: '金額',
     status: '状態',
-    updated: '更新日時',
-    fulfilled: 'チケット発行済み',
+    date: '日時',
+    paid: '支払い済み',
+    fulfilled: '完了',
     refunded: '返金済み',
     rejected: '拒否',
     pending: '保留中',
     prechecked: '確認中',
     cancelled: 'キャンセル済み',
+    failed: '失敗',
+    typeLabels: {
+      hide_age: '年齢を非表示',
+      invisible: '非表示モード',
+      edit_profile: 'プロフィール編集パス',
+      change_filter: 'フィルター購読',
+      change_preference: '設定変更',
+      raffle_ticket: '抽選チケット',
+      flying_message: 'フライングメッセージ',
+    },
   },
   ko: {
-    title: '추첨 결제 검토',
+    title: '결제 검토',
     privacy: '관리자만 볼 수 있습니다. Telegram 결제 거래 ID는 표시하지 않습니다.',
-    searchPlaceholder: '티켓 참조 번호 또는 Telegram 사용자 ID',
+    searchPlaceholder: '결제 참조 번호 또는 Telegram 사용자 ID',
     search: '검색',
     refresh: '새로고침',
-    loading: '추첨 결제 내역을 불러오는 중…',
-    loadError: '추첨 결제 내역을 불러오지 못했습니다. 다시 시도하세요.',
-    empty: '추첨 티켓 내역이 없습니다.',
+    loading: '결제 내역을 불러오는 중…',
+    loadError: '결제 내역을 불러오지 못했습니다. 다시 시도하세요.',
+    empty: '결제 내역이 없습니다.',
     loadMore: '더 불러오기',
     close: '닫기',
-    reference: '티켓 참조 번호',
+    reference: '결제 참조 번호',
     telegramId: 'Telegram ID',
-    app: '앱',
+    type: '유형',
+    amount: '금액',
     status: '상태',
-    updated: '업데이트',
-    fulfilled: '티켓 발급됨',
+    date: '날짜 / 시간',
+    paid: '결제됨',
+    fulfilled: '완료',
     refunded: '환불됨',
     rejected: '거부됨',
     pending: '대기 중',
     prechecked: '확인 중',
     cancelled: '취소됨',
+    failed: '실패',
+    typeLabels: {
+      hide_age: '나이 숨기기',
+      invisible: '비공개 모드',
+      edit_profile: '프로필 수정 패스',
+      change_filter: '필터 구독',
+      change_preference: '선호도 변경',
+      raffle_ticket: '추첨 티켓',
+      flying_message: '플라잉 메시지',
+    },
   },
   ru: {
-    title: 'Проверка платежей розыгрыша',
+    title: 'Проверка платежей',
     privacy: 'Доступно только администраторам. ID платежей Telegram не показываются.',
-    searchPlaceholder: 'Номер билета или ID пользователя Telegram',
+    searchPlaceholder: 'Номер платежа или ID пользователя Telegram',
     search: 'Найти',
     refresh: 'Обновить',
-    loading: 'Загрузка платежей розыгрыша…',
-    loadError: 'Не удалось загрузить платежи розыгрыша. Попробуйте ещё раз.',
-    empty: 'Записи о билетах не найдены.',
+    loading: 'Загрузка платежей…',
+    loadError: 'Не удалось загрузить платежи. Попробуйте ещё раз.',
+    empty: 'Записи о платежах не найдены.',
     loadMore: 'Показать ещё',
     close: 'Закрыть',
-    reference: 'Номер билета',
+    reference: 'Номер платежа',
     telegramId: 'ID Telegram',
-    app: 'Приложение',
+    type: 'Тип',
+    amount: 'Сумма',
     status: 'Статус',
-    updated: 'Обновлено',
-    fulfilled: 'Билет выдан',
+    date: 'Дата и время',
+    paid: 'Оплачено',
+    fulfilled: 'Выполнено',
     refunded: 'Возвращено',
     rejected: 'Отклонено',
     pending: 'Ожидает',
     prechecked: 'Проверяется',
     cancelled: 'Отменено',
+    failed: 'Не удалось',
+    typeLabels: {
+      hide_age: 'Скрытие возраста',
+      invisible: 'Режим невидимости',
+      edit_profile: 'Доступ к редактированию профиля',
+      change_filter: 'Подписка на фильтры',
+      change_preference: 'Изменение предпочтений',
+      raffle_ticket: 'Билет розыгрыша',
+      flying_message: 'Летающее сообщение',
+    },
   },
 };
 
-function parseRafflePaymentReviewPage(value: unknown): {
-  intents: RafflePaymentIntent[];
+function parsePaymentReviewPage(value: unknown): {
+  payments: PaymentRecord[];
   hasMore: boolean;
 } {
-  const page = value as { intents?: unknown; hasMore?: unknown } | null;
-  if (!page || !Array.isArray(page.intents) || typeof page.hasMore !== 'boolean') {
-    throw new Error('Invalid raffle payment review response');
+  const page = value as { payments?: unknown; hasMore?: unknown } | null;
+  if (!page || !Array.isArray(page.payments) || typeof page.hasMore !== 'boolean') {
+    throw new Error('Invalid payment review response');
   }
-  const intents = page.intents.map((raw): RafflePaymentIntent => {
-    const row = raw as Partial<RafflePaymentIntent> | null;
+  const payments = page.payments.map((raw): PaymentRecord => {
+    const row = raw as Partial<PaymentRecord> | null;
     if (!row ||
-        typeof row.intentId !== 'string' ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.intentId) ||
+        typeof row.paymentId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.paymentId) ||
         typeof row.telegramId !== 'string' ||
         !/^[0-9]{1,20}$/.test(row.telegramId) ||
-        (row.bot !== 'botA' && row.bot !== 'botB') ||
+        typeof row.type !== 'string' ||
+        !/^[a-z][a-z0-9_-]{0,47}$/.test(row.type) ||
+        (row.amount !== null && (typeof row.amount !== 'number' || !Number.isSafeInteger(row.amount) || row.amount < 0)) ||
+        typeof row.currency !== 'string' ||
+        !/^[A-Z]{3}$/.test(row.currency) ||
         typeof row.status !== 'string' ||
         !/^[a-z][a-z0-9_-]{0,47}$/.test(row.status) ||
-        (row.updatedAt !== null &&
-          (typeof row.updatedAt !== 'string' || !Number.isFinite(Date.parse(row.updatedAt))))) {
-      throw new Error('Invalid raffle payment review intent');
+        (row.occurredAt !== null &&
+          (typeof row.occurredAt !== 'string' || !Number.isFinite(Date.parse(row.occurredAt))))) {
+      throw new Error('Invalid payment review record');
     }
     return {
-      intentId: row.intentId,
+      paymentId: row.paymentId,
       telegramId: row.telegramId,
-      bot: row.bot,
+      type: row.type,
+      amount: row.amount,
+      currency: row.currency,
       status: row.status,
-      updatedAt: row.updatedAt,
+      occurredAt: row.occurredAt,
     };
   });
-  return { intents, hasMore: page.hasMore };
+  return { payments, hasMore: page.hasMore };
 }
 
 const flyingMessageCopy: Record<LangKey, FlyingMessageCopy> = {
@@ -1687,12 +1814,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const vipGrantSaveLockRef = useRef<boolean>(false);
   const [vipGrantNotice, setVipGrantNotice] = useState<VipGrantNotice | null>(null);
   const [showVipCampaignsModal, setShowVipCampaignsModal] = useState(false);
-  const [showRafflePaymentReview, setShowRafflePaymentReview] = useState(false);
-  const [rafflePaymentIntents, setRafflePaymentIntents] = useState<RafflePaymentIntent[]>([]);
-  const [rafflePaymentsHasMore, setRafflePaymentsHasMore] = useState(false);
-  const [rafflePaymentsLoading, setRafflePaymentsLoading] = useState(false);
-  const [rafflePaymentsError, setRafflePaymentsError] = useState('');
-  const [rafflePaymentsSearch, setRafflePaymentsSearch] = useState('');
+  const [showPaymentReview, setShowPaymentReview] = useState(false);
+  const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
+  const [paymentsHasMore, setPaymentsHasMore] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState('');
+  const [paymentsSearch, setPaymentsSearch] = useState('');
   const [vipCampaigns, setVipCampaigns] = useState<VipCampaign[]>([]);
   const [vipCampaignsHasMore, setVipCampaignsHasMore] = useState(false);
   const [vipCampaignsLoading, setVipCampaignsLoading] = useState(false);
@@ -1707,7 +1834,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [retryingFailedRewardClaimId, setRetryingFailedRewardClaimId] = useState<string | null>(null);
   const vipCampaignListRequestRef = useRef(0);
   const vipFailedRewardRequestRef = useRef(0);
-  const rafflePaymentReviewRequestRef = useRef(0);
+  const paymentReviewRequestRef = useRef(0);
   const [vipFailureAlert, setVipFailureAlert] = useState<VipFailureAlertSummary | null>(null);
   const [vipFailureAlertLoading, setVipFailureAlertLoading] = useState(false);
   const [vipFailureAlertError, setVipFailureAlertError] = useState('');
@@ -1742,13 +1869,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   }, [showVipCampaignsModal, currentUser?.id, vipFailureAlert]);
   useEffect(() => {
-    rafflePaymentReviewRequestRef.current += 1;
-    setShowRafflePaymentReview(false);
-    setRafflePaymentIntents([]);
-    setRafflePaymentsHasMore(false);
-    setRafflePaymentsLoading(false);
-    setRafflePaymentsError('');
-    setRafflePaymentsSearch('');
+    paymentReviewRequestRef.current += 1;
+    setShowPaymentReview(false);
+    setPaymentRecords([]);
+    setPaymentsHasMore(false);
+    setPaymentsLoading(false);
+    setPaymentsError('');
+    setPaymentsSearch('');
   }, [currentUser?.id, isAdmin]);
   const [showFlyingPriceEditor, setShowFlyingPriceEditor] = useState<boolean>(false);
   const [flyingPriceDraft, setFlyingPriceDraft] = useState<string>('0');
@@ -1876,14 +2003,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     return options[idx + 1];
   };
 
-  const heightOptions = [];
-  for (let cm = 152; cm <= 300; cm += 1) {
-    const totalInches = Math.round(cm / 2.54);
-    const ft = Math.floor(totalInches / 12);
-    const inch = totalInches % 12;
-    heightOptions.push(`${cm}cm (${ft}ft ${inch}in)`);
-  }
-  if (height && !heightOptions.includes(height)) heightOptions.unshift(height);
+  const heightOptions = buildProfileHeightOptions(height);
   const weightOptions = [];
   for (let kg = 35; kg <= 160; kg += 1) {
     const lbs = Math.round(kg * 2.20462);
@@ -1976,12 +2096,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     });
   };
 
-  const hasPendingPaymentVerification = () => {
+  const hasPendingPaymentVerification = (
+    accountId = currentUserRef.current?.id,
+  ) => {
+    if (typeof accountId !== 'string' || !accountId.trim()) return false;
     const now = Date.now();
     let stored: PendingAccessRecheck | null = null;
-    try { stored = loadPendingAccessRecheck(localStorage, null, now); } catch {}
+    try { stored = loadPendingAccessRecheck(localStorage, accountId, now); } catch {}
+    const inMemory = pendingAccessRecheckRef.current;
     return hasUnresolvedPaidPurchase(stored, now) ||
-      hasUnresolvedPaidPurchase(pendingAccessRecheckRef.current, now);
+      (inMemory?.accountId === accountId && hasUnresolvedPaidPurchase(inMemory, now));
   };
 
   const formatAdminFailure = (error: unknown, fallback: string) => {
@@ -3803,68 +3927,68 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
-  const loadAdminRafflePayments = async (
-    search = rafflePaymentsSearch,
+  const loadAdminPayments = async (
+    search = paymentsSearch,
     offset = 0,
     append = false,
   ) => {
-    const requestSequence = ++rafflePaymentReviewRequestRef.current;
+    const requestSequence = ++paymentReviewRequestRef.current;
     const viewerId = currentUser?.id;
     if (!viewerId || !isAdmin) return;
-    setRafflePaymentsLoading(true);
-    setRafflePaymentsError('');
+    setPaymentsLoading(true);
+    setPaymentsError('');
     try {
-      const result = await workerPost('/api/admin/raffle-payments', {
+      const result = await workerPost('/api/admin/payments', {
         action: 'list',
         search,
         offset,
       });
-      const page = parseRafflePaymentReviewPage(result);
-      if (requestSequence !== rafflePaymentReviewRequestRef.current ||
+      const page = parsePaymentReviewPage(result);
+      if (requestSequence !== paymentReviewRequestRef.current ||
           currentUser?.id !== viewerId ||
           !isAdmin) return;
-      setRafflePaymentIntents((current) => {
-        if (!append) return page.intents;
-        const combined = new Map(current.map((intent) => [intent.intentId, intent]));
-        for (const intent of page.intents) combined.set(intent.intentId, intent);
+      setPaymentRecords((current) => {
+        if (!append) return page.payments;
+        const combined = new Map(current.map((payment) => [payment.paymentId, payment]));
+        for (const payment of page.payments) combined.set(payment.paymentId, payment);
         return Array.from(combined.values());
       });
-      setRafflePaymentsHasMore(page.hasMore);
+      setPaymentsHasMore(page.hasMore);
     } catch (error) {
-      if (requestSequence === rafflePaymentReviewRequestRef.current &&
+      if (requestSequence === paymentReviewRequestRef.current &&
           currentUser?.id === viewerId &&
           isAdmin) {
-        console.error('Could not load raffle payment review:', error);
-        setRafflePaymentsError(formatAdminFailure(error, rafflePaymentReviewCopy[lang].loadError));
+        console.error('Could not load payment review:', error);
+        setPaymentsError(formatAdminFailure(error, paymentReviewCopy[lang].loadError));
       }
     } finally {
-      if (requestSequence === rafflePaymentReviewRequestRef.current) {
-        setRafflePaymentsLoading(false);
+      if (requestSequence === paymentReviewRequestRef.current) {
+        setPaymentsLoading(false);
       }
     }
   };
 
-  const openRafflePaymentReview = () => {
+  const openPaymentReview = () => {
     if (!isAdmin || !currentUser?.id) return;
     setShowAdminMenu(false);
     setShowRolesModal(false);
     setShowVipCampaignsModal(false);
-    setRafflePaymentsSearch('');
-    setRafflePaymentIntents([]);
-    setRafflePaymentsHasMore(false);
-    setRafflePaymentsError('');
-    setShowRafflePaymentReview(true);
-    void loadAdminRafflePayments('', 0, false);
+    setPaymentsSearch('');
+    setPaymentRecords([]);
+    setPaymentsHasMore(false);
+    setPaymentsError('');
+    setShowPaymentReview(true);
+    void loadAdminPayments('', 0, false);
   };
 
-  const closeRafflePaymentReview = () => {
-    rafflePaymentReviewRequestRef.current += 1;
-    setShowRafflePaymentReview(false);
-    setRafflePaymentIntents([]);
-    setRafflePaymentsHasMore(false);
-    setRafflePaymentsLoading(false);
-    setRafflePaymentsError('');
-    setRafflePaymentsSearch('');
+  const closePaymentReview = () => {
+    paymentReviewRequestRef.current += 1;
+    setShowPaymentReview(false);
+    setPaymentRecords([]);
+    setPaymentsHasMore(false);
+    setPaymentsLoading(false);
+    setPaymentsError('');
+    setPaymentsSearch('');
   };
 
   const handleAddRole = async () => {
@@ -4222,12 +4346,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     pendingAccessRecheck.accountId === currentUser?.id
       ? pendingAccessRecheck
       : null;
-  const paymentCheckPending = hasPendingPaymentVerification();
-  const paymentRetryAvailable = canRetryPendingPaymentCheck(
+  const paymentCheckPending = currentUser?.id
+    ? hasPendingPaymentVerification(currentUser.id)
+    : false;
+  const paymentRecheckPhase = getPendingAccessRecheckPhase(
     activePaymentMarker,
     currentUser?.id,
     Date.now(),
   );
+  const paymentRetryAvailable = paymentRecheckPhase === 'retry';
+  const paymentRecheckMessage = activePaymentMarker && paymentRecheckPhase
+    ? PAYMENT_RECHECK_COPY[lang][paymentRetryAvailable ? 'pending' : 'checking'].replace(
+      '{entitlement}',
+      PAYMENT_RECHECK_ENTITLEMENT_COPY[lang][activePaymentMarker.entitlement],
+    )
+    : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
@@ -4535,11 +4668,11 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     <button type="button" onClick={() => { setShowAdminMenu(false); setShowVipPeriods(false); setShowRolesModal(true); loadRoles(); }} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('adminVipList')}</button>
                     <button
                       type="button"
-                      onClick={openRafflePaymentReview}
-                      data-testid="button-open-raffle-payment-review"
+                      onClick={openPaymentReview}
+                      data-testid="button-open-payment-review"
                       style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
                     >
-                      {rafflePaymentReviewCopy[lang].title}
+                      {paymentReviewCopy[lang].title}
                     </button>
                     <button type="button" onClick={openVipCampaigns} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{vipGrantCopy[lang].campaignsTitle}</button>
                     {flyingMessageEnabled && (
@@ -4780,7 +4913,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           )}
         </div>
       )}
-      {activePaymentMarker && (
+      {activePaymentMarker && paymentRecheckPhase && (
         <div
           role="status"
           aria-live="polite"
@@ -4802,11 +4935,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
           }}
         >
-          <div>
-            {paymentRetryAvailable
-              ? PAYMENT_RECHECK_COPY[lang].pending
-              : PAYMENT_RECHECK_COPY[lang].checking}
-          </div>
+          <div>{paymentRecheckMessage}</div>
           {paymentRetryAvailable && (
             <button
               type="button"
@@ -5009,32 +5138,28 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         />
       )}
 
-      {showRafflePaymentReview && isAdmin && (
-        <RafflePaymentReviewPanel
-          intents={rafflePaymentIntents}
-          hasMore={rafflePaymentsHasMore}
-          loading={rafflePaymentsLoading}
-          error={rafflePaymentsError}
-          search={rafflePaymentsSearch}
-          copy={rafflePaymentReviewCopy[lang]}
-          appLabels={{
-            botA: Object.values(config.entries).find((candidate) => candidate.botKey === 'botA')?.label ?? 'botA',
-            botB: Object.values(config.entries).find((candidate) => candidate.botKey === 'botB')?.label ?? 'botB',
-          }}
+      {showPaymentReview && isAdmin && (
+        <PaymentReviewPanel
+          payments={paymentRecords}
+          hasMore={paymentsHasMore}
+          loading={paymentsLoading}
+          error={paymentsError}
+          search={paymentsSearch}
+          copy={paymentReviewCopy[lang]}
           formatDate={(value) => new Intl.DateTimeFormat(lang, {
             dateStyle: 'medium',
             timeStyle: 'short',
             timeZone: 'Asia/Hong_Kong',
           }).format(new Date(value))}
-          onSearchChange={setRafflePaymentsSearch}
-          onSearch={() => void loadAdminRafflePayments(rafflePaymentsSearch, 0, false)}
-          onRefresh={() => void loadAdminRafflePayments(rafflePaymentsSearch, 0, false)}
-          onLoadMore={() => void loadAdminRafflePayments(
-            rafflePaymentsSearch,
-            rafflePaymentIntents.length,
+          onSearchChange={setPaymentsSearch}
+          onSearch={() => void loadAdminPayments(paymentsSearch, 0, false)}
+          onRefresh={() => void loadAdminPayments(paymentsSearch, 0, false)}
+          onLoadMore={() => void loadAdminPayments(
+            paymentsSearch,
+            paymentRecords.length,
             true,
           )}
-          onClose={closeRafflePaymentReview}
+          onClose={closePaymentReview}
         />
       )}
 
