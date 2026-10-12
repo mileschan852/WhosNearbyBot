@@ -8,8 +8,8 @@ dist
 whos-nearby
 .browser-profile
 chats
-assets
+/assets
 dist/
 set_secret.cjs
-assets/
+/assets/
 .staging/
