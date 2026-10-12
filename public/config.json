@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "defaultEntryId": "nearby",
+  "tonConnectManifestUrl": "https://mileschan852.github.io/WhosNearbyBot/tonconnect-manifest.json",
+  "startParamEntries": {
+    "gaymode": "hkmo-date"
+  },
+  "queryEntries": {
+    "mode": {
+      "gay": "hkmo-date"
+    }
+  },
+  "entries": {
+    "nearby": {
+      "id": "nearby",
+      "label": "Who's Nearby",
+      "botKey": "botB",
+      "chatUrl": "https://t.me/whosnearby",
+      "starMenuItems": [
+        { "id": "busta", "label": "Busta", "icon": "busta", "url": "https://t.me/bustagift_xbot/app?startapp=pal1231127407" },
+        { "id": "tonflip", "label": "TonFlip", "icon": "tonflip", "url": "https://app.tonflip.tg?r=mbab62ov" },
+        { "id": "photify", "label": "Photify", "icon": "photify", "url": "https://t.me/PhotifyAIOfficialBot?start=referral_1231127407" }
+      ],
+      "useConfiguredLabelForHeader": false,
+      "modules": {
+        "gridFilter": true,
+        "map": true,
+        "starRaffle": true,
+        "flyingMessage": true
+      },
+      "profileSetup": {
+        "titleKey": "completeProfile",
+        "warningKey": "profileWarning",
+        "defaultGender": "man",
+        "defaultSeeking": "women",
+        "lockIdentity": false,
+        "sectionOrder": ["birthdate", "identity", "measurements", "preferences", "mode"]
+      }
+    },
+    "hkmo-date": {
+      "id": "hkmo-date",
+      "label": "HKMO Date",
+      "botKey": "botA",
+      "chatUrl": "https://t.me/hkmochat",
+      "starMenuItems": [
+        { "id": "busta", "label": "Busta", "icon": "busta", "url": "https://t.me/bustagift_xbot/app?startapp=pal1231127407" },
+        { "id": "tonflip", "label": "TonFlip", "icon": "tonflip", "url": "https://app.tonflip.tg?r=mbab62ov" },
+        { "id": "photify", "label": "Photify", "icon": "photify", "url": "https://t.me/PhotifyAIOfficialBot?start=referral_1231127407" }
+      ],
+      "useConfiguredLabelForHeader": true,
+      "modules": {
+        "gridFilter": true,
+        "map": true,
+        "starRaffle": true,
+        "flyingMessage": true
+      },
+      "profileSetup": {
+        "titleKey": "completeProfile",
+        "warningKey": "profileWarning",
+        "defaultGender": "man",
+        "defaultSeeking": "men",
+        "lockIdentity": true,
+        "sectionOrder": ["birthdate", "identity", "measurements", "preferences", "mode"]
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.dev.vars
+.wrangler/
+.DS_Store
+*.local
+whos-nearby
+.browser-profile
+chats
+assets
+dist/
+set_secret.cjs
+assets/
+.staging/

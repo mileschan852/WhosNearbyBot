@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Who's Nearby — Feature Guide</title>
+  <style>
+    @page { size: landscape; margin: 0.48in; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #192332; font: 14px/1.5 Arial, sans-serif; background: #fff; }
+    .cover, .feature { min-height: 7.4in; page-break-after: always; break-after: page; }
+    .cover { display: flex; flex-direction: column; justify-content: center; padding: .3in .5in; }
+    .eyebrow { color: #d8426c; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: .1in 0; font-size: 34px; line-height: 1.1; }
+    h2 { margin: 0 0 7px; font-size: 22px; }
+    p { margin: 0 0 12px; }
+    .intro { max-width: 8in; color: #586475; font-size: 16px; }
+    .notice { margin-top: .25in; padding: 12px 14px; border-left: 4px solid #d8426c; background: #fff3f6; color: #4c2834; }
+    .feature { padding: .1in .1in 0; }
+    .feature-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .3in; margin-bottom: 12px; }
+    .feature-copy { max-width: 8.5in; }
+    .description { color: #556173; }
+    .tag { white-space: nowrap; padding: 6px 10px; border: 1px solid #f0c1cf; border-radius: 999px; color: #ab2c54; background: #fff5f8; font-size: 10px; font-weight: 700; }
+    img { display: block; width: 100%; height: 5.25in; object-fit: contain; border: 1px solid #dddfe5; border-radius: 10px; background: #0b0c11; }
+    .caption { margin-top: 8px; color: #687386; font-size: 10px; }
+    .footer { margin-top: 7px; color: #7a8493; font-size: 9px; }
+    @media screen {
+      body { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+      .cover, .feature { min-height: auto; padding: 40px 0; border-bottom: 1px solid #e3e6eb; }
+      img { height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="eyebrow">Who's Nearby · Feature Guide</div>
+    <h1>Explore, connect, and manage access</h1>
+    <p class="intro">A visual guide to the app’s discovery, privacy, payments, raffle, community-message, and admin/VIP features. The admin/VIP list is now persisted in Supabase rather than relying on a hard-coded secondary-admin exception.</p>
+    <div class="notice"><strong>Screenshot note:</strong> These are illustrative UI screens rendered with fictional sample data. They are not captures of signed-in production sessions and do not show real users or account details.</div>
+    <p class="footer">Production access and availability depend on Telegram login, account eligibility, and current entitlements.</p>
+  </section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">01 · Discovery</div><h2>Nearby grid</h2><p class="description">Browse nearby profiles in a card grid. Cards show derived age, rounded distance, activity, and profile interests; exact coordinates are not shown.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/nearby-grid.png" alt="Illustrative nearby profile grid"><p class="caption">Fictional profile names and initials are used in this example.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">02 · Discovery</div><h2>Map view</h2><p class="description">Switch from cards to an approximate map view and browse nearby profiles without revealing exact locations.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/map-view.png" alt="Illustrative approximate map of nearby profiles"><p class="caption">Locations and map markers are made-up examples and are not production coordinates.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">03 · Profiles</div><h2>Profile cards and Telegram chat</h2><p class="description">Review profile details and continue a conversation by opening the person’s Telegram chat.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/profile-chat.png" alt="Illustrative profile card with Telegram chat action"><p class="caption">The sample profile is fictional.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">04 · Matching</div><h2>Preference filters</h2><p class="description">Refine discovery with preferences such as profile role, safety, playstyle, group size, and location. Paid filter access is unlocked through an eligible subscription or VIP status.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/preference-filters.png" alt="Illustrative preference filter settings"><p class="caption">Filter labels are representative of the available preference controls.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">05 · Privacy</div><h2>Visibility and age controls</h2><p class="description">Eligible accounts can hide age or use invisible mode. The 18+ gate is enforced on the server; nearby results use derived ages and rounded distances.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/privacy-controls.png" alt="Illustrative privacy and age settings"><p class="caption">The controls shown are sample states and do not reflect an actual account.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">06 · Payments</div><h2>Telegram Stars purchases</h2><p class="description">Optional app entitlements are paid through Telegram Stars invoices. The Worker validates payment updates and records each charge idempotently.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/stars-purchases.png" alt="Illustrative Telegram Stars purchase options"><p class="caption">Prices shown are sample reference values; check the live in-app menu for current pricing.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">07 · Monthly raffle</div><h2>Raffle tickets and prizes</h2><p class="description">A ticket costs 100 Stars and requires a Telegram username. The draw runs at 8:00 PM Hong Kong time on the first day of each month. Four prizes are drawn: one month of VIP, filter unlock, invisible mode, and hide age. If fewer than four tickets are sold, one player receives VIP; if there are no tickets, the prizes do not carry over.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/monthly-raffle.png" alt="Illustrative monthly raffle ticket and prize list"><p class="caption">The countdown values are sample values, not a live timer.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">08 · Community</div><h2>Flying messages</h2><p class="description">Short community messages animate across the screen. Raffle winners are announced through four separate flying messages when users log in after the draw.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/flying-messages.png" alt="Illustrative animated flying message and announcement card"><p class="caption">The sample message is fictional and is not a production announcement.</p></section>
+  <section class="feature"><div class="feature-head"><div class="feature-copy"><div class="eyebrow">09 · Administration</div><h2>Supabase-backed admin and VIP list</h2><p class="description">The admin menu loads managed roles from Supabase. Admin changes are verified by the Worker and persist across sessions. The owner remains protected; VIP unlocks paid features but does not grant admin access.</p></div><span class="tag">Illustrative · sample data</span></div><img src="screenshots/admin-vip-management.png" alt="Illustrative admin and VIP access list"><p class="caption">Names are fictional placeholders; no production role list is shown.</p></section>
+</body>
+</html>
