@@ -314,6 +314,194 @@ const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
 const WORKER_REQUEST_TIMEOUT_MS = 12_000;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
+
+type ScreenHelpSection = { title: string; description: string };
+type ScreenHelpCopy = {
+  open: string;
+  title: string;
+  intro: string;
+  closeHint: string;
+  nearby: ScreenHelpSection;
+  filter: ScreenHelpSection;
+  refresh: ScreenHelpSection;
+  grid: ScreenHelpSection;
+  map: ScreenHelpSection;
+  star: ScreenHelpSection;
+  flying: ScreenHelpSection;
+  navigation: ScreenHelpSection;
+};
+
+const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
+  en: {
+    open: 'Screen guide',
+    title: 'What’s on this screen?',
+    intro: 'You are viewing {view}. Here is what the controls do.',
+    closeHint: 'Tap anywhere to close.',
+    nearby: { title: 'Nearby count', description: 'Shows how many profiles are in your current nearby results.' },
+    filter: { title: 'Filter', description: 'Choose which profiles appear. Some filter options require VIP or an active filter subscription.' },
+    refresh: { title: 'Refresh', description: 'Reloads nearby profiles and their latest status.' },
+    grid: { title: 'Profile tiles', description: 'Tap a tile to open that person’s profile. Dimmed tiles do not match your current filters.' },
+    map: { title: 'Map', description: 'Move around the map and tap a profile marker to open that person’s profile.' },
+    star: { title: 'Star menu', description: 'Open the star button to see the raffle ticket and other configured features.' },
+    flying: { title: 'Flying message', description: 'Use the message bar below the navigation bar to send text that moves across the screen.' },
+    navigation: { title: 'Bottom navigation', description: 'Grid and Map switch views. Chat opens the bot chat, and Wallet opens the wallet connection.' },
+  },
+  'zh-CN': {
+    open: '屏幕说明',
+    title: '此页面显示什么？',
+    intro: '当前页面：{view}。以下是各个控件的用途。',
+    closeHint: '点击任意位置即可关闭。',
+    nearby: { title: '附近人数', description: '显示当前附近结果中的个人资料数量。' },
+    filter: { title: '筛选', description: '选择要显示的个人资料。部分筛选功能需要 VIP 或有效的筛选订阅。' },
+    refresh: { title: '刷新', description: '重新加载附近资料及其最新状态。' },
+    grid: { title: '资料卡片', description: '点击卡片查看对方资料。变暗的卡片表示不符合当前筛选条件。' },
+    map: { title: '地图', description: '移动地图并点击个人资料标记来查看对方资料。' },
+    star: { title: '星星菜单', description: '点击星星按钮查看抽奖券和其他已配置功能。' },
+    flying: { title: '飞行消息', description: '使用导航栏下方的消息栏发送会在屏幕上飞过的文字。' },
+    navigation: { title: '底部导航', description: '网格和地图可切换页面；聊天会打开机器人聊天，钱包会打开钱包连接。' },
+  },
+  'zh-TW': {
+    open: '畫面說明',
+    title: '這個畫面顯示什麼？',
+    intro: '目前頁面：{view}。以下是各個控制項的用途。',
+    closeHint: '點擊任意位置即可關閉。',
+    nearby: { title: '附近人數', description: '顯示目前附近結果中的個人資料數量。' },
+    filter: { title: '篩選', description: '選擇要顯示的個人資料。部分篩選功能需要 VIP 或有效的篩選訂閱。' },
+    refresh: { title: '重新整理', description: '重新載入附近資料及其最新狀態。' },
+    grid: { title: '資料卡片', description: '點擊卡片查看對方資料。變暗的卡片表示不符合目前的篩選條件。' },
+    map: { title: '地圖', description: '移動地圖並點擊個人資料標記以查看對方資料。' },
+    star: { title: '星星選單', description: '點擊星星按鈕查看抽獎券和其他已設定功能。' },
+    flying: { title: '飛行訊息', description: '使用導覽列下方的訊息欄，傳送會在畫面上飛過的文字。' },
+    navigation: { title: '底部導覽', description: '網格和地圖可切換頁面；聊天會開啟機器人聊天，錢包會開啟錢包連線。' },
+  },
+  ja: {
+    open: '画面ガイド',
+    title: 'この画面について',
+    intro: '現在の画面：{view}。各ボタンの機能をご案内します。',
+    closeHint: '画面のどこをタップしても閉じます。',
+    nearby: { title: '近くの人数', description: '現在の近くの検索結果に含まれるプロフィール数です。' },
+    filter: { title: 'フィルター', description: '表示するプロフィールを選びます。一部の項目にはVIPまたは有効なフィルター購読が必要です。' },
+    refresh: { title: '更新', description: '近くのプロフィールと最新の状態を再読み込みします。' },
+    grid: { title: 'プロフィール一覧', description: 'カードをタップするとプロフィールを表示します。暗く表示されたカードは現在のフィルターに一致していません。' },
+    map: { title: '地図', description: '地図を動かし、プロフィールのマーカーをタップすると詳細を表示します。' },
+    star: { title: 'スター メニュー', description: '星のボタンから抽選チケットや設定された機能を開きます。' },
+    flying: { title: 'フライングメッセージ', description: 'ナビゲーションバーの下にある入力欄から、画面を横切るメッセージを送信します。' },
+    navigation: { title: '下部ナビゲーション', description: 'グリッドと地図で表示を切り替えます。チャットはボットのチャット、ウォレットはウォレット接続を開きます。' },
+  },
+  ko: {
+    open: '화면 안내',
+    title: '이 화면 안내',
+    intro: '현재 화면: {view}. 각 버튼의 기능을 안내합니다.',
+    closeHint: '화면의 아무 곳이나 누르면 닫힙니다.',
+    nearby: { title: '주변 인원 수', description: '현재 주변 검색 결과에 표시된 프로필 수입니다.' },
+    filter: { title: '필터', description: '표시할 프로필을 선택합니다. 일부 필터는 VIP 또는 유효한 필터 구독이 필요합니다.' },
+    refresh: { title: '새로고침', description: '주변 프로필과 최신 상태를 다시 불러옵니다.' },
+    grid: { title: '프로필 타일', description: '타일을 누르면 프로필을 볼 수 있습니다. 흐리게 표시된 타일은 현재 필터와 일치하지 않습니다.' },
+    map: { title: '지도', description: '지도를 이동하고 프로필 표시를 누르면 해당 프로필을 볼 수 있습니다.' },
+    star: { title: '별 메뉴', description: '별 버튼에서 추첨 티켓과 설정된 기능을 확인할 수 있습니다.' },
+    flying: { title: '플라잉 메시지', description: '내비게이션 바 아래 메시지 입력란에서 화면을 가로지르는 메시지를 보낼 수 있습니다.' },
+    navigation: { title: '하단 내비게이션', description: '그리드와 지도로 화면을 전환합니다. 채팅은 봇 채팅을, 지갑은 지갑 연결을 엽니다.' },
+  },
+  ru: {
+    open: 'Подсказка по экрану',
+    title: 'Что показано на экране?',
+    intro: 'Открыт раздел «{view}». Вот что делают элементы управления.',
+    closeHint: 'Нажмите в любом месте, чтобы закрыть.',
+    nearby: { title: 'Количество рядом', description: 'Число профилей в текущих результатах поиска поблизости.' },
+    filter: { title: 'Фильтр', description: 'Выберите, какие профили показывать. Для некоторых фильтров нужен VIP или активная подписка на фильтр.' },
+    refresh: { title: 'Обновить', description: 'Заново загружает профили поблизости и их актуальный статус.' },
+    grid: { title: 'Карточки профилей', description: 'Нажмите карточку, чтобы открыть профиль. Затемнённые карточки не соответствуют текущим фильтрам.' },
+    map: { title: 'Карта', description: 'Перемещайте карту и нажмите маркер профиля, чтобы открыть его.' },
+    star: { title: 'Меню со звездой', description: 'Нажмите кнопку со звездой, чтобы открыть билет розыгрыша и другие функции.' },
+    flying: { title: 'Летающее сообщение', description: 'Отправьте текст через строку под панелью навигации — сообщение пролетит по экрану.' },
+    navigation: { title: 'Нижняя навигация', description: 'Сетка и карта переключают разделы. Чат открывает чат с ботом, а кошелёк — подключение кошелька.' },
+  },
+};
+
+function ScreenHelpOverlay({
+  lang,
+  view,
+  viewLabel,
+  filterEnabled,
+  discoveryEnabled,
+  starRaffleEnabled,
+  flyingMessageEnabled,
+  onClose,
+}: {
+  lang: LangKey;
+  view: 'grid' | 'map';
+  viewLabel: string;
+  filterEnabled: boolean;
+  discoveryEnabled: boolean;
+  starRaffleEnabled: boolean;
+  flyingMessageEnabled: boolean;
+  onClose: () => void;
+}) {
+  const copy = SCREEN_HELP_COPY[lang];
+  const sections = [
+    ...(discoveryEnabled ? [copy.nearby] : []),
+    ...(filterEnabled ? [copy.filter] : []),
+    ...(discoveryEnabled ? [copy.refresh] : []),
+    ...(view === 'grid' ? [copy.grid] : [copy.map]),
+    ...(starRaffleEnabled ? [copy.star] : []),
+    ...(flyingMessageEnabled ? [copy.flying] : []),
+    copy.navigation,
+  ];
+
+  return (
+    <dialog
+      open
+      autoFocus
+      tabIndex={-1}
+      data-testid="screen-help-overlay"
+      aria-modal="true"
+      aria-label={copy.title}
+      onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        margin: 0,
+        padding: '16px',
+        width: '100vw',
+        height: '100dvh',
+        maxWidth: 'none',
+        maxHeight: 'none',
+        boxSizing: 'border-box',
+        border: 'none',
+        backgroundColor: 'rgba(0, 0, 0, 0.78)',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 6000,
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: '420px', maxHeight: '80vh', overflowY: 'auto', backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '12px', padding: '18px', boxShadow: '0 10px 40px rgba(0,0,0,0.7)' }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: '18px' }}>{copy.title}</h2>
+        <p style={{ margin: '0 0 14px', color: '#bbb', fontSize: '13px', lineHeight: 1.45 }}>
+          {copy.intro.replace('{view}', viewLabel)}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {sections.map((section) => (
+            <div key={section.title}>
+              <h3 style={{ margin: '0 0 3px', fontSize: '14px', color: '#93c5fd' }}>{section.title}</h3>
+              <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.45, color: '#eee' }}>{section.description}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{ margin: '16px 0 0', textAlign: 'center', color: '#aaa', fontSize: '12px' }}>{copy.closeHint}</p>
+      </div>
+    </dialog>
+  );
+}
+
+
 type FilterRenewalLocation = 'filter_expiry_notice' | 'filter_access_prompt' | 'filter_option' | 'active_filter_subscription';
 
 const NO_DISCOVERY_MODULES_COPY: Record<LangKey, string> = {
@@ -1846,6 +2034,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
 
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
+  const [showScreenHelp, setShowScreenHelp] = useState(false);
   const [hideNonMatchingUsers, setHideNonMatchingUsers] = useState<boolean>(false);
   const [filterAgeOn, setFilterAgeOn] = useState<boolean>(false);
   const [filterAgeMin, setFilterAgeMin] = useState<number>(18);
@@ -1872,6 +2061,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setView(defaultView || 'grid');
     if (defaultView === 'map') setHasOpenedMap(true);
     setShowFilterDropdown(false);
+    setShowScreenHelp(false);
     setIsGamesMenuOpen(false);
     if (!flyingMessageEnabled) setShowFlyingPriceEditor(false);
   }, [entry.id, entry.modules, gridFilterEnabled, mapModuleEnabled, flyingMessageEnabled]);
@@ -4349,6 +4539,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
           {gridFilterEnabled && (
+            <button
+              type="button"
+              aria-label={SCREEN_HELP_COPY[lang].open}
+              data-testid="button-screen-help"
+              title={SCREEN_HELP_COPY[lang].open}
+              onClick={() => {
+                setShowFilterDropdown(false);
+                setShowScreenHelp(true);
+              }}
+              style={{ width: '36px', height: '36px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '4px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 700, lineHeight: 1 }}
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+          )}
+          {gridFilterEnabled && (
             <GridFilterModule
               open={showFilterDropdown}
               title={t('filter')}
@@ -4513,6 +4718,19 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           )}
         </div>
       </header>
+
+      {showScreenHelp && (
+        <ScreenHelpOverlay
+          lang={lang}
+          view={view}
+          viewLabel={t(view)}
+          filterEnabled={gridFilterEnabled}
+          discoveryEnabled={hasDiscoveryModule}
+          starRaffleEnabled={starRaffleEnabled}
+          flyingMessageEnabled={flyingMessageEnabled}
+          onClose={() => setShowScreenHelp(false)}
+        />
+      )}
 
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {gridFilterEnabled && (
