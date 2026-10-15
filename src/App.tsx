@@ -64,7 +64,7 @@ import {
   normalizeGenderFilterValues,
   type GenderFilterValue,
 } from './utils/preference-filters';
-import { isInvisibilityExpired, resolveGridVisibility } from './utils/invisibility-expiry';
+import { isInvisibilityExpired, resolveGridVisibility, resolveMapVisibility } from './utils/invisibility-expiry';
 import {
   getFlyingMessageFulfillmentMessage,
   getRafflePurchaseOutcome,
@@ -326,6 +326,7 @@ type ScreenHelpCopy = {
   refresh: ScreenHelpSection;
   grid: ScreenHelpSection;
   map: ScreenHelpSection;
+  invisibility: ScreenHelpSection;
   star: ScreenHelpSection;
   flying: ScreenHelpSection;
   navigation: ScreenHelpSection;
@@ -342,6 +343,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     refresh: { title: 'Refresh', description: 'Reloads nearby profiles and their latest status.' },
     grid: { title: 'Profile tiles', description: 'Tap a tile to open that person’s profile. Dimmed tiles do not match your current filters.' },
     map: { title: 'Map', description: 'Move around the map and tap a profile marker to open that person’s profile.' },
+    invisibility: { title: 'Go invisible', description: 'Tap Grid in the bottom bar to turn your profile visibility off. If Invisibility access is not active, the app will prompt you to activate or renew it. While invisible, other users will not see you in Grid or Map, even if your Map indicator is on. You will still see your own marker on your map.' },
     star: { title: 'Star menu', description: 'Open the star button to see the raffle ticket and other configured features.' },
     flying: { title: 'Flying message', description: 'Use the message bar below the navigation bar to send text that moves across the screen.' },
     navigation: { title: 'Bottom navigation', description: 'Grid and Map switch views. Chat opens the bot chat, and Wallet opens the wallet connection.' },
@@ -356,6 +358,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     refresh: { title: '刷新', description: '重新加载附近资料及其最新状态。' },
     grid: { title: '资料卡片', description: '点击卡片查看对方资料。变暗的卡片表示不符合当前筛选条件。' },
     map: { title: '地图', description: '移动地图并点击个人资料标记来查看对方资料。' },
+    invisibility: { title: '隐身', description: '点击底部导航栏的“网格”按钮关闭个人资料可见状态。若没有有效的隐身权限，应用会提示你开通或续订。隐身期间，即使地图指示灯开启，其他用户也不会在网格或地图上看到你；你仍会在自己的地图上看到自己的标记。' },
     star: { title: '星星菜单', description: '点击星星按钮查看抽奖券和其他已配置功能。' },
     flying: { title: '飞行消息', description: '使用导航栏下方的消息栏发送会在屏幕上飞过的文字。' },
     navigation: { title: '底部导航', description: '网格和地图可切换页面；聊天会打开机器人聊天，钱包会打开钱包连接。' },
@@ -370,6 +373,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     refresh: { title: '重新整理', description: '重新載入附近資料及其最新狀態。' },
     grid: { title: '資料卡片', description: '點擊卡片查看對方資料。變暗的卡片表示不符合目前的篩選條件。' },
     map: { title: '地圖', description: '移動地圖並點擊個人資料標記以查看對方資料。' },
+    invisibility: { title: '隱身', description: '點擊底部導覽列的「網格」按鈕關閉個人資料可見狀態。若沒有有效的隱身權限，應用程式會提示你開通或續訂。隱身期間，即使地圖指示燈已開啟，其他用戶也不會在網格或地圖上看到你；你仍會在自己的地圖上看到自己的標記。' },
     star: { title: '星星選單', description: '點擊星星按鈕查看抽獎券和其他已設定功能。' },
     flying: { title: '飛行訊息', description: '使用導覽列下方的訊息欄，傳送會在畫面上飛過的文字。' },
     navigation: { title: '底部導覽', description: '網格和地圖可切換頁面；聊天會開啟機器人聊天，錢包會開啟錢包連線。' },
@@ -384,6 +388,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     refresh: { title: '更新', description: '近くのプロフィールと最新の状態を再読み込みします。' },
     grid: { title: 'プロフィール一覧', description: 'カードをタップするとプロフィールを表示します。暗く表示されたカードは現在のフィルターに一致していません。' },
     map: { title: '地図', description: '地図を動かし、プロフィールのマーカーをタップすると詳細を表示します。' },
+    invisibility: { title: '非表示にする', description: '下部ナビゲーションの「Grid」をタップしてプロフィールの表示をオフにします。有効な非表示アクセスがない場合、購入または更新を案内します。非表示中はMapがオンでも、他のユーザーにはグリッドにも地図にも表示されません。自分の地図では自分のマーカーが見えます。' },
     star: { title: 'スター メニュー', description: '星のボタンから抽選チケットや設定された機能を開きます。' },
     flying: { title: 'フライングメッセージ', description: 'ナビゲーションバーの下にある入力欄から、画面を横切るメッセージを送信します。' },
     navigation: { title: '下部ナビゲーション', description: 'グリッドと地図で表示を切り替えます。チャットはボットのチャット、ウォレットはウォレット接続を開きます。' },
@@ -398,6 +403,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     refresh: { title: '새로고침', description: '주변 프로필과 최신 상태를 다시 불러옵니다.' },
     grid: { title: '프로필 타일', description: '타일을 누르면 프로필을 볼 수 있습니다. 흐리게 표시된 타일은 현재 필터와 일치하지 않습니다.' },
     map: { title: '지도', description: '지도를 이동하고 프로필 표시를 누르면 해당 프로필을 볼 수 있습니다.' },
+    invisibility: { title: '비공개로 전환', description: '하단 내비게이션의 Grid 버튼을 눌러 프로필 표시를 끄세요. 활성 비공개 권한이 없으면 구매 또는 갱신 안내가 표시됩니다. 비공개 중에는 Map 표시가 켜져 있어도 다른 사용자에게 그리드와 지도에 나타나지 않습니다. 본인 지도에는 본인 마커가 계속 표시됩니다.' },
     star: { title: '별 메뉴', description: '별 버튼에서 추첨 티켓과 설정된 기능을 확인할 수 있습니다.' },
     flying: { title: '플라잉 메시지', description: '내비게이션 바 아래 메시지 입력란에서 화면을 가로지르는 메시지를 보낼 수 있습니다.' },
     navigation: { title: '하단 내비게이션', description: '그리드와 지도로 화면을 전환합니다. 채팅은 봇 채팅을, 지갑은 지갑 연결을 엽니다.' },
@@ -412,6 +418,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     refresh: { title: 'Обновить', description: 'Заново загружает профили поблизости и их актуальный статус.' },
     grid: { title: 'Карточки профилей', description: 'Нажмите карточку, чтобы открыть профиль. Затемнённые карточки не соответствуют текущим фильтрам.' },
     map: { title: 'Карта', description: 'Перемещайте карту и нажмите маркер профиля, чтобы открыть его.' },
+    invisibility: { title: 'Режим невидимости', description: 'Нажмите «Сетка» в нижней панели, чтобы выключить видимость профиля. Если доступ к невидимости не активен, приложение предложит купить или продлить его. Пока вы скрыты, другие пользователи не увидят вас в сетке или на карте, даже если индикатор карты включён. Свой маркер на своей карте вы по-прежнему видите.' },
     star: { title: 'Меню со звездой', description: 'Нажмите кнопку со звездой, чтобы открыть билет розыгрыша и другие функции.' },
     flying: { title: 'Летающее сообщение', description: 'Отправьте текст через строку под панелью навигации — сообщение пролетит по экрану.' },
     navigation: { title: 'Нижняя навигация', description: 'Сетка и карта переключают разделы. Чат открывает чат с ботом, а кошелёк — подключение кошелька.' },
@@ -443,6 +450,7 @@ function ScreenHelpOverlay({
     ...(filterEnabled ? [copy.filter] : []),
     ...(discoveryEnabled ? [copy.refresh] : []),
     ...(view === 'grid' ? [copy.grid] : [copy.map]),
+    ...(discoveryEnabled ? [copy.invisibility] : []),
     ...(starRaffleEnabled ? [copy.star] : []),
     ...(flyingMessageEnabled ? [copy.flying] : []),
     copy.navigation,
@@ -4439,7 +4447,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   // Self is excluded from the shared list; your own pin is rendered separately
   // at your live GPS location and is visible ONLY to you (greyed out only when
   // actually invisible, i.e. grid toggle off - NOT when the map toggle is off).
-  const mapCandidates = users.filter((user) => user.id !== currentUser?.id && user.map_visible === true);
+  const mapCandidates = users.filter((user) =>
+    user.id !== currentUser?.id &&
+    resolveMapVisibility(user.map_visible, user.grid_visible, user.invisible_expiry)
+  );
   const mapFilteredUsers = gridFilterEnabled
     ? filterProfilesByMatchVisibility(mapCandidates, hideNonMatchingUsers, checkFilterPass)
     : mapCandidates;

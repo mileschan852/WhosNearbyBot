@@ -9,3 +9,10 @@ export function resolveGridVisibility(
   invisibleExpiry: string | null | undefined,
   now?: number,
 ): boolean;
+
+export function resolveMapVisibility(
+  mapVisible: boolean | null | undefined,
+  gridVisible: boolean | null | undefined,
+  invisibleExpiry: string | null | undefined,
+  now?: number,
+): boolean;
