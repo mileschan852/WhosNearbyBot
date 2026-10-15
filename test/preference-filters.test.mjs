@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   FILTER_CYCLE_OPTIONS,
+  getEffectiveGenderFilterValues,
+  isHkmoDateMenOnlyFilterLocked,
   matchesGenderFilter,
   matchesPlaystyleFilter,
   nextFilterCycleValue,
@@ -17,6 +19,27 @@ test('gender filter defaults to all profiles and can select men or women', () =>
   assert.equal(matchesGenderFilter(['man'], 'woman'), false);
   assert.equal(matchesGenderFilter(['woman'], 'woman'), true);
   assert.equal(matchesGenderFilter(['man', 'woman'], 'non-binary'), false);
+});
+
+test('HKMO Date locks non-VIP search to men without overwriting saved filters', () => {
+  const savedPreference = ['woman'];
+  const effectiveFilter = getEffectiveGenderFilterValues(savedPreference, 'botA', false);
+
+  assert.equal(isHkmoDateMenOnlyFilterLocked('botA', false), true);
+  assert.deepEqual(effectiveFilter, ['man']);
+  assert.equal(matchesGenderFilter(effectiveFilter, 'man'), true);
+  assert.equal(matchesGenderFilter(effectiveFilter, 'woman'), false);
+  assert.equal(matchesGenderFilter(effectiveFilter, 'non-binary'), false);
+  assert.deepEqual(savedPreference, ['woman']);
+});
+
+test('VIP users and users entering through Who’s Nearby keep their saved gender filter', () => {
+  const savedPreference = ['woman'];
+
+  assert.equal(isHkmoDateMenOnlyFilterLocked('botA', true), false);
+  assert.equal(isHkmoDateMenOnlyFilterLocked('botB', false), false);
+  assert.deepEqual(getEffectiveGenderFilterValues(savedPreference, 'botA', true), ['woman']);
+  assert.deepEqual(getEffectiveGenderFilterValues(savedPreference, 'botB', false), ['woman']);
 });
 
 test('persisted gender filters discard invalid values and duplicates', () => {

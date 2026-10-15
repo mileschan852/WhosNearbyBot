@@ -14,10 +14,13 @@ export interface FlyingMessageModuleProps {
   priceLabel: string;
   sendLabel: string;
   status: string;
+  statusPersistent: boolean;
+  dismissLabel: string;
   inputDisabled: boolean;
   sendDisabled: boolean;
   onTextChange: (value: string) => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
+  onDismissStatus: () => void;
 }
 
 function flyingMessageLane(id: string) {
@@ -35,11 +38,15 @@ export default function FlyingMessageModule({
   priceLabel,
   sendLabel,
   status,
+  statusPersistent,
+  dismissLabel,
   inputDisabled,
   sendDisabled,
   onTextChange,
   onSubmit,
+  onDismissStatus,
 }: FlyingMessageModuleProps) {
+  const showPersistentStatus = Boolean(status && statusPersistent);
   return (
     <>
       <div className="flying-message-layer" aria-hidden="true">
@@ -58,9 +65,28 @@ export default function FlyingMessageModule({
           );
         })}
       </div>
-      <div style={{ position: 'relative', zIndex: 11, height: '52px', minHeight: '52px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', padding: '6px 12px' }}>
-        <form onSubmit={onSubmit} style={{ height: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ position: 'relative', zIndex: 11, height: showPersistentStatus ? 'auto' : '52px', minHeight: '52px', backgroundColor: '#1e1e1e', borderTop: '1px solid #333', padding: showPersistentStatus ? '0' : '6px 12px' }}>
+        {showPersistentStatus && (
+          <div
+            className="flying-message-persistent-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span>{status}</span>
+            <button
+              className="flying-message-status-dismiss"
+              type="button"
+              onClick={onDismissStatus}
+              aria-label={dismissLabel}
+            >
+              {dismissLabel}
+            </button>
+          </div>
+        )}
+        <form onSubmit={onSubmit} style={{ height: showPersistentStatus ? '52px' : '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: showPersistentStatus ? '6px 12px' : undefined }}>
           <input
+            className="flying-message-input"
             type="text"
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
@@ -68,12 +94,13 @@ export default function FlyingMessageModule({
             placeholder={placeholder}
             aria-label={placeholder}
             disabled={inputDisabled}
-            style={{ flex: 1, minWidth: 0, height: '38px', borderRadius: '8px', border: '1px solid #3f4652', backgroundColor: '#121212', color: '#fff', padding: '0 12px', fontSize: '14px', outline: 'none' }}
+            style={{ flex: 1, minWidth: 0, height: '38px', borderRadius: '8px', border: '1px solid #3f4652', backgroundColor: '#121212', color: '#fff', padding: '0 12px', fontSize: '14px' }}
           />
           <span style={{ minWidth: '42px', textAlign: 'center', color: priceLabel.includes('⭐') ? '#f5c518' : '#4ade80', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
             {priceLabel}
           </span>
           <button
+            className="flying-message-send"
             type="submit"
             title={sendLabel}
             aria-label={sendLabel}
@@ -85,7 +112,7 @@ export default function FlyingMessageModule({
             </svg>
           </button>
         </form>
-        {status && (
+        {status && !showPersistentStatus && (
           <div role="status" aria-live="polite" style={{ position: 'absolute', bottom: 'calc(100% + 60px)', left: '12px', right: '12px', zIndex: 12, padding: '5px 8px', borderRadius: '6px', backgroundColor: '#202938', color: '#dbeafe', fontSize: '11px', textAlign: 'center', boxShadow: '0 -3px 8px rgba(0,0,0,0.35)' }}>
             {status}
           </div>

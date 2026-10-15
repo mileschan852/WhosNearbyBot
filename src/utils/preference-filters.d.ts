@@ -9,6 +9,17 @@ export type GenderFilterValue = 'man' | 'woman';
 
 export function normalizeGenderFilterValues(values: unknown): GenderFilterValue[];
 
+export function isHkmoDateMenOnlyFilterLocked(
+  botKey: string | null | undefined,
+  vipAccessActive: boolean,
+): boolean;
+
+export function getEffectiveGenderFilterValues(
+  filterValues: readonly GenderFilterValue[] | null | undefined,
+  botKey: string | null | undefined,
+  vipAccessActive: boolean,
+): GenderFilterValue[];
+
 export function matchesGenderFilter(
   filterValues: readonly GenderFilterValue[] | null | undefined,
   profileGender: string | null | undefined,

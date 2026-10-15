@@ -33,6 +33,19 @@ export interface VipFailedRewardClaim {
   deliveryStatus: 'failed' | 'delivery_uncertain';
 }
 
+export type VipRewardRetryDeliveryOutcome = 'pending' | 'delivered' | 'failed' | 'delivery_uncertain';
+
+export interface VipRewardRetryAudit {
+  id: string;
+  claimId: string;
+  adminTgId: string;
+  adminUsername: string | null;
+  retriedAt: string;
+  sourceBotKey: 'botA' | 'botB' | null;
+  originalBotKey: 'botA' | 'botB';
+  deliveryOutcome: VipRewardRetryDeliveryOutcome;
+}
+
 export interface VipFailureAlertCursor {
   eventId: string;
 }
@@ -41,6 +54,13 @@ export interface VipFailureAlertSummary {
   newFailureCount: number;
   latestFailureAt: string | null;
   cursor: VipFailureAlertCursor | null;
+}
+
+export interface VipRewardNotificationQueueHealth {
+  overduePendingCount: number;
+  expiredSendingCount: number;
+  oldestWaitingAt: string | null;
+  oldestWaitingSeconds: number | null;
 }
 
 export interface VipCampaignCopy {
@@ -65,6 +85,13 @@ export interface VipCampaignCopy {
   failedRewardNotifications: string;
   failedRewardNotificationsUnavailable: string;
   failedRewardsReview: string;
+  crossCampaignFailedRewardsTitle: string;
+  crossCampaignFailedRewardsPlaceholder: string;
+  crossCampaignFailedRewardsSearch: string;
+  crossCampaignFailedRewardsSourceBot: string;
+  crossCampaignFailedRewardsAllSources: string;
+  crossCampaignFailedRewardsInitialHint: string;
+  crossCampaignFailedRewardsDetails: string;
   failedRewardsEmpty: string;
   failedRewardDeliveryUncertain: string;
   failedRewardDeliveryUncertainConfirm: string;
@@ -80,11 +107,30 @@ export interface VipCampaignCopy {
   failedRewardRetrySent: string;
   failedRewardRetryFailed: string;
   failedRewardLoadMore: string;
+  retryAuditToggle: string;
+  retryAuditTitle: string;
+  retryAuditEmpty: string;
+  retryAuditLoading: string;
+  retryAuditLoadFailed: string;
+  retryAuditEntry: string;
+  retryAuditPending: string;
+  retryAuditDelivered: string;
+  retryAuditFailed: string;
+  retryAuditUncertain: string;
+  retryAuditLoadMore: string;
   newFailureAlertTitle: string;
   newFailureAlertSeparate: string;
   newFailureAlertLatest: string;
   newFailureAlertChecking: string;
   newFailureAlertLoadFailed: string;
+  queueHealthTitle: string;
+  queueHealthSeparate: string;
+  queueHealthPending: string;
+  queueHealthExpiredSending: string;
+  queueHealthOldest: string;
+  queueHealthEmpty: string;
+  queueHealthChecking: string;
+  queueHealthLoadFailed: string;
   newUsers: string;
   announcementStatus: string;
   announcementPending: string;
@@ -106,18 +152,28 @@ export interface VipFailedRewardPage {
   hasMore: boolean;
 }
 
+export interface VipRewardRetryAuditPage {
+  records: VipRewardRetryAudit[];
+  hasMore: boolean;
+}
+
 export function parseVipCampaignPage(value: unknown): VipCampaignPage;
 export function parseVipFailedRewardPage(value: unknown): VipFailedRewardPage;
+export function parseVipRewardRetryAuditPage(value: unknown): VipRewardRetryAuditPage;
 export function parseVipFailureAlertSummary(value: unknown): VipFailureAlertSummary;
-export function readVipFailureAlertCursor(
-  storage: Pick<Storage, 'getItem'> | null | undefined,
-  userId: string | null | undefined,
-): VipFailureAlertCursor | null;
-export function writeVipFailureAlertCursor(
-  storage: Pick<Storage, 'setItem'> | null | undefined,
-  userId: string | null | undefined,
-  cursor: VipFailureAlertCursor,
-): boolean;
+export function parseVipRewardNotificationQueueHealth(value: unknown): VipRewardNotificationQueueHealth;
+export const VIP_FAILURE_ALERT_POLL_INTERVAL_MS: number;
+export function startVipFailureAlertPolling(options: {
+  enabled: boolean;
+  userId: string | null | undefined;
+  onPoll: () => unknown;
+  timer?: Pick<Window, 'setInterval' | 'clearInterval'>;
+  intervalMs?: number;
+}): () => void;
+export function parseVipFailureAlertAcknowledgement(
+  value: unknown,
+  requestedEventId: string,
+): VipFailureAlertCursor;
 export function getVipCampaignStatus(campaign: VipCampaign, now?: number): 'active' | 'ended' | 'inactive';
 export function VipCampaignPanel(props: {
   campaigns: VipCampaign[];
@@ -132,9 +188,24 @@ export function VipCampaignPanel(props: {
   failedRewardClaimsLoading: boolean;
   failedRewardClaimsError: string;
   retryingFailedRewardClaimId: string | null;
+  crossCampaignFailedRewardSearchValue: string;
+  crossCampaignFailedRewardSourceBotKey: 'all' | 'botA' | 'botB';
+  crossCampaignFailedRewardSearched: boolean;
+  crossCampaignFailedRewardClaims: VipFailedRewardClaim[];
+  crossCampaignFailedRewardClaimsHasMore: boolean;
+  crossCampaignFailedRewardClaimsLoading: boolean;
+  crossCampaignFailedRewardClaimsError: string;
+  retryAuditCampaignId?: string | null;
+  retryAuditRecords?: VipRewardRetryAudit[];
+  retryAuditHasMore?: boolean;
+  retryAuditLoading?: boolean;
+  retryAuditError?: string;
   newFailureAlert?: VipFailureAlertSummary | null;
   failureAlertLoading?: boolean;
   failureAlertError?: string;
+  queueHealth?: VipRewardNotificationQueueHealth | null;
+  queueHealthLoading?: boolean;
+  queueHealthError?: string;
   copy: VipCampaignCopy;
   sourceAppLabels: Record<'botA' | 'botB', string>;
   windowLabels: Record<VipCampaignWindow, string>;
@@ -146,4 +217,10 @@ export function VipCampaignPanel(props: {
   onToggleFailedRewards: (campaignId: string) => void;
   onLoadMoreFailedRewards: (campaignId: string) => void;
   onRetryFailedReward: (claimId: string) => void;
+  onCrossCampaignFailedRewardSearchChange: (value: string) => void;
+  onCrossCampaignFailedRewardSourceChange: (value: 'all' | 'botA' | 'botB') => void;
+  onSearchCrossCampaignFailedRewards: (search: string, sourceBotKey: 'all' | 'botA' | 'botB') => void;
+  onLoadMoreCrossCampaignFailedRewards: () => void;
+  onToggleRetryAudit?: (campaignId: string) => void;
+  onLoadMoreRetryAudit?: (campaignId: string) => void;
 }): ReactElement;

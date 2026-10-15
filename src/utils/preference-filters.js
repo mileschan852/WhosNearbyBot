@@ -10,6 +10,16 @@ export function normalizeGenderFilterValues(values) {
   return [...new Set(values.filter((value) => value === 'man' || value === 'woman'))];
 }
 
+export function isHkmoDateMenOnlyFilterLocked(botKey, vipAccessActive) {
+  return botKey === 'botA' && vipAccessActive !== true;
+}
+
+export function getEffectiveGenderFilterValues(filterValues, botKey, vipAccessActive) {
+  return isHkmoDateMenOnlyFilterLocked(botKey, vipAccessActive)
+    ? ['man']
+    : normalizeGenderFilterValues(filterValues);
+}
+
 export function matchesGenderFilter(filterValues, profileGender) {
   const selectedGenders = normalizeGenderFilterValues(filterValues);
   return selectedGenders.length === 0 || selectedGenders.includes(profileGender);

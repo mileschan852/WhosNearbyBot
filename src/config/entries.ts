@@ -2,6 +2,7 @@ import { parseAppModules } from './app-modules.js';
 import type { AppModules } from './app-modules.js';
 import { parseStarMenuItems } from './star-menu.js';
 import type { StarMenuItemConfig } from './star-menu.js';
+import { resolveAppEntry as resolveAppEntryImpl } from './resolve-app-entry.js';
 
 export type AppEntryId = string;
 export type AppBotKey = 'botA' | 'botB';
@@ -57,6 +58,9 @@ const allowedProfileSections = new Set<ProfileSetupSection>([
   'mode',
 ]);
 
+const supportedLockedGenders = new Set(['man', 'woman', 'non-binary']);
+const supportedLockedSeekingValues = new Set(['men', 'women', 'everyone']);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -90,6 +94,24 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
     const profileSetup = rawEntry.profileSetup;
     const sectionOrder = profileSetup.sectionOrder;
     const chatUrl = rawEntry.chatUrl;
+    if (profileSetup.lockIdentity === true) {
+      if (
+        typeof profileSetup.defaultGender !== 'string'
+        || !supportedLockedGenders.has(profileSetup.defaultGender)
+      ) {
+        throw new Error(
+          `The app configuration entry "${id}" locks identity, so defaultGender must be one of: man, woman, non-binary.`,
+        );
+      }
+      if (
+        typeof profileSetup.defaultSeeking !== 'string'
+        || !supportedLockedSeekingValues.has(profileSetup.defaultSeeking)
+      ) {
+        throw new Error(
+          `The app configuration entry "${id}" locks identity, so defaultSeeking must be one of: men, women, everyone.`,
+        );
+      }
+    }
     if (
       rawEntry.id !== id
       || typeof rawEntry.label !== 'string'
@@ -183,17 +205,5 @@ export function resolveAppEntry(
   startParam?: string | null,
   search = '',
 ): AppEntryConfig {
-  if (startParam) {
-    const entryId = config.startParamEntries?.[startParam];
-    if (entryId && config.entries[entryId]) return config.entries[entryId];
-  }
-
-  const query = new URLSearchParams(search);
-  for (const [parameter, values] of Object.entries(config.queryEntries || {})) {
-    const value = query.get(parameter);
-    const entryId = value ? values[value] : undefined;
-    if (entryId && config.entries[entryId]) return config.entries[entryId];
-  }
-
-  return config.entries[config.defaultEntryId];
+  return resolveAppEntryImpl(config, startParam, search) as AppEntryConfig;
 }

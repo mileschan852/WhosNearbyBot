@@ -64,6 +64,12 @@ export function clearPendingAccessRecheck(
   storage: Pick<Storage, 'removeItem'> | null | undefined,
   expected?: PendingAccessRecheck,
 ): boolean;
+export function selectMostRecentPendingAccessRecheck(
+  local: PendingAccessRecheck | null | undefined,
+  recovered: PendingAccessRecheck | null | undefined,
+  accountId: string | null | undefined,
+  now?: number,
+): PendingAccessRecheck | null;
 export function hasUnresolvedPaidPurchase(marker: PendingAccessRecheck | null | undefined, now?: number): boolean;
 export function getMinimumFilterSubscriptionExpiry(now: number, currentExpiry: number | string | null): number;
 export function getMinimumPaidEntitlementExpiry(now: number, currentExpiry: number | string | null): number;
@@ -77,6 +83,10 @@ export function shouldContinueAccessRechecks(
   startedAt: number,
   now?: number,
 ): boolean;
+export function getAccessRecheckRetryDelayMs(
+  error: unknown,
+  defaultDelayMs?: number,
+): number;
 export type PendingAccessRecheckPhase = 'checking' | 'retry';
 export function getPendingAccessRecheckPhase(
   marker: PendingAccessRecheck | null | undefined,
@@ -93,6 +103,17 @@ export function isPendingAccessConfirmed(
   profile: unknown,
   now?: number,
 ): boolean;
+export interface PendingAccessProfileCheckResult {
+  status: 'confirmed' | 'pending' | 'unavailable';
+  profile: unknown;
+  confirmed: boolean;
+  error: unknown;
+}
+export function checkPendingAccessProfile(
+  marker: PendingAccessRecheck | null | undefined,
+  readProfile: () => Promise<unknown>,
+  now?: number,
+): Promise<PendingAccessProfileCheckResult>;
 
 export function isPaidEntitlementConfirmed(
   paymentStatus: string,

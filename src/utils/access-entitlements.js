@@ -114,6 +114,23 @@ export function clearPendingAccessRecheck(storage, expected) {
   }
 }
 
+export function selectMostRecentPendingAccessRecheck(local, recovered, accountId, now = Date.now()) {
+  const localValid = isPendingAccessRecheck(local, now) && local.accountId === accountId;
+  const recoveredValid = isPendingAccessRecheck(recovered, now) && recovered.accountId === accountId;
+  if (localValid && recoveredValid) {
+    if (local.startedAt !== recovered.startedAt) {
+      return local.startedAt > recovered.startedAt ? local : recovered;
+    }
+    if (local.createdAt !== recovered.createdAt) {
+      return local.createdAt > recovered.createdAt ? local : recovered;
+    }
+    return recovered;
+  }
+  if (localValid) return local;
+  if (recoveredValid) return recovered;
+  return null;
+}
+
 export function hasUnresolvedPaidPurchase(marker, now = Date.now()) {
   return isPendingAccessRecheck(marker, now);
 }
@@ -135,6 +152,17 @@ export function shouldContinueAccessRechecks(attempts, startedAt, now = Date.now
     Number.isFinite(now) &&
     now >= started &&
     now - started < ACCESS_RECHECK_TIMEOUT_MS;
+}
+
+export function getAccessRecheckRetryDelayMs(error, defaultDelayMs = 500) {
+  const retryAfterSeconds = Number(error?.retryAfter);
+  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds <= 0) {
+    return defaultDelayMs;
+  }
+  return Math.max(
+    defaultDelayMs,
+    Math.min(retryAfterSeconds * 1_000, ACCESS_RECHECK_TIMEOUT_MS),
+  );
 }
 
 export function getPendingAccessRecheckPhase(marker, accountId, now = Date.now()) {
@@ -162,6 +190,26 @@ export function isPendingAccessConfirmed(marker, profile, now = Date.now()) {
       marker.entitlement,
       marker.minimumExpiry,
     );
+}
+
+export async function checkPendingAccessProfile(marker, readProfile, now = Date.now()) {
+  try {
+    const profile = await readProfile();
+    const confirmed = isPendingAccessConfirmed(marker, profile, now);
+    return {
+      status: confirmed ? 'confirmed' : 'pending',
+      profile,
+      confirmed,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      status: 'unavailable',
+      profile: null,
+      confirmed: false,
+      error,
+    };
+  }
 }
 
 export function isPaidEntitlementConfirmed(paymentStatus, profile, entitlement, minimumExpiry) {

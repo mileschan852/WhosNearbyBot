@@ -65,6 +65,39 @@ html, body, #root {
   text-overflow: ellipsis;
 }
 
+.flying-message-persistent-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #333;
+  background: #202938;
+  color: #dbeafe;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.flying-message-status-dismiss {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid #64748b;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.flying-message-input:focus-visible,
+.flying-message-send:focus-visible,
+.flying-message-status-dismiss:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 @keyframes flying-message-across {
   from { transform: translateX(0); }
   to { transform: translateX(calc(-100vw - 100%)); }

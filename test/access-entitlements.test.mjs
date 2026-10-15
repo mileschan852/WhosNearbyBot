@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 
+import { resolveAppEntry } from '../src/config/resolve-app-entry.js';
 import {
   ACCESS_RECHECK_INTERVAL_MS,
   ACCESS_RECHECK_MAX_ATTEMPTS,
   ACCESS_RECHECK_TIMEOUT_MS,
   canRetryPendingPaymentCheck,
+  checkPendingAccessProfile,
   clearPendingAccessRecheck,
   createPendingAccessRecheck,
+  getAccessRecheckRetryDelayMs,
   getMinimumFilterSubscriptionExpiry,
   getMinimumPaidEntitlementExpiry,
   getPaidEntitlementOutcome,
@@ -21,6 +27,7 @@ import {
   loadPendingAccessRecheck,
   PENDING_ACCESS_RECHECK_STORAGE_KEY,
   savePendingAccessRecheck,
+  selectMostRecentPendingAccessRecheck,
   shouldContinueAccessRechecks,
   shouldNotifyFilterAccessEnded,
   shouldNotifyFilterAccessRestored,
@@ -33,6 +40,10 @@ import {
 } from '../src/utils/filter-preferences-storage.js';
 
 const now = Date.parse('2026-10-11T00:00:00.000Z');
+const appRuntimeConfig = JSON.parse(
+  readFileSync(new URL('../public/config.json', import.meta.url), 'utf8'),
+);
+const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 
 function createStorage() {
   const values = new Map();
@@ -45,6 +56,312 @@ function createStorage() {
     },
     removeItem(key) {
       values.delete(key);
+    },
+  };
+}
+
+function appSourceBetween(startMarker, endMarker) {
+  const start = appSource.indexOf(startMarker);
+  assert.notEqual(start, -1, `expected App.tsx to contain ${startMarker}`);
+  const end = appSource.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `expected App.tsx to contain ${endMarker}`);
+  return appSource.slice(start, end).trim();
+}
+
+function compileAppPaymentHandlers(environment) {
+  // Execute the real App.tsx handlers with only their browser and service dependencies mocked.
+  const source = [
+    appSourceBetween(
+      'const persistPendingAccessRecheck = async (',
+      '\n  const clearPendingAccessRecheck',
+    ),
+    appSourceBetween(
+      'const clearPendingAccessRecheck = (expected?: PendingAccessRecheck | null) => {',
+      '\n  const hasPendingPaymentVerification',
+    ),
+    appSourceBetween(
+      'const hasPendingPaymentVerification = (',
+      '\n  const formatAdminFailure',
+    ),
+    appSourceBetween(
+      'const startInvoice = (invoiceLink: string): Promise<string> => {',
+      '\n  const startPurchase',
+    ),
+    appSourceBetween(
+      'const startPurchase = async (type: string) => {',
+      '\n  const handleBuyRaffleTicket',
+    ),
+    appSourceBetween(
+      'const verifyFilterSubscription = async (',
+      '\n  const handleRenewFilterAccess',
+    ),
+    appSourceBetween(
+      'const handleRenewFilterAccess = async (',
+      '\n  const FILTER_SUB_KEY',
+    ),
+    appSourceBetween(
+      'const applyOwnProfile = (profile: any) => {',
+      '\n  applyOwnProfileRef.current = applyOwnProfile;',
+    ),
+    'applyOwnProfileRef.current = applyOwnProfile;',
+    appSourceBetween(
+      'const confirmPendingAccess = (marker: PendingAccessRecheck, profile: UserProfile) => {',
+      '\n  confirmPendingAccessRef.current = confirmPendingAccess;',
+    ),
+    'confirmPendingAccessRef.current = confirmPendingAccess;',
+    appSourceBetween(
+      'const waitForPaidProfile = async (',
+      '\n  useEffect(() => {',
+    ),
+    appSourceBetween(
+      'const retryPendingPaymentCheck = async () => {',
+      '\n  const loadFilterPrefs',
+    ),
+    appSourceBetween(
+      'const handleRenewInvisibility = async (allowActiveRenewal = false) => {',
+      '\n  const handleToggleGrid',
+    ),
+    appSourceBetween(
+      'const handleRenewHideAge = async (allowActiveRenewal = false) => {',
+      '\n  const handleHideAgeToggle',
+    ),
+    `this.__appPaymentHandlers = {
+      startPurchase,
+      verifyFilterSubscription,
+      handleRenewFilterAccess,
+      handleRenewInvisibility,
+      handleRenewHideAge,
+      retryPendingPaymentCheck,
+      hasPendingPaymentVerification,
+    };`,
+  ].join('\n');
+
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.None,
+    },
+  }).outputText;
+  runInNewContext(transpiled, environment);
+  return environment.__appPaymentHandlers;
+}
+
+function createConfirmedEntitlementProfile(accountId, entitlement, minimumExpiry) {
+  const expiry = new Date(minimumExpiry + 1_000).toISOString();
+  const profile = { id: accountId };
+  if (entitlement === 'filter') profile.filter_sub_expiry = expiry;
+  if (entitlement === 'vip') profile.vip_expiry = expiry;
+  if (entitlement === 'hideAge') {
+    profile.hide_age = true;
+    profile.hide_age_expiry = expiry;
+  }
+  if (entitlement === 'invisible') {
+    profile.grid_visible = false;
+    profile.invisible_expiry = expiry;
+  }
+  if (entitlement === 'editProfile') {
+    profile.edit_profile_pass = true;
+    profile.edit_profile_expiry = expiry;
+  }
+  return profile;
+}
+
+function createAppPassFlowHarness(entitlement, clock) {
+  const accountId = 'tg_101';
+  const localStorage = createStorage();
+  const calls = [];
+  const alerts = [];
+  const invoiceStatuses = ['paid', 'cancelled'];
+  let backendConfirmsEntitlement = false;
+  let workerProfileOverride;
+  let invoiceCount = 0;
+  let profileCheckCount = 0;
+  let nextTimerId = 0;
+
+  const environment = {
+    Date,
+    console: { error() {}, warn() {} },
+    ACCESS_RECHECK_MAX_ATTEMPTS,
+    ACCESS_RECHECK_TIMEOUT_MS,
+    canRetryPendingPaymentCheck,
+    checkPendingAccessProfile,
+    clearPendingAccessRecheckStorage: clearPendingAccessRecheck,
+    createPendingAccessRecheck,
+    getAccessRecheckRetryDelayMs,
+    getMinimumPaidEntitlementExpiry,
+    getMinimumFilterSubscriptionExpiry,
+    getPaidEntitlementOutcome,
+    hasUnresolvedPaidPurchase,
+    isPaidEntitlementActive,
+    isPaidEntitlementConfirmed,
+    isPendingAccessConfirmed,
+    loadPendingAccessRecheck,
+    savePendingAccessRecheck,
+    shouldContinueAccessRechecks,
+    localStorage,
+    FILTER_SUB_KEY: 'test-filter-sub-until',
+    FILTER_EARLY_RENEWAL_PROMPT_COPY: { en: 'Renew filter access?' },
+    reportFilterRenewalConfirmed: async () => {},
+    trackEvent() {},
+    lang: 'en',
+    raffleClock: clock.now,
+    currentUser: { id: accountId },
+    currentUserRef: { current: { id: accountId } },
+    pendingAccessRecoveryAccountId: accountId,
+    pendingAccessRecheckRef: { current: null },
+    applyOwnProfileRef: { current: null },
+    confirmPendingAccessRef: { current: null },
+    workerPostRef: { current: null },
+    filterSubUntilRef: { current: 0 },
+    paidProfileVerificationInProgressRef: { current: false },
+    hideAgePurchaseInProgressRef: { current: false },
+    invisiblePurchaseInProgressRef: { current: false },
+    filterAccessPurchaseInProgressRef: { current: false },
+    accessRecheckAttemptsRef: { current: { key: '', attempts: 0 } },
+    hideAge: false,
+    hideAgeExpiry: null,
+    gridVisible: true,
+    invisibleExpiry: null,
+    mapVisible: false,
+    vipExpiry: null,
+    paidUnlocked: false,
+    filterAccessActive: false,
+    filterSubscriptionActive: false,
+    isPaymentRetryRunning: false,
+    pendingAccessRecheck: null,
+    setPendingAccessRecheck(updater) {
+      environment.pendingAccessRecheck = typeof updater === 'function'
+        ? updater(environment.pendingAccessRecheck)
+        : updater;
+    },
+    setCurrentUser(updater) {
+      environment.currentUser = typeof updater === 'function'
+        ? updater(environment.currentUser)
+        : updater;
+      environment.currentUserRef.current = environment.currentUser;
+    },
+    setHideAge(value) { environment.hideAge = value; },
+    setHideAgeExpiry(value) { environment.hideAgeExpiry = value; },
+    setGridVisible(value) { environment.gridVisible = value; },
+    setInvisibleExpiry(value) { environment.invisibleExpiry = value; },
+    setMapVisible(value) { environment.mapVisible = value; },
+    setVipExpiry(value) {
+      environment.vipExpiry = value;
+      environment.paidUnlocked = Date.parse(value || '') > clock.now;
+      environment.filterAccessActive =
+        environment.paidUnlocked || environment.filterSubscriptionActive;
+    },
+    setFilterSubUntil(value) {
+      environment.filterSubUntil = value;
+      environment.filterSubscriptionActive = value > clock.now;
+      environment.filterAccessActive =
+        environment.paidUnlocked || environment.filterSubscriptionActive;
+    },
+    setIsPaymentRetryRunning(value) { environment.isPaymentRetryRunning = value; },
+    setIsFilterAccessRenewing() {},
+    setIsHideAgeRenewing() {},
+    setIsInvisibleRenewing() {},
+    setHideAgeNotice() {},
+    setInvisibleNotice() {},
+    setShowProfileEditModal() {},
+    setView() {},
+    fetchUsersData: async () => ({}),
+    enqueuePendingAccessRecoverySync: (operation) => operation(),
+    t: (key) => key,
+    alert: (message) => alerts.push(message),
+    window: {
+      confirm: () => true,
+      setTimeout(callback) {
+        queueMicrotask(callback);
+        nextTimerId += 1;
+        return nextTimerId;
+      },
+      clearTimeout() {},
+      Telegram: {
+        WebApp: {
+          openInvoice(link, callback) {
+            calls.push({ path: 'telegram.openInvoice', link });
+            callback(invoiceStatuses.shift() ?? 'failed');
+          },
+        },
+      },
+    },
+  };
+
+  const profileForWorker = () => {
+    if (workerProfileOverride !== undefined) return workerProfileOverride;
+    const marker = environment.pendingAccessRecheckRef.current ??
+      loadPendingAccessRecheck(localStorage, accountId, clock.now);
+    const baseProfile = {
+      id: accountId,
+      hide_age: false,
+      hide_age_expiry: null,
+      grid_visible: true,
+      invisible_expiry: null,
+      map_visible: false,
+    };
+    if (!backendConfirmsEntitlement || !marker) return baseProfile;
+    return {
+      ...baseProfile,
+      ...createConfirmedEntitlementProfile(
+        accountId,
+        entitlement,
+        marker.minimumExpiry,
+      ),
+    };
+  };
+
+  environment.workerPost = async (path, body) => {
+    calls.push({ path, body });
+    if (path === '/create-invoice') {
+      invoiceCount += 1;
+      return {
+        invoiceLink: `https://t.me/$pass-invoice-${invoiceCount}`,
+        purchaseId: `pass-purchase-${invoiceCount}`,
+      };
+    }
+    if (path === '/api/profile/check') {
+      profileCheckCount += 1;
+      return { profile: profileForWorker() };
+    }
+    if (path === '/api/access-recovery/save' ||
+        path === '/api/access-recovery/clear' ||
+        path === '/api/pass-purchase/resolve') {
+      return { ok: true };
+    }
+    throw new Error(`Unexpected mocked Worker endpoint: ${path}`);
+  };
+  environment.workerPostRef.current = environment.workerPost;
+  environment.queuePendingAccessRecoverySave = (marker) =>
+    environment.workerPostRef.current('/api/access-recovery/save', { marker });
+
+  const handlers = compileAppPaymentHandlers(environment);
+  const handlerName = {
+    hideAge: 'handleRenewHideAge',
+    invisible: 'handleRenewInvisibility',
+    filter: 'handleRenewFilterAccess',
+  }[entitlement] ?? null;
+
+  return {
+    accountId,
+    alerts,
+    calls,
+    environment,
+    handlers,
+    handlerName,
+    localStorage,
+    getInvoiceCount: () => invoiceCount,
+    getProfileCheckCount: () => profileCheckCount,
+    setBackendConfirmsEntitlement(value) {
+      backendConfirmsEntitlement = value;
+    },
+    setWorkerProfileOverride(profile) {
+      workerProfileOverride = profile;
+    },
+    setPendingMarker(marker) {
+      environment.pendingAccessRecheckRef.current = marker;
+      environment.pendingAccessRecheck = marker;
+      savePendingAccessRecheck(localStorage, marker, clock.now);
     },
   };
 }
@@ -426,6 +743,369 @@ test('delayed access rechecks stop at the attempt limit or two-minute timeout', 
   assert.equal(shouldContinueAccessRechecks(0, startedAt, startedAt - 1), false);
 });
 
+test('429 and timeout profile checks keep the purchase pending and show a safe retry state', async () => {
+  const marker = createPendingAccessRecheck({
+    accountId: 'tg_101',
+    entitlement: 'hideAge',
+    startedAt: now,
+    minimumExpiry: now + 29 * 24 * 60 * 60 * 1000,
+  }, now);
+  assert.ok(marker);
+
+  const rateLimited = Object.assign(new Error('Too many requests'), {
+    status: 429,
+    retryAfter: 30,
+  });
+  const timeout = new Error('The server took too long to respond.');
+  for (const error of [rateLimited, timeout]) {
+    const result = await checkPendingAccessProfile(
+      marker,
+      async () => { throw error; },
+      now + 1_000,
+    );
+    assert.equal(result.status, 'unavailable');
+    assert.equal(result.profile, null);
+    assert.equal(result.confirmed, false);
+    assert.equal(result.error, error);
+    assert.equal(hasUnresolvedPaidPurchase(marker, now + 1_000), true);
+    assert.equal(
+      getPendingAccessRecheckPhase({ ...marker, attempts: 1 }, 'tg_101', now + 1_000),
+      'checking',
+      'the notice remains in checking state while the bounded retry window is active',
+    );
+  }
+
+  assert.equal(getAccessRecheckRetryDelayMs(rateLimited), 30_000);
+  assert.equal(getAccessRecheckRetryDelayMs(timeout), 500);
+  assert.equal(
+    getPendingAccessRecheckPhase(
+      { ...marker, attempts: ACCESS_RECHECK_MAX_ATTEMPTS },
+      'tg_101',
+      now + 1_000,
+    ),
+    'retry',
+    'after automatic retries stop, the notice offers a manual check instead of success',
+  );
+  assert.equal(
+    getAccessRecheckRetryDelayMs({ retryAfter: 500 }),
+    ACCESS_RECHECK_TIMEOUT_MS,
+    'a long rate-limit delay is bounded by the verification window',
+  );
+});
+
+test('wrong-account and unconfirmed Worker profiles cannot confirm a paid check', async () => {
+  const minimumExpiry = now + 29 * 24 * 60 * 60 * 1000;
+  const marker = createPendingAccessRecheck({
+    accountId: 'tg_101',
+    entitlement: 'hideAge',
+    startedAt: now,
+    minimumExpiry,
+  }, now);
+  assert.ok(marker);
+
+  const profiles = [
+    {
+      id: 'tg_101',
+      hide_age: true,
+      hide_age_expiry: new Date(minimumExpiry - 1_000).toISOString(),
+    },
+    {
+      id: 'tg_202',
+      hide_age: true,
+      hide_age_expiry: new Date(minimumExpiry + 1_000).toISOString(),
+    },
+  ];
+  for (const profile of profiles) {
+    const result = await checkPendingAccessProfile(
+      marker,
+      async () => profile,
+      now + 1_000,
+    );
+    assert.equal(result.status, 'pending');
+    assert.equal(result.confirmed, false);
+    assert.equal(result.profile, profile);
+  }
+});
+
+test('manual paid-access retry only reads the profile and cannot open another invoice', () => {
+  const sliceBetween = (source, startMarker, endMarker) => {
+    const start = source.indexOf(startMarker);
+    assert.notEqual(start, -1, `expected to find ${startMarker}`);
+    const end = source.indexOf(endMarker, start);
+    assert.notEqual(end, -1, `expected to find ${endMarker}`);
+    return source.slice(start, end);
+  };
+  const retrySource = sliceBetween(
+    appSource,
+    'const retryPendingPaymentCheck = async () => {',
+    '\n  const loadFilterPrefs',
+  );
+  const profileCheckSource = sliceBetween(
+    appSource,
+    'const waitForPaidProfile = async (',
+    '\n  useEffect(() => {',
+  );
+
+  assert.match(retrySource, /waitForPaidProfile/);
+  assert.doesNotMatch(retrySource, /create-invoice|startPurchase|startInvoice|openInvoice/);
+  assert.match(profileCheckSource, /checkPendingAccessProfile/);
+  assert.match(profileCheckSource, /getAccessRecheckRetryDelayMs/);
+  assert.ok(profileCheckSource.includes("workerPost('/api/profile/check')"));
+  assert.doesNotMatch(profileCheckSource, /create-invoice|startPurchase|startInvoice|openInvoice/);
+});
+
+test('App Hide Age and Invisibility handlers block new invoices until a Worker profile confirms access', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    for (const { entitlement, purchaseType } of [
+      { entitlement: 'hideAge', purchaseType: 'hide_age' },
+      { entitlement: 'invisible', purchaseType: 'invisible' },
+    ]) {
+      clock.now = now;
+      const harness = createAppPassFlowHarness(entitlement, clock);
+      const renew = harness.handlers[harness.handlerName];
+
+      await renew(false);
+      assert.equal(harness.getInvoiceCount(), 1, `${entitlement}: first invoice opens`);
+      assert.equal(
+        harness.calls.filter((call) => call.path === 'telegram.openInvoice').length,
+        1,
+        `${entitlement}: Telegram reports the first invoice as paid`,
+      );
+      assert.deepEqual(
+        harness.calls
+          .filter((call) => call.path === '/create-invoice')
+          .map((call) => call.body.type),
+        [purchaseType],
+      );
+
+      const staleMarker = loadPendingAccessRecheck(
+        harness.localStorage,
+        harness.accountId,
+        clock.now,
+      );
+      assert.ok(staleMarker, `${entitlement}: paid callback persists a pending marker`);
+      assert.equal(staleMarker.entitlement, entitlement);
+      assert.equal(staleMarker.paymentStatus, 'paid');
+      assert.equal(
+        harness.getProfileCheckCount(),
+        6,
+        `${entitlement}: stale Worker profiles remain unconfirmed through automatic checks`,
+      );
+
+      await renew(false);
+      assert.equal(
+        harness.getInvoiceCount(),
+        1,
+        `${entitlement}: another attempt cannot create a second invoice while access is pending`,
+      );
+      assert.ok(harness.alerts.includes('paymentProcessing'));
+
+      clock.now = staleMarker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+      const timedOutMarker = loadPendingAccessRecheck(
+        harness.localStorage,
+        harness.accountId,
+        clock.now,
+      );
+      assert.ok(timedOutMarker, `${entitlement}: pending status survives the automatic retry window`);
+      assert.equal(
+        getPendingAccessRecheckPhase(timedOutMarker, harness.accountId, clock.now),
+        'retry',
+        `${entitlement}: manual status check remains available after automatic checks stop`,
+      );
+      assert.equal(canRetryPendingPaymentCheck(timedOutMarker, harness.accountId, clock.now), true);
+      assert.equal(harness.handlers.hasPendingPaymentVerification(), true);
+
+      harness.setBackendConfirmsEntitlement(true);
+      await harness.handlers.retryPendingPaymentCheck();
+      assert.equal(
+        harness.getProfileCheckCount(),
+        7,
+        `${entitlement}: the manual status check reads the Worker profile`,
+      );
+      assert.equal(
+        loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+        null,
+        `${entitlement}: matching Worker entitlement clears the pending marker`,
+      );
+      assert.equal(harness.handlers.hasPendingPaymentVerification(), false);
+      if (entitlement === 'hideAge') {
+        assert.equal(harness.environment.hideAge, true);
+        assert.ok(Date.parse(harness.environment.hideAgeExpiry) > clock.now);
+      } else {
+        assert.equal(harness.environment.gridVisible, false);
+        assert.ok(Date.parse(harness.environment.invisibleExpiry) > clock.now);
+      }
+
+      await renew(true);
+      assert.equal(
+        harness.getInvoiceCount(),
+        2,
+        `${entitlement}: a new renewal can create an invoice after confirmation`,
+      );
+      assert.deepEqual(
+        harness.calls
+          .filter((call) => call.path === '/create-invoice')
+          .map((call) => call.body.type),
+        [purchaseType, purchaseType],
+      );
+    }
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('App Filter checkout stays pending for stale and mismatched Worker profiles, then allows renewal after confirmation', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    const harness = createAppPassFlowHarness('filter', clock);
+    await harness.handlers.handleRenewFilterAccess('filter_access_prompt');
+
+    assert.equal(harness.getInvoiceCount(), 1, 'the first Filter invoice opens');
+    assert.deepEqual(
+      harness.calls.filter((call) => call.path === '/create-invoice').map((call) => call.body.type),
+      ['change_filter'],
+    );
+    assert.equal(
+      harness.calls.filter((call) => call.path === 'telegram.openInvoice').length,
+      1,
+      'Telegram reports the original invoice as paid',
+    );
+    assert.equal(
+      harness.getProfileCheckCount(),
+      6,
+      'the paid callback does not complete while all Worker profiles remain stale',
+    );
+    let marker = loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now);
+    assert.ok(marker);
+    assert.equal(marker.entitlement, 'filter');
+    assert.equal(harness.environment.filterAccessActive, false);
+    assert.equal(harness.environment.filterSubUntil, 0);
+
+    await harness.handlers.handleRenewFilterAccess('filter_access_prompt');
+    assert.equal(harness.getInvoiceCount(), 1, 'an unresolved paid check blocks a replacement invoice');
+    assert.ok(harness.alerts.includes('paymentProcessing'));
+
+    clock.now = marker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+    harness.environment.raffleClock = clock.now;
+    harness.setWorkerProfileOverride({
+      id: 'tg_202',
+      filter_sub_expiry: new Date(marker.minimumExpiry + 60_000).toISOString(),
+    });
+    await harness.handlers.retryPendingPaymentCheck();
+    assert.equal(harness.getProfileCheckCount(), 12);
+    assert.ok(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      'a valid-looking subscription on another account must not confirm this purchase',
+    );
+    assert.equal(harness.environment.filterAccessActive, false);
+    assert.equal(harness.environment.filterSubUntil, 0);
+
+    marker = loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now);
+    clock.now = marker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+    harness.environment.raffleClock = clock.now;
+    harness.setWorkerProfileOverride(undefined);
+    harness.setBackendConfirmsEntitlement(true);
+    await harness.handlers.retryPendingPaymentCheck();
+
+    assert.equal(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      null,
+      'the matching Worker profile clears the pending marker',
+    );
+    assert.equal(harness.handlers.hasPendingPaymentVerification(), false);
+    assert.equal(harness.environment.filterAccessActive, true);
+    assert.equal(harness.environment.filterSubscriptionActive, true);
+    assert.ok(harness.environment.filterSubUntil > clock.now);
+
+    harness.environment.raffleClock = clock.now;
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 2, 'a later renewal is permitted after confirmation');
+    assert.deepEqual(
+      harness.calls.filter((call) => call.path === '/create-invoice').map((call) => call.body.type),
+      ['change_filter', 'change_filter'],
+    );
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('App VIP recovery stays pending until the matching Worker profile confirms the entitlement', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    const harness = createAppPassFlowHarness('vip', clock);
+    const minimumExpiry = getMinimumPaidEntitlementExpiry(clock.now, null);
+    const oldStart = clock.now - ACCESS_RECHECK_TIMEOUT_MS - 1;
+    const marker = createPendingAccessRecheck({
+      accountId: harness.accountId,
+      entitlement: 'vip',
+      startedAt: oldStart,
+      createdAt: oldStart,
+      minimumExpiry,
+    }, clock.now);
+    assert.ok(marker);
+    harness.setPendingMarker(marker);
+
+    await harness.handlers.retryPendingPaymentCheck();
+    assert.equal(harness.getProfileCheckCount(), 6);
+    assert.ok(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      'a stale Worker profile leaves VIP pending',
+    );
+    assert.equal(harness.environment.vipExpiry, null);
+    assert.equal(harness.environment.paidUnlocked, false);
+
+    await assert.rejects(
+      harness.handlers.startPurchase('vip'),
+      /paymentProcessing/,
+      'a pending VIP check blocks another invoice before the Worker is called',
+    );
+    assert.equal(harness.getInvoiceCount(), 0);
+
+    let pendingMarker = loadPendingAccessRecheck(
+      harness.localStorage,
+      harness.accountId,
+      clock.now,
+    );
+    clock.now = pendingMarker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+    harness.setWorkerProfileOverride({
+      id: 'tg_202',
+      vip_expiry: new Date(minimumExpiry + 60_000).toISOString(),
+    });
+    await harness.handlers.retryPendingPaymentCheck();
+    assert.equal(harness.getProfileCheckCount(), 12);
+    assert.equal(harness.environment.vipExpiry, null);
+    assert.ok(loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now));
+
+    pendingMarker = loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now);
+    clock.now = pendingMarker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+    harness.setWorkerProfileOverride(undefined);
+    harness.setBackendConfirmsEntitlement(true);
+    await harness.handlers.retryPendingPaymentCheck();
+
+    assert.equal(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      null,
+      'the matching Worker profile clears the pending VIP marker',
+    );
+    assert.equal(harness.handlers.hasPendingPaymentVerification(), false);
+    assert.ok(Date.parse(harness.environment.vipExpiry) > clock.now);
+    assert.equal(harness.environment.paidUnlocked, true);
+    assert.equal(harness.getInvoiceCount(), 0, 'VIP recovery itself never creates a new invoice');
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
 test('reopened payment status names its feature, stays account-scoped, and switches after timeout', () => {
   const marker = createPendingAccessRecheck({
     accountId: 'tg_101',
@@ -521,6 +1201,45 @@ test('paid access markers persist after automatic timeout and account changes', 
   assert.deepEqual(persisted, marker);
   assert.equal(hasUnresolvedPaidPurchase(persisted, weekLater), true);
   assert.notEqual(storage.getItem(PENDING_ACCESS_RECHECK_STORAGE_KEY), null);
+});
+
+test('server recovery restores a cleared marker without accepting another account or older state', () => {
+  const accountId = 'tg_101';
+  const storage = createStorage();
+  const recovered = createPendingAccessRecheck({
+    accountId,
+    entitlement: 'hideAge',
+    startedAt: now - 5_000,
+    createdAt: now - 5_000,
+    minimumExpiry: now + 29 * 24 * 60 * 60 * 1000,
+  }, now);
+
+  assert.ok(recovered);
+  assert.equal(loadPendingAccessRecheck(storage, accountId, now), null);
+  assert.equal(
+    selectMostRecentPendingAccessRecheck(null, recovered, accountId, now),
+    recovered,
+    'the authenticated server record restores a marker after browser storage is empty',
+  );
+  assert.equal(
+    selectMostRecentPendingAccessRecheck(null, recovered, 'tg_202', now),
+    null,
+    'a recovered marker is not selected for a different account',
+  );
+
+  const newerLocal = createPendingAccessRecheck({
+    accountId,
+    entitlement: 'invisible',
+    startedAt: now - 1_000,
+    createdAt: now - 1_000,
+    minimumExpiry: now + 29 * 24 * 60 * 60 * 1000,
+  }, now);
+  assert.ok(newerLocal);
+  assert.equal(
+    selectMostRecentPendingAccessRecheck(newerLocal, recovered, accountId, now),
+    newerLocal,
+    'a newer local retry is not replaced by an older server snapshot',
+  );
 });
 
 test('paid Hide Age and Invisibility purchases stay blocked until delayed profile confirmation', () => {
@@ -705,4 +1424,98 @@ test('filter preferences are never stored under an anonymous shared key', () => 
   const storage = createStorage();
   assert.equal(getFilterPreferencesKey(null), null);
   assert.equal(saveFilterPreferences(storage, null, DEFAULT_FILTER_PREFERENCES), false);
+});
+
+test('reopened payment recovery confirms the correct account from both configured bot entries', () => {
+  const day = 24 * 60 * 60 * 1000;
+  const entries = [
+    {
+      entry: resolveAppEntry(appRuntimeConfig),
+      expectedEntryId: 'nearby',
+      expectedBotKey: 'botB',
+      accountId: 'tg_654321',
+    },
+    {
+      entry: resolveAppEntry(appRuntimeConfig, 'gaymode'),
+      expectedEntryId: 'hkmo-date',
+      expectedBotKey: 'botA',
+      accountId: 'tg_654322',
+    },
+  ];
+  assert.equal(resolveAppEntry(appRuntimeConfig, null, '?mode=gay').botKey, 'botA');
+
+  for (const { entry, expectedEntryId, expectedBotKey, accountId } of entries) {
+    assert.equal(entry.id, expectedEntryId);
+    assert.equal(entry.botKey, expectedBotKey);
+
+    for (const entitlement of ['filter', 'vip', 'hideAge', 'invisible', 'editProfile']) {
+      const storage = createStorage();
+      const minimumExpiry = now + 29 * day;
+      const marker = createPendingAccessRecheck({
+        accountId,
+        entitlement,
+        startedAt: now,
+        minimumExpiry,
+        ...(entitlement === 'filter'
+          ? { location: 'filter_option', allowActiveRenewal: false }
+          : {}),
+      }, now + 1_000);
+
+      assert.ok(marker, `${expectedEntryId} ${entitlement} marker should be valid`);
+      assert.equal(savePendingAccessRecheck(storage, marker, now + 1_000), true);
+
+      // A fresh app session loads the same localStorage marker for this account.
+      const reopenedMarker = loadPendingAccessRecheck(storage, accountId, now + 2_000);
+      assert.deepEqual(reopenedMarker, marker);
+      assert.equal(
+        getPendingAccessRecheckPhase(reopenedMarker, accountId, now + 2_000),
+        'checking',
+      );
+
+      const otherAccountId = accountId === 'tg_654321' ? 'tg_654322' : 'tg_654321';
+      const otherProfile = createConfirmedEntitlementProfile(
+        otherAccountId,
+        entitlement,
+        minimumExpiry,
+      );
+      assert.equal(loadPendingAccessRecheck(storage, otherAccountId, now + 2_000), null);
+      assert.equal(getPendingAccessRecheckPhase(reopenedMarker, otherAccountId, now + 2_000), null);
+      assert.equal(isPendingAccessConfirmed(reopenedMarker, otherProfile, now + 2_000), false);
+
+      const confirmedProfile = createConfirmedEntitlementProfile(
+        accountId,
+        entitlement,
+        minimumExpiry,
+      );
+      assert.equal(
+        getPaidEntitlementOutcome('paid', confirmedProfile, entitlement, minimumExpiry),
+        'confirmed',
+        `${expectedEntryId} ${entitlement} should reach the successful state only after its profile field is confirmed`,
+      );
+      assert.equal(
+        isPendingAccessConfirmed(reopenedMarker, confirmedProfile, now + 2_000),
+        true,
+      );
+
+      if (entitlement === 'filter' || entitlement === 'vip') {
+        const access = getActiveAccessState({
+          now: now + 2_000,
+          vipExpiry: confirmedProfile.vip_expiry,
+          filterSubUntil: confirmedProfile.filter_sub_expiry,
+        });
+        assert.equal(access.filterAccessActive, true);
+        assert.equal(access.paidUnlocked, entitlement === 'vip');
+      } else {
+        assert.equal(
+          isPaidEntitlementActive(confirmedProfile, entitlement, now + 2_000),
+          true,
+          `${expectedEntryId} ${entitlement} should be active after confirmed profile recovery`,
+        );
+      }
+
+      assert.equal(clearPendingAccessRecheck(storage, reopenedMarker), true);
+      assert.equal(loadPendingAccessRecheck(storage, accountId, now + 2_000), null);
+      assert.equal(getPendingAccessRecheckPhase(null, accountId, now + 2_000), null);
+    }
+  }
 });

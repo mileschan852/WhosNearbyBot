@@ -51,6 +51,74 @@ export function getFlyingMessageFulfillmentMessage(
   return message;
 }
 
+export function getFlyingMessagePurchaseResolution(
+  paymentStatus,
+  expectedIntentId,
+  response,
+  expectedTgId,
+  expectedBot,
+) {
+  const outcome = getPurchaseFulfillmentOutcome(paymentStatus, expectedIntentId, response);
+  if (outcome === 'fulfilled') {
+    const message = getFlyingMessageFulfillmentMessage(
+      paymentStatus,
+      expectedIntentId,
+      response,
+      expectedTgId,
+      expectedBot,
+    );
+    return message
+      ? { outcome: 'fulfilled', message }
+      : { outcome: 'pending', message: null };
+  }
+  if (outcome !== 'pending') return { outcome, message: null };
+  if (
+    typeof expectedIntentId !== 'string' ||
+    !expectedIntentId ||
+    !response ||
+    typeof response !== 'object' ||
+    response.intentId !== expectedIntentId
+  ) {
+    return { outcome: 'pending', message: null };
+  }
+  if (response.status === 'refunded') return { outcome: 'refunded', message: null };
+  if (response.status === 'rejected' || response.status === 'failed') {
+    return { outcome: 'rejected', message: null };
+  }
+  if (response.status === 'cancelled') return { outcome: 'cancelled', message: null };
+  return { outcome: 'pending', message: null };
+}
+
+export function getFlyingMessageDraftAfterOutcome(currentDraft, submittedText, outcome) {
+  if (outcome !== 'fulfilled' || typeof currentDraft !== 'string') return currentDraft;
+  return currentDraft.trim() === submittedText ? '' : currentDraft;
+}
+
+export function createFlyingMessageNotice(message = '', persistent = false) {
+  const visibleMessage = typeof message === 'string' ? message : '';
+  return {
+    message: visibleMessage,
+    persistent: Boolean(visibleMessage) && persistent === true,
+  };
+}
+
+export function getFlyingMessageNoticeAfterMessage(currentNotice, message, persistent = false) {
+  if (currentNotice?.persistent === true) return currentNotice;
+  return createFlyingMessageNotice(message, persistent);
+}
+
+export function shouldPersistFlyingMessageOutcome(outcome) {
+  return outcome === 'refunded' || outcome === 'rejected';
+}
+
+export function shouldAutoDismissFlyingMessageNotice(notice) {
+  return Boolean(notice?.message) && notice.persistent !== true;
+}
+
+export function getFlyingMessageNoticeAfterDismissal() {
+  return createFlyingMessageNotice();
+}
+
 export function getRafflePurchaseOutcome(paymentStatus, expectedIntentId, response) {
   const fulfillment = getPurchaseFulfillmentOutcome(paymentStatus, expectedIntentId, response);
   if (fulfillment !== 'pending') return fulfillment;

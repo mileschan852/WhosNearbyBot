@@ -3,9 +3,39 @@ import { createElement } from 'react';
 const h = createElement;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const VIP_CAMPAIGN_WINDOWS = new Set(['today', 'week', 'month', '1_day', '3_days']);
-const VIP_FAILURE_ALERT_CURSOR_KEY = 'vip-reward-failure-alert:v1:';
 const VIP_FAILURE_EVENT_ID_PATTERN = /^[1-9][0-9]{0,18}$/;
 const VIP_FAILURE_EVENT_ID_MAX = 9_223_372_036_854_775_807n;
+export const VIP_FAILURE_ALERT_POLL_INTERVAL_MS = 60_000;
+
+export function startVipFailureAlertPolling({
+  enabled,
+  userId,
+  onPoll,
+  timer = globalThis,
+  intervalMs = VIP_FAILURE_ALERT_POLL_INTERVAL_MS,
+} = {}) {
+  if (enabled !== true ||
+      typeof userId !== 'string' ||
+      !/^tg_[0-9]{1,20}$/.test(userId) ||
+      typeof onPoll !== 'function' ||
+      !timer ||
+      typeof timer.setInterval !== 'function' ||
+      typeof timer.clearInterval !== 'function' ||
+      !Number.isSafeInteger(intervalMs) ||
+      intervalMs < 1) {
+    return () => {};
+  }
+
+  let active = true;
+  const handle = timer.setInterval(() => {
+    if (active) void onPoll();
+  }, intervalMs);
+  return () => {
+    if (!active) return;
+    active = false;
+    timer.clearInterval(handle);
+  };
+}
 
 function parseVipFailureAlertCursor(value) {
   if (!value || typeof value !== 'object' ||
@@ -38,27 +68,48 @@ export function parseVipFailureAlertSummary(value) {
   };
 }
 
-export function readVipFailureAlertCursor(storage, userId) {
-  if (!storage || typeof userId !== 'string' || !/^tg_[0-9]{1,20}$/.test(userId)) return null;
-  try {
-    const raw = storage.getItem(`${VIP_FAILURE_ALERT_CURSOR_KEY}${userId}`);
-    return raw ? parseVipFailureAlertCursor(JSON.parse(raw)) : null;
-  } catch {
-    return null;
+export function parseVipRewardNotificationQueueHealth(value) {
+  if (!value || typeof value !== 'object' ||
+      !Number.isSafeInteger(value.overduePendingCount) || value.overduePendingCount < 0 ||
+      !Number.isSafeInteger(value.expiredSendingCount) || value.expiredSendingCount < 0) {
+    throw new Error('Invalid VIP reward notification queue health');
   }
+  const hasWaitingNotices = value.overduePendingCount > 0 || value.expiredSendingCount > 0;
+  if (!hasWaitingNotices) {
+    if (value.oldestWaitingAt !== null || value.oldestWaitingSeconds !== null) {
+      throw new Error('Invalid VIP reward notification queue health');
+    }
+    return {
+      overduePendingCount: 0,
+      expiredSendingCount: 0,
+      oldestWaitingAt: null,
+      oldestWaitingSeconds: null,
+    };
+  }
+  if (typeof value.oldestWaitingAt !== 'string' ||
+      !Number.isFinite(Date.parse(value.oldestWaitingAt)) ||
+      !Number.isSafeInteger(value.oldestWaitingSeconds) ||
+      value.oldestWaitingSeconds < 0) {
+    throw new Error('Invalid VIP reward notification queue health');
+  }
+  return {
+    overduePendingCount: value.overduePendingCount,
+    expiredSendingCount: value.expiredSendingCount,
+    oldestWaitingAt: value.oldestWaitingAt,
+    oldestWaitingSeconds: value.oldestWaitingSeconds,
+  };
 }
 
-export function writeVipFailureAlertCursor(storage, userId, cursor) {
-  if (!storage || typeof userId !== 'string' || !/^tg_[0-9]{1,20}$/.test(userId)) return false;
-  try {
-    storage.setItem(
-      `${VIP_FAILURE_ALERT_CURSOR_KEY}${userId}`,
-      JSON.stringify(parseVipFailureAlertCursor(cursor)),
-    );
-    return true;
-  } catch {
-    return false;
+export function parseVipFailureAlertAcknowledgement(value, requestedEventId) {
+  const requestedCursor = parseVipFailureAlertCursor({ eventId: requestedEventId });
+  if (!value || typeof value !== 'object' || value.acknowledged !== true) {
+    throw new Error('Invalid VIP reward failure alert acknowledgement');
   }
+  const cursor = parseVipFailureAlertCursor(value.cursor);
+  if (BigInt(cursor.eventId) < BigInt(requestedCursor.eventId)) {
+    throw new Error('Invalid VIP reward failure alert acknowledgement cursor');
+  }
+  return cursor;
 }
 
 export function parseVipCampaignPage(value) {
@@ -182,6 +233,52 @@ export function parseVipFailedRewardPage(value) {
   return { claims, hasMore: value.hasMore };
 }
 
+export function parseVipRewardRetryAuditPage(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.records) ||
+      typeof value.hasMore !== 'boolean') {
+    throw new Error('Invalid VIP reward retry audit response');
+  }
+
+  const records = value.records.map((row) => {
+    if (!row || typeof row !== 'object') {
+      throw new Error('Invalid VIP reward retry audit response');
+    }
+    const {
+      id,
+      claimId,
+      adminTgId,
+      adminUsername,
+      retriedAt,
+      sourceBotKey,
+      originalBotKey,
+      deliveryOutcome,
+    } = row;
+    if (typeof id !== 'string' || !UUID_PATTERN.test(id) ||
+        typeof claimId !== 'string' || !UUID_PATTERN.test(claimId) ||
+        typeof adminTgId !== 'string' || !/^tg_[0-9]{1,20}$/.test(adminTgId) ||
+        (adminUsername !== null &&
+          (typeof adminUsername !== 'string' || !/^[A-Za-z0-9_]{1,32}$/.test(adminUsername))) ||
+        typeof retriedAt !== 'string' || !Number.isFinite(Date.parse(retriedAt)) ||
+        (sourceBotKey !== null && sourceBotKey !== 'botA' && sourceBotKey !== 'botB') ||
+        (originalBotKey !== 'botA' && originalBotKey !== 'botB') ||
+        !['pending', 'delivered', 'failed', 'delivery_uncertain'].includes(deliveryOutcome)) {
+      throw new Error('Invalid VIP reward retry audit record');
+    }
+    return {
+      id,
+      claimId,
+      adminTgId,
+      adminUsername,
+      retriedAt,
+      sourceBotKey,
+      originalBotKey,
+      deliveryOutcome,
+    };
+  });
+
+  return { records, hasMore: value.hasMore };
+}
+
 export function getVipCampaignStatus(campaign, now = Date.now()) {
   if (!campaign.isActive) return 'inactive';
   if (campaign.cutoffAt && Date.parse(campaign.cutoffAt) <= now) return 'ended';
@@ -201,9 +298,24 @@ export function VipCampaignPanel({
   failedRewardClaimsLoading = false,
   failedRewardClaimsError = '',
   retryingFailedRewardClaimId = null,
+  crossCampaignFailedRewardSearchValue = '',
+  crossCampaignFailedRewardSourceBotKey = 'all',
+  crossCampaignFailedRewardSearched = false,
+  crossCampaignFailedRewardClaims = [],
+  crossCampaignFailedRewardClaimsHasMore = false,
+  crossCampaignFailedRewardClaimsLoading = false,
+  crossCampaignFailedRewardClaimsError = '',
+  retryAuditCampaignId = null,
+  retryAuditRecords = [],
+  retryAuditHasMore = false,
+  retryAuditLoading = false,
+  retryAuditError = '',
   newFailureAlert = null,
   failureAlertLoading = false,
   failureAlertError = '',
+  queueHealth = null,
+  queueHealthLoading = false,
+  queueHealthError = '',
   copy,
   sourceAppLabels,
   windowLabels,
@@ -215,6 +327,12 @@ export function VipCampaignPanel({
   onToggleFailedRewards = () => {},
   onLoadMoreFailedRewards = () => {},
   onRetryFailedReward = () => {},
+  onCrossCampaignFailedRewardSearchChange = () => {},
+  onCrossCampaignFailedRewardSourceChange = () => {},
+  onSearchCrossCampaignFailedRewards = () => {},
+  onLoadMoreCrossCampaignFailedRewards = () => {},
+  onToggleRetryAudit = () => {},
+  onLoadMoreRetryAudit = () => {},
 }) {
   const statusCopy = {
     active: copy.active,
@@ -340,6 +458,45 @@ export function VipCampaignPanel({
     'data-testid': 'status-vip-reward-failure-alert-error',
     style: { color: '#fca5a5', fontSize: '11px' },
   }, copy.newFailureAlertLoadFailed) : null,
+  h('section', {
+    role: 'region',
+    'aria-label': copy.queueHealthTitle,
+    'data-testid': 'region-vip-reward-queue-health',
+    style: {
+      padding: '10px',
+      border: '1px solid #1d4ed8',
+      borderRadius: '7px',
+      background: '#101d30',
+      color: '#dbeafe',
+      fontSize: '12px',
+    },
+  },
+  h('strong', {}, copy.queueHealthTitle),
+  h('p', { style: { margin: '5px 0 0', color: '#bfdbfe' } }, copy.queueHealthSeparate),
+  queueHealthLoading && !queueHealth ? h('p', {
+    role: 'status',
+    'aria-live': 'polite',
+    'data-testid': 'status-vip-reward-queue-health-loading',
+    style: { margin: '7px 0 0', color: '#aaa', fontSize: '11px' },
+  }, copy.queueHealthChecking) : null,
+  queueHealthError ? h('p', {
+    role: 'status',
+    'aria-live': 'polite',
+    'data-testid': 'status-vip-reward-queue-health-error',
+    style: { margin: '7px 0 0', color: '#fca5a5', fontSize: '11px' },
+  }, copy.queueHealthLoadFailed) : null,
+  queueHealth ? h('div', {
+    'data-testid': 'status-vip-reward-queue-health-summary',
+    style: { display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '7px' },
+  },
+  h('span', {}, copy.queueHealthPending.replace('{count}', String(queueHealth.overduePendingCount))),
+  h('span', {}, copy.queueHealthExpiredSending.replace('{count}', String(queueHealth.expiredSendingCount))),
+  queueHealth.oldestWaitingAt && queueHealth.oldestWaitingSeconds !== null
+    ? h('span', {}, copy.queueHealthOldest
+      .replace('{time}', formatDate(queueHealth.oldestWaitingAt))
+      .replace('{minutes}', String(Math.floor(queueHealth.oldestWaitingSeconds / 60))))
+    : h('span', {}, copy.queueHealthEmpty)) : null,
+  ),
   loading ? h('div', {
     role: 'status',
     'aria-live': 'polite',
@@ -352,6 +509,194 @@ export function VipCampaignPanel({
   !loading && !error && campaigns.length === 0 ? h('p', {
     style: { margin: '8px 0', color: '#999', fontSize: '13px', textAlign: 'center' },
   }, copy.empty) : null,
+  h('section', {
+    role: 'region',
+    'aria-label': copy.crossCampaignFailedRewardsTitle,
+    'data-testid': 'region-cross-campaign-vip-failures',
+    style: {
+      padding: '10px',
+      border: '1px solid #555',
+      borderRadius: '9px',
+      backgroundColor: '#191919',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+    },
+  },
+  h('h3', {
+    style: { margin: 0, color: '#fff', fontSize: '13px' },
+  }, copy.crossCampaignFailedRewardsTitle),
+  h('form', {
+    'data-testid': 'form-cross-campaign-vip-reward-search',
+    onSubmit: (event) => {
+      event.preventDefault();
+      onSearchCrossCampaignFailedRewards(
+        crossCampaignFailedRewardSearchValue,
+        crossCampaignFailedRewardSourceBotKey,
+      );
+    },
+    style: { display: 'flex', flexDirection: 'column', gap: '7px' },
+  },
+  h('input', {
+    type: 'search',
+    value: crossCampaignFailedRewardSearchValue,
+    maxLength: 64,
+    placeholder: copy.crossCampaignFailedRewardsPlaceholder,
+    'aria-label': copy.crossCampaignFailedRewardsPlaceholder,
+    'data-testid': 'input-cross-campaign-vip-reward-search',
+    onChange: (event) => onCrossCampaignFailedRewardSearchChange(event.target.value),
+    style: {
+      width: '100%',
+      boxSizing: 'border-box',
+      padding: '8px',
+      border: '1px solid #555',
+      borderRadius: '6px',
+      backgroundColor: '#242424',
+      color: '#fff',
+      fontSize: '12px',
+    },
+  }),
+  h('label', {
+    style: { display: 'flex', flexDirection: 'column', gap: '4px', color: '#aaa', fontSize: '11px' },
+  },
+  copy.crossCampaignFailedRewardsSourceBot,
+  h('select', {
+    value: crossCampaignFailedRewardSourceBotKey,
+    'aria-label': copy.crossCampaignFailedRewardsSourceBot,
+    'data-testid': 'select-cross-campaign-vip-reward-source',
+    onChange: (event) => onCrossCampaignFailedRewardSourceChange(event.target.value),
+    style: {
+      padding: '7px',
+      border: '1px solid #555',
+      borderRadius: '6px',
+      backgroundColor: '#242424',
+      color: '#fff',
+      fontSize: '12px',
+    },
+  },
+  h('option', { value: 'all' }, copy.crossCampaignFailedRewardsAllSources),
+  h('option', { value: 'botA' }, sourceAppLabels.botA),
+  h('option', { value: 'botB' }, sourceAppLabels.botB),
+  )),
+  h('button', {
+    type: 'submit',
+    disabled: crossCampaignFailedRewardClaimsLoading,
+    'data-testid': 'button-search-cross-campaign-vip-rewards',
+    style: {
+      alignSelf: 'flex-start',
+      padding: '7px 10px',
+      border: '1px solid #2563eb',
+      borderRadius: '6px',
+      backgroundColor: '#1d4ed8',
+      color: '#fff',
+      fontSize: '11px',
+      cursor: crossCampaignFailedRewardClaimsLoading ? 'wait' : 'pointer',
+    },
+  }, copy.crossCampaignFailedRewardsSearch)),
+  !crossCampaignFailedRewardSearched ? h('p', {
+    style: { margin: 0, color: '#aaa', fontSize: '11px' },
+  }, copy.crossCampaignFailedRewardsInitialHint) : null,
+  crossCampaignFailedRewardClaimsLoading ? h('p', {
+    role: 'status',
+    'aria-live': 'polite',
+    'data-testid': 'status-cross-campaign-vip-failures-loading',
+    style: { margin: 0, color: '#aaa', fontSize: '11px' },
+  }, copy.failedRewardsLoading) : null,
+  crossCampaignFailedRewardClaimsError ? h('p', {
+    role: 'alert',
+    'data-testid': 'status-cross-campaign-vip-failures-error',
+    style: { margin: 0, color: '#fca5a5', fontSize: '11px' },
+  }, crossCampaignFailedRewardClaimsError || copy.failedRewardsLoadFailed) : null,
+  crossCampaignFailedRewardSearched &&
+  !crossCampaignFailedRewardClaimsLoading &&
+  !crossCampaignFailedRewardClaimsError &&
+  crossCampaignFailedRewardClaims.length === 0 ? h('p', {
+    'data-testid': 'text-cross-campaign-vip-failures-empty',
+    style: { margin: 0, color: '#aaa', fontSize: '11px' },
+  }, copy.failedRewardsEmpty) : null,
+  ...crossCampaignFailedRewardClaims.map((claim) => {
+    const recipient = claim.recipientUsername
+      ? `@${claim.recipientUsername}`
+      : claim.recipientId.replace(/^tg_/, '');
+    const sourceApp = claim.sourceBotKey
+      ? sourceAppLabels[claim.sourceBotKey]
+      : copy.legacySourceApp;
+    const campaignDetails = copy.crossCampaignFailedRewardsDetails
+      .replace('{campaign}', claim.campaignId.slice(0, 8))
+      .replace('{source}', sourceApp)
+      .replace('{bot}', sourceAppLabels[claim.botKey]);
+    const retrying = retryingFailedRewardClaimId === claim.id;
+    return h('article', {
+      key: claim.id,
+      'data-testid': `item-cross-campaign-vip-failure-${claim.id}`,
+      style: {
+        padding: '8px',
+        border: '1px solid #383838',
+        borderRadius: '7px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
+      },
+    },
+    h('p', { style: { margin: 0, color: '#ddd', fontSize: '11px' } },
+      copy.failedRewardClaim.replace('{id}', claim.id.slice(0, 8))),
+    h('p', { style: { margin: 0, color: '#ddd', fontSize: '11px' } },
+      copy.failedRewardRecipient.replace('{recipient}', recipient)),
+    h('p', { style: { margin: 0, color: '#aaa', fontSize: '11px' } }, campaignDetails),
+    h('p', { style: { margin: 0, color: '#aaa', fontSize: '11px' } },
+      copy.failedRewardDetails
+        .replace('{days}', String(claim.daysGranted))
+        .replace('{attempts}', String(claim.attempts))
+        .replace('{retries}', String(claim.manualRetryCount))),
+    claim.deliveryStatus === 'delivery_uncertain' ? h('p', {
+      role: 'alert',
+      style: { margin: 0, color: '#fcd34d', fontSize: '11px' },
+    }, copy.failedRewardDeliveryUncertain) : null,
+    claim.lastAttemptAt ? h('p', { style: { margin: 0, color: '#aaa', fontSize: '11px' } },
+      copy.failedRewardLastAttempt.replace('{time}', formatDate(claim.lastAttemptAt))) : null,
+    claim.manualRetryCount >= 3
+      ? h('p', { style: { margin: 0, color: '#fca5a5', fontSize: '11px' } }, copy.failedRewardRetryLimit)
+      : h('button', {
+        type: 'button',
+        onClick: () => {
+          if (claim.deliveryStatus === 'delivery_uncertain' &&
+              (typeof window === 'undefined' ||
+                !window.confirm(copy.failedRewardDeliveryUncertainConfirm))) return;
+          onRetryFailedReward(claim.id);
+        },
+        disabled: retrying || retryingFailedRewardClaimId !== null,
+        'aria-label': retrying ? copy.failedRewardRetrying : copy.failedRewardRetry,
+        'data-testid': `button-retry-cross-campaign-vip-failure-${claim.id}`,
+        style: {
+          alignSelf: 'flex-start',
+          padding: '6px 9px',
+          border: '1px solid #2563eb',
+          borderRadius: '6px',
+          backgroundColor: '#1d4ed8',
+          color: '#fff',
+          fontSize: '11px',
+          cursor: retrying || retryingFailedRewardClaimId !== null ? 'wait' : 'pointer',
+        },
+      }, retrying ? copy.failedRewardRetrying : copy.failedRewardRetry),
+    );
+  }),
+  crossCampaignFailedRewardClaimsHasMore ? h('button', {
+    type: 'button',
+    onClick: onLoadMoreCrossCampaignFailedRewards,
+    disabled: crossCampaignFailedRewardClaimsLoading,
+    'data-testid': 'button-load-more-cross-campaign-vip-failures',
+    style: {
+      alignSelf: 'flex-start',
+      padding: '6px 9px',
+      border: '1px solid #555',
+      borderRadius: '6px',
+      backgroundColor: '#2a2a2a',
+      color: '#fff',
+      fontSize: '11px',
+      cursor: crossCampaignFailedRewardClaimsLoading ? 'wait' : 'pointer',
+    },
+  }, copy.failedRewardLoadMore) : null,
+  ),
   campaigns.map((campaign) => {
     const status = getVipCampaignStatus(campaign);
     const statusColor = status === 'active' ? '#86efac' : status === 'ended' ? '#fcd34d' : '#aaa';
@@ -367,9 +712,11 @@ export function VipCampaignPanel({
       : copy.noCutoff;
     const stopping = stoppingCampaignId === campaign.id;
     const failedRewardsExpanded = failedRewardCampaignId === campaign.id;
+    const retryAuditExpanded = retryAuditCampaignId === campaign.id;
     const campaignFailedClaims = failedRewardsExpanded
       ? failedRewardClaims.filter((claim) => claim.campaignId === campaign.id)
       : [];
+    const campaignRetryAudit = retryAuditExpanded ? retryAuditRecords : [];
 
     return h('article', {
       key: campaign.id,
@@ -514,6 +861,105 @@ export function VipCampaignPanel({
         cursor: failedRewardClaimsLoading ? 'wait' : 'pointer',
       },
     }, copy.failedRewardLoadMore) : null,
+    ) : null,
+    h('button', {
+      type: 'button',
+      onClick: () => onToggleRetryAudit(campaign.id),
+      'aria-expanded': retryAuditExpanded,
+      'aria-controls': `vip-retry-audit-${campaign.id}`,
+      'data-testid': `button-toggle-vip-retry-audit-${campaign.id}`,
+      style: {
+        alignSelf: 'flex-start',
+        padding: '6px 9px',
+        border: '1px solid #555',
+        borderRadius: '6px',
+        backgroundColor: '#2a2a2a',
+        color: '#fff',
+        fontSize: '11px',
+        cursor: 'pointer',
+      },
+    }, copy.retryAuditToggle),
+    retryAuditExpanded ? h('div', {
+      id: `vip-retry-audit-${campaign.id}`,
+      role: 'region',
+      'aria-label': copy.retryAuditTitle,
+      'data-testid': `region-vip-retry-audit-${campaign.id}`,
+      style: {
+        padding: '8px',
+        border: '1px solid #444',
+        borderRadius: '7px',
+        backgroundColor: '#191919',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '7px',
+      },
+    },
+    retryAuditLoading ? h('p', {
+      role: 'status',
+      'aria-live': 'polite',
+      'data-testid': `status-vip-retry-audit-loading-${campaign.id}`,
+      style: { margin: 0, color: '#aaa', fontSize: '11px' },
+    }, copy.retryAuditLoading) : null,
+    retryAuditError ? h('p', {
+      role: 'alert',
+      'data-testid': `status-vip-retry-audit-error-${campaign.id}`,
+      style: { margin: 0, color: '#fca5a5', fontSize: '11px' },
+    }, retryAuditError || copy.retryAuditLoadFailed) : null,
+    !retryAuditLoading && !retryAuditError && campaignRetryAudit.length === 0
+      ? h('p', {
+        'data-testid': `text-vip-retry-audit-empty-${campaign.id}`,
+        style: { margin: 0, color: '#aaa', fontSize: '11px' },
+      }, copy.retryAuditEmpty)
+      : null,
+    ...campaignRetryAudit.map((record) => {
+      const outcomeCopy = {
+        pending: copy.retryAuditPending,
+        delivered: copy.retryAuditDelivered,
+        failed: copy.retryAuditFailed,
+        delivery_uncertain: copy.retryAuditUncertain,
+      }[record.deliveryOutcome];
+      const admin = record.adminUsername
+        ? `@${record.adminUsername}`
+        : record.adminTgId;
+      const sourceApp = record.sourceBotKey
+        ? sourceAppLabels[record.sourceBotKey]
+        : copy.legacySourceApp;
+      return h('p', {
+        key: record.id,
+        'data-testid': `text-vip-retry-audit-record-${record.id}`,
+        style: {
+          margin: 0,
+          padding: '6px',
+          border: '1px solid #333',
+          borderRadius: '5px',
+          color: '#ddd',
+          fontSize: '11px',
+          overflowWrap: 'anywhere',
+        },
+      }, copy.retryAuditEntry
+        .replace('{admin}', admin)
+        .replace('{time}', formatDate(record.retriedAt))
+        .replace('{claim}', record.claimId)
+        .replace('{source}', sourceApp)
+        .replace('{bot}', sourceAppLabels[record.originalBotKey])
+        .replace('{outcome}', outcomeCopy));
+    }),
+    retryAuditHasMore ? h('button', {
+      type: 'button',
+      onClick: () => onLoadMoreRetryAudit(campaign.id),
+      disabled: retryAuditLoading,
+      'data-testid': `button-load-more-vip-retry-audit-${campaign.id}`,
+      style: {
+        alignSelf: 'flex-start',
+        padding: '6px 9px',
+        border: '1px solid #555',
+        borderRadius: '6px',
+        backgroundColor: '#2a2a2a',
+        color: '#fff',
+        fontSize: '11px',
+        cursor: retryAuditLoading ? 'wait' : 'pointer',
+      },
+    }, copy.retryAuditLoadMore) : null,
     ) : null,
     h('p', { style: { margin: 0, color: '#ddd', fontSize: '12px' } }, duration),
     windowLabel ? h('p', { style: { margin: 0, color: '#aaa', fontSize: '11px' } }, copy.window.replace('{window}', windowLabel)) : null,

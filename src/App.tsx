@@ -5,22 +5,32 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import {
+  parseVipFailureAlertAcknowledgement,
   parseVipFailureAlertSummary,
   parseVipFailedRewardPage,
   parseVipCampaignPage,
-  readVipFailureAlertCursor,
+  parseVipRewardNotificationQueueHealth,
+  parseVipRewardRetryAuditPage,
+  startVipFailureAlertPolling,
   VipCampaignPanel,
-  writeVipFailureAlertCursor,
 } from './components/vip-campaign-panel';
-import { RafflePaymentReviewPanel } from './components/RafflePaymentReviewPanel';
+import { PaymentReviewPanel } from './components/PaymentReviewPanel';
 import type {
-  RafflePaymentIntent,
+  PassPaymentLookup,
+  PassPaymentSearchBy,
+  PaymentRecord,
+  PaymentReviewCopy,
+} from './components/PaymentReviewPanel';
+import type {
   RafflePaymentReviewCopy,
+  RafflePaymentReviewIntent,
 } from './components/RafflePaymentReviewPanel';
 import type {
   VipCampaign,
   VipFailedRewardClaim,
   VipFailureAlertSummary,
+  VipRewardNotificationQueueHealth,
+  VipRewardRetryAudit,
 } from './components/vip-campaign-panel';
 import {
   DEFAULT_HOW_MANY_FILTER,
@@ -36,8 +46,10 @@ import {
   ACCESS_RECHECK_INTERVAL_MS,
   PENDING_ACCESS_RECHECK_STORAGE_KEY,
   canRetryPendingPaymentCheck,
+  checkPendingAccessProfile,
   clearPendingAccessRecheck as clearPendingAccessRecheckStorage,
   createPendingAccessRecheck,
+  getAccessRecheckRetryDelayMs,
   getMinimumFilterSubscriptionExpiry,
   getMinimumPaidEntitlementExpiry,
   getPaidEntitlementOutcome,
@@ -49,6 +61,7 @@ import {
   isPendingAccessConfirmed,
   isPaidEntitlementConfirmed,
   loadPendingAccessRecheck,
+  selectMostRecentPendingAccessRecheck,
   savePendingAccessRecheck,
   shouldContinueAccessRechecks,
   shouldNotifyFilterAccessEnded,
@@ -58,6 +71,8 @@ import {
 import { filterProfilesByMatchVisibility } from './utils/filter-visibility';
 import {
   FILTER_CYCLE_OPTIONS,
+  getEffectiveGenderFilterValues,
+  isHkmoDateMenOnlyFilterLocked,
   matchesGenderFilter,
   matchesPlaystyleFilter,
   nextFilterCycleValue,
@@ -66,8 +81,15 @@ import {
 } from './utils/preference-filters';
 import { isInvisibilityExpired, resolveGridVisibility, resolveMapVisibility } from './utils/invisibility-expiry';
 import {
-  getFlyingMessageFulfillmentMessage,
+  createFlyingMessageNotice,
+  getFlyingMessageNoticeAfterDismissal,
+  getFlyingMessageNoticeAfterMessage,
+  getFlyingMessageDraftAfterOutcome,
+  getFlyingMessagePurchaseResolution,
   getRafflePurchaseOutcome,
+  shouldAutoDismissFlyingMessageNotice,
+  shouldPersistFlyingMessageOutcome,
+  type FlyingMessageNoticeState,
   type RafflePurchaseOutcome,
 } from './utils/purchase-fulfillment.js';
 import {
@@ -89,8 +111,18 @@ import {
   GridFilterModule,
   NearbyGridModule,
   ProfileCompletionModule,
+  ProfileSetupPreviewModule,
   StarMenuRaffleModule,
 } from './modules';
+import {
+  buildProfileHeightOptions,
+  buildProfileWeightOptions,
+  PROFILE_HOW_MANY_CYCLE_OPTIONS,
+  PROFILE_PLAYSTYLE_CYCLE_OPTIONS,
+  PROFILE_ROLE_CYCLE_OPTIONS,
+  PROFILE_SAFETY_CYCLE_OPTIONS,
+  PROFILE_WHERE_CYCLE_OPTIONS,
+} from './modules/profile-completion/profile-completion-options.js';
 
 const reportFilterRenewalConfirmed = createFilterRenewalConfirmationReporter();
 
@@ -116,13 +148,14 @@ const FILTER_UI_COPY: Record<LangKey, {
   renewingAccess: string;
   accessEnded: string;
   accessRestored: string;
+  hkmoMenOnly: string;
 }> = {
-  en: { hideNonMatching: 'Hide non-matching users', accessRequired: 'VIP or an active filter subscription is required to use filters.', renewAccess: 'Get filter access', renewFromNotice: 'Renew filter access', renewEarly: 'Extend filter access', renewalPending: 'Confirming renewal…', filterSubscriptionExpires: 'Filter subscription expires:', renewingAccess: 'Opening payment…', accessEnded: 'Your VIP or filter access ended. Saved filter settings were cleared and defaults restored.', accessRestored: 'Your VIP or filter access is active again. Premium filters are available.' },
-  'zh-CN': { hideNonMatching: '隐藏不匹配的用户', accessRequired: '使用筛选需要 VIP 或有效筛选订阅。', renewAccess: '获取筛选权限', renewFromNotice: '续订筛选权限', renewEarly: '提前延长筛选权限', renewalPending: '正在确认续订…', filterSubscriptionExpires: '筛选订阅到期时间：', renewingAccess: '正在打开付款…', accessEnded: '您的 VIP 或筛选权限已结束。已清除保存的筛选设置并恢复默认值。', accessRestored: '您的 VIP 或筛选权限已恢复，现在可以使用高级筛选。' },
-  'zh-TW': { hideNonMatching: '隱藏不符合條件的用戶', accessRequired: '使用篩選需要 VIP 或有效篩選訂閱。', renewAccess: '取得篩選權限', renewFromNotice: '續訂篩選權限', renewEarly: '提前延長篩選權限', renewalPending: '正在確認續訂…', filterSubscriptionExpires: '篩選訂閱到期時間：', renewingAccess: '正在開啟付款…', accessEnded: '您的 VIP 或篩選權限已結束。已清除已儲存的篩選設定並恢復預設值。', accessRestored: '您的 VIP 或篩選權限已恢復，現在可以使用進階篩選。' },
-  ja: { hideNonMatching: '条件に合わないユーザーを非表示', accessRequired: 'フィルターを使うにはVIPまたは有効な購読が必要です。', renewAccess: 'フィルターを利用する', renewFromNotice: 'フィルター利用を更新', renewEarly: 'フィルター利用期間を延長', renewalPending: '更新を確認中…', filterSubscriptionExpires: 'フィルター利用期限:', renewingAccess: '決済を開いています…', accessEnded: 'VIPまたはフィルター利用権が終了しました。保存済みの設定を削除し、初期設定に戻しました。', accessRestored: 'VIPまたはフィルター利用権が復元されました。プレミアムフィルターを利用できます。' },
-  ko: { hideNonMatching: '조건에 맞지 않는 사용자 숨기기', accessRequired: '필터를 사용하려면 VIP 또는 활성 필터 구독이 필요합니다.', renewAccess: '필터 이용권 받기', renewFromNotice: '필터 이용권 갱신', renewEarly: '필터 이용 기간 연장', renewalPending: '갱신 확인 중…', filterSubscriptionExpires: '필터 구독 만료:', renewingAccess: '결제 창을 여는 중…', accessEnded: 'VIP 또는 필터 이용 권한이 종료되었습니다. 저장된 필터 설정을 지우고 기본값으로 복원했습니다.', accessRestored: 'VIP 또는 필터 이용 권한이 복원되었습니다. 프리미엄 필터를 사용할 수 있습니다.' },
-  ru: { hideNonMatching: 'Скрывать неподходящих пользователей', accessRequired: 'Для фильтров нужен VIP или активная подписка.', renewAccess: 'Получить доступ к фильтрам', renewFromNotice: 'Продлить доступ к фильтрам', renewEarly: 'Продлить доступ заранее', renewalPending: 'Подтверждаем продление…', filterSubscriptionExpires: 'Подписка действует до:', renewingAccess: 'Открываем оплату…', accessEnded: 'Доступ VIP или к фильтрам завершён. Сохранённые настройки фильтров удалены, восстановлены значения по умолчанию.', accessRestored: 'Доступ VIP или к фильтрам восстановлен. Премиум-фильтры снова доступны.' },
+  en: { hideNonMatching: 'Hide non-matching users', accessRequired: 'VIP or an active filter subscription is required to use filters.', renewAccess: 'Get filter access', renewFromNotice: 'Renew filter access', renewEarly: 'Extend filter access', renewalPending: 'Confirming renewal…', filterSubscriptionExpires: 'Filter subscription expires:', renewingAccess: 'Opening payment…', accessEnded: 'Your VIP or filter access ended. Saved filter settings were cleared and defaults restored.', accessRestored: 'Your VIP or filter access is active again. Premium filters are available.', hkmoMenOnly: 'HKMO Date search is locked to men for non-VIP users.' },
+  'zh-CN': { hideNonMatching: '隐藏不匹配的用户', accessRequired: '使用筛选需要 VIP 或有效筛选订阅。', renewAccess: '获取筛选权限', renewFromNotice: '续订筛选权限', renewEarly: '提前延长筛选权限', renewalPending: '正在确认续订…', filterSubscriptionExpires: '筛选订阅到期时间：', renewingAccess: '正在打开付款…', accessEnded: '您的 VIP 或筛选权限已结束。已清除保存的筛选设置并恢复默认值。', accessRestored: '您的 VIP 或筛选权限已恢复，现在可以使用高级筛选。', hkmoMenOnly: 'HKMO Date 非 VIP 用户仅可筛选男性。' },
+  'zh-TW': { hideNonMatching: '隱藏不符合條件的用戶', accessRequired: '使用篩選需要 VIP 或有效篩選訂閱。', renewAccess: '取得篩選權限', renewFromNotice: '續訂篩選權限', renewEarly: '提前延長篩選權限', renewalPending: '正在確認續訂…', filterSubscriptionExpires: '篩選訂閱到期時間：', renewingAccess: '正在開啟付款…', accessEnded: '您的 VIP 或篩選權限已結束。已清除已儲存的篩選設定並恢復預設值。', accessRestored: '您的 VIP 或篩選權限已恢復，現在可以使用進階篩選。', hkmoMenOnly: 'HKMO Date 非 VIP 用戶僅可篩選男性。' },
+  ja: { hideNonMatching: '条件に合わないユーザーを非表示', accessRequired: 'フィルターを使うにはVIPまたは有効な購読が必要です。', renewAccess: 'フィルターを利用する', renewFromNotice: 'フィルター利用を更新', renewEarly: 'フィルター利用期間を延長', renewalPending: '更新を確認中…', filterSubscriptionExpires: 'フィルター利用期限:', renewingAccess: '決済を開いています…', accessEnded: 'VIPまたはフィルター利用権が終了しました。保存済みの設定を削除し、初期設定に戻しました。', accessRestored: 'VIPまたはフィルター利用権が復元されました。プレミアムフィルターを利用できます。', hkmoMenOnly: 'HKMO DateではVIP以外のユーザーは男性のみ検索できます。' },
+  ko: { hideNonMatching: '조건에 맞지 않는 사용자 숨기기', accessRequired: '필터를 사용하려면 VIP 또는 활성 필터 구독이 필요합니다.', renewAccess: '필터 이용권 받기', renewFromNotice: '필터 이용권 갱신', renewEarly: '필터 이용 기간 연장', renewalPending: '갱신 확인 중…', filterSubscriptionExpires: '필터 구독 만료:', renewingAccess: '결제 창을 여는 중…', accessEnded: 'VIP 또는 필터 이용 권한이 종료되었습니다. 저장된 필터 설정을 지우고 기본값으로 복원했습니다.', accessRestored: 'VIP 또는 필터 이용 권한이 복원되었습니다. 프리미엄 필터를 사용할 수 있습니다.', hkmoMenOnly: 'HKMO Date에서는 VIP가 아닌 사용자는 남성만 검색할 수 있습니다.' },
+  ru: { hideNonMatching: 'Скрывать неподходящих пользователей', accessRequired: 'Для фильтров нужен VIP или активная подписка.', renewAccess: 'Получить доступ к фильтрам', renewFromNotice: 'Продлить доступ к фильтрам', renewEarly: 'Продлить доступ заранее', renewalPending: 'Подтверждаем продление…', filterSubscriptionExpires: 'Подписка действует до:', renewingAccess: 'Открываем оплату…', accessEnded: 'Доступ VIP или к фильтрам завершён. Сохранённые настройки фильтров удалены, восстановлены значения по умолчанию.', accessRestored: 'Доступ VIP или к фильтрам восстановлен. Премиум-фильтры снова доступны.', hkmoMenOnly: 'В HKMO Date пользователи без VIP могут искать только мужчин.' },
 };
 const PAYMENT_RECHECK_COPY: Record<LangKey, {
   checking: string;
@@ -314,6 +347,7 @@ const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
 const WORKER_REQUEST_TIMEOUT_MS = 12_000;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
+type FilterRenewalLocation = 'filter_expiry_notice' | 'filter_access_prompt' | 'filter_option' | 'active_filter_subscription';
 
 type ScreenHelpSection = { title: string; description: string };
 type ScreenHelpCopy = {
@@ -509,9 +543,6 @@ function ScreenHelpOverlay({
   );
 }
 
-
-type FilterRenewalLocation = 'filter_expiry_notice' | 'filter_access_prompt' | 'filter_option' | 'active_filter_subscription';
-
 const NO_DISCOVERY_MODULES_COPY: Record<LangKey, string> = {
   en: 'No Grid & Filter or Map module is enabled for this app.',
   'zh-CN': '此应用未启用“网格与筛选”或“地图”模块。',
@@ -531,6 +562,9 @@ type FlyingMessageCopy = {
   cooldown: string;
   invoiceFallback: string;
   paymentProcessing: string;
+  paymentRefunded: string;
+  paymentRejected: string;
+  dismiss: string;
 };
 
 type FlyingMessage = {
@@ -544,6 +578,7 @@ type FlyingMessage = {
 
 type RafflePrizeKey = 'vip' | 'filter' | 'invisible' | 'hide_age';
 type RafflePurchaseTerminalOutcome = Exclude<RafflePurchaseOutcome, 'pending' | 'unsupported'>;
+type FlyingMessageTerminalOutcome = 'cancelled' | 'refunded' | 'rejected';
 
 type RaffleWinner = {
   prizeKey: RafflePrizeKey;
@@ -748,178 +783,687 @@ const raffleUiCopy: Record<LangKey, {
   },
 };
 
-const rafflePaymentReviewCopy: Record<LangKey, RafflePaymentReviewCopy> = {
+const paymentReviewCopy: Record<LangKey, PaymentReviewCopy> = {
   en: {
-    title: 'Raffle payment review',
-    privacy: 'Admin-only. Telegram payment charge IDs are not displayed.',
-    searchPlaceholder: 'Ticket reference or Telegram user ID',
+    title: 'Payment review',
+    privacy: 'Admin-only. Charge IDs are never returned in lookup results.',
+    searchPlaceholder: 'Payment reference or Telegram user ID',
     search: 'Search',
     refresh: 'Refresh',
-    loading: 'Loading raffle payments…',
-    loadError: 'Could not load raffle payment records. Try again.',
-    empty: 'No raffle ticket intents found.',
+    loading: 'Loading payments…',
+    loadError: 'Could not load payment records. Try again.',
+    empty: 'No payment records found.',
     loadMore: 'Load more',
     close: 'Close',
-    reference: 'Ticket reference',
+    reference: 'Payment reference',
     telegramId: 'Telegram ID',
-    app: 'App',
+    type: 'Type',
+    amount: 'Amount',
     status: 'Status',
-    updated: 'Updated',
-    fulfilled: 'Ticket issued',
+    date: 'Date / time',
+    passLookupTitle: 'Check pass access',
+    passLookupHint: 'Search by Telegram account or charge ID. Charge IDs are used only to match receipts and are not included in results.',
+    passLookupPlaceholder: 'Enter a Telegram ID or payment charge ID',
+    passLookupByTelegram: 'Telegram ID',
+    passLookupByCharge: 'Payment charge ID',
+    passLookupProfileMissing: 'No profile found for this search.',
+    passLookupReceipts: 'Hide Age / Invisibility receipts',
+    passLookupNoReceipts: 'No matching pass receipts.',
+    passLookupHideAge: 'Hide Age',
+    passLookupInvisibility: 'Invisibility',
+    passLookupEnabled: 'Enabled',
+    passLookupDisabled: 'Disabled',
+    passLookupActive: 'Active',
+    passLookupInactive: 'Inactive',
+    passLookupGridVisible: 'Grid visible',
+    passLookupGridHidden: 'Grid hidden',
+    passLookupExpires: 'Expires',
+    passLookupNoExpiry: 'No expiry recorded',
+    passLookupMoreReceipts: 'Showing the latest 25 receipts.',
+    paid: 'Paid',
+    fulfilled: 'Completed',
     refunded: 'Refunded',
     rejected: 'Rejected',
     pending: 'Pending',
     prechecked: 'Checking',
     cancelled: 'Cancelled',
+    failed: 'Failed',
+    typeLabels: {
+      hide_age: 'Hide Age',
+      invisible: 'Invisible',
+      edit_profile: 'Edit Profile Pass',
+      change_filter: 'Filter Subscription',
+      change_preference: 'Preference Change',
+      raffle_ticket: 'Raffle Ticket',
+      flying_message: 'Flying Message',
+    },
   },
   'zh-CN': {
-    title: '抽奖付款记录',
-    privacy: '仅管理员可见。不显示 Telegram 付款交易编号。',
-    searchPlaceholder: '抽奖券参考号或 Telegram 用户 ID',
+    title: '付款记录审核',
+    privacy: '仅管理员可查看。查询结果不会返回付款交易编号。',
+    searchPlaceholder: '付款参考号或 Telegram 用户 ID',
     search: '搜索',
     refresh: '刷新',
-    loading: '正在加载抽奖付款记录…',
-    loadError: '无法加载抽奖付款记录，请重试。',
-    empty: '未找到抽奖券记录。',
+    loading: '正在加载付款记录…',
+    loadError: '无法加载付款记录，请重试。',
+    empty: '未找到付款记录。',
     loadMore: '加载更多',
     close: '关闭',
-    reference: '抽奖券参考号',
+    reference: '付款参考号',
     telegramId: 'Telegram 用户 ID',
-    app: '应用',
+    type: '类型',
+    amount: '金额',
     status: '状态',
-    updated: '更新时间',
-    fulfilled: '已发券',
+    date: '日期 / 时间',
+    passLookupTitle: '检查通行证权限',
+    passLookupHint: '可按 Telegram 账号或付款交易编号搜索。交易编号仅用于比对，不会包含在结果中。',
+    passLookupPlaceholder: '输入 Telegram 用户 ID 或付款交易编号',
+    passLookupByTelegram: 'Telegram 用户 ID',
+    passLookupByCharge: '付款交易编号',
+    passLookupProfileMissing: '未找到对应的个人资料。',
+    passLookupReceipts: '隐藏年龄 / 隐身付款记录',
+    passLookupNoReceipts: '未找到相符的通行证付款记录。',
+    passLookupHideAge: '隐藏年龄',
+    passLookupInvisibility: '隐身模式',
+    passLookupEnabled: '已启用',
+    passLookupDisabled: '已停用',
+    passLookupActive: '有效',
+    passLookupInactive: '已失效',
+    passLookupGridVisible: '网格可见',
+    passLookupGridHidden: '网格隐藏',
+    passLookupExpires: '到期时间',
+    passLookupNoExpiry: '没有到期记录',
+    passLookupMoreReceipts: '仅显示最近 25 条记录。',
+    paid: '已付款',
+    fulfilled: '已完成',
     refunded: '已退款',
     rejected: '已拒绝',
     pending: '待处理',
     prechecked: '检查中',
     cancelled: '已取消',
+    failed: '失败',
+    typeLabels: {
+      hide_age: '隐藏年龄',
+      invisible: '隐身模式',
+      edit_profile: '编辑个人资料通行证',
+      change_filter: '筛选订阅',
+      change_preference: '更改偏好',
+      raffle_ticket: '抽奖券',
+      flying_message: '飞行消息',
+    },
   },
   'zh-TW': {
-    title: '抽獎付款紀錄',
-    privacy: '僅管理員可見。不顯示 Telegram 付款交易編號。',
-    searchPlaceholder: '抽獎券參考號或 Telegram 使用者 ID',
+    title: '付款紀錄審核',
+    privacy: '僅管理員可查看。查詢結果不會傳回付款交易編號。',
+    searchPlaceholder: '付款參考號或 Telegram 使用者 ID',
     search: '搜尋',
     refresh: '重新整理',
-    loading: '正在載入抽獎付款紀錄…',
-    loadError: '無法載入抽獎付款紀錄，請重試。',
-    empty: '找不到抽獎券紀錄。',
+    loading: '正在載入付款紀錄…',
+    loadError: '無法載入付款紀錄，請重試。',
+    empty: '找不到付款紀錄。',
     loadMore: '載入更多',
     close: '關閉',
-    reference: '抽獎券參考號',
+    reference: '付款參考號',
     telegramId: 'Telegram 使用者 ID',
-    app: '應用程式',
+    type: '類型',
+    amount: '金額',
     status: '狀態',
-    updated: '更新時間',
-    fulfilled: '已發券',
+    date: '日期 / 時間',
+    passLookupTitle: '檢查通行證權限',
+    passLookupHint: '可按 Telegram 帳號或付款交易編號搜尋。交易編號只用於比對，不會包含在結果中。',
+    passLookupPlaceholder: '輸入 Telegram 使用者 ID 或付款交易編號',
+    passLookupByTelegram: 'Telegram 使用者 ID',
+    passLookupByCharge: '付款交易編號',
+    passLookupProfileMissing: '找不到相符的個人資料。',
+    passLookupReceipts: '隱藏年齡 / 隱身付款紀錄',
+    passLookupNoReceipts: '找不到相符的通行證付款紀錄。',
+    passLookupHideAge: '隱藏年齡',
+    passLookupInvisibility: '隱身模式',
+    passLookupEnabled: '已啟用',
+    passLookupDisabled: '已停用',
+    passLookupActive: '有效',
+    passLookupInactive: '已失效',
+    passLookupGridVisible: '網格可見',
+    passLookupGridHidden: '網格已隱藏',
+    passLookupExpires: '到期時間',
+    passLookupNoExpiry: '沒有到期紀錄',
+    passLookupMoreReceipts: '只顯示最近 25 筆紀錄。',
+    paid: '已付款',
+    fulfilled: '已完成',
     refunded: '已退款',
     rejected: '已拒絕',
     pending: '待處理',
     prechecked: '檢查中',
     cancelled: '已取消',
+    failed: '失敗',
+    typeLabels: {
+      hide_age: '隱藏年齡',
+      invisible: '隱身模式',
+      edit_profile: '編輯個人資料通行證',
+      change_filter: '篩選訂閱',
+      change_preference: '更改偏好',
+      raffle_ticket: '抽獎券',
+      flying_message: '飛行訊息',
+    },
   },
   ja: {
-    title: '抽選決済の確認',
-    privacy: '管理者のみ表示できます。Telegramの決済取引IDは表示されません。',
-    searchPlaceholder: 'チケット参照番号またはTelegramユーザーID',
+    title: '決済の確認',
+    privacy: '管理者のみ利用できます。決済チャージ ID は検索結果に返しません。',
+    searchPlaceholder: '決済参照番号またはTelegramユーザーID',
     search: '検索',
     refresh: '更新',
-    loading: '抽選決済を読み込み中…',
-    loadError: '抽選決済を読み込めませんでした。もう一度お試しください。',
-    empty: '抽選チケットの記録がありません。',
+    loading: '決済記録を読み込み中…',
+    loadError: '決済記録を読み込めませんでした。もう一度お試しください。',
+    empty: '決済記録がありません。',
     loadMore: 'さらに表示',
     close: '閉じる',
-    reference: 'チケット参照番号',
+    reference: '決済参照番号',
     telegramId: 'Telegram ID',
-    app: 'アプリ',
+    type: '種類',
+    amount: '金額',
     status: '状態',
-    updated: '更新日時',
-    fulfilled: 'チケット発行済み',
+    date: '日時',
+    passLookupTitle: 'パスのアクセスを確認',
+    passLookupHint: 'Telegram アカウントまたは決済チャージ ID で検索できます。チャージ ID は照合のみに使用し、結果には含めません。',
+    passLookupPlaceholder: 'Telegram ID または決済チャージ ID を入力',
+    passLookupByTelegram: 'Telegram ID',
+    passLookupByCharge: '決済チャージ ID',
+    passLookupProfileMissing: '該当するプロフィールが見つかりません。',
+    passLookupReceipts: '年齢非表示 / 非表示モードの決済記録',
+    passLookupNoReceipts: '該当するパスの決済記録はありません。',
+    passLookupHideAge: '年齢非表示',
+    passLookupInvisibility: '非表示モード',
+    passLookupEnabled: '有効',
+    passLookupDisabled: '無効',
+    passLookupActive: '利用中',
+    passLookupInactive: '期限切れ',
+    passLookupGridVisible: 'グリッドに表示',
+    passLookupGridHidden: 'グリッドに非表示',
+    passLookupExpires: '有効期限',
+    passLookupNoExpiry: '期限の記録なし',
+    passLookupMoreReceipts: '最新 25 件のみ表示しています。',
+    paid: '支払い済み',
+    fulfilled: '完了',
     refunded: '返金済み',
     rejected: '拒否',
     pending: '保留中',
     prechecked: '確認中',
     cancelled: 'キャンセル済み',
+    failed: '失敗',
+    typeLabels: {
+      hide_age: '年齢を非表示',
+      invisible: '非表示モード',
+      edit_profile: 'プロフィール編集パス',
+      change_filter: 'フィルター購読',
+      change_preference: '設定変更',
+      raffle_ticket: '抽選チケット',
+      flying_message: 'フライングメッセージ',
+    },
   },
   ko: {
-    title: '추첨 결제 검토',
-    privacy: '관리자만 볼 수 있습니다. Telegram 결제 거래 ID는 표시하지 않습니다.',
-    searchPlaceholder: '티켓 참조 번호 또는 Telegram 사용자 ID',
+    title: '결제 검토',
+    privacy: '관리자만 사용할 수 있습니다. 결제 거래 ID는 검색 결과에 반환되지 않습니다.',
+    searchPlaceholder: '결제 참조 번호 또는 Telegram 사용자 ID',
     search: '검색',
     refresh: '새로고침',
-    loading: '추첨 결제 내역을 불러오는 중…',
-    loadError: '추첨 결제 내역을 불러오지 못했습니다. 다시 시도하세요.',
-    empty: '추첨 티켓 내역이 없습니다.',
+    loading: '결제 내역을 불러오는 중…',
+    loadError: '결제 내역을 불러오지 못했습니다. 다시 시도하세요.',
+    empty: '결제 내역이 없습니다.',
     loadMore: '더 불러오기',
     close: '닫기',
-    reference: '티켓 참조 번호',
+    reference: '결제 참조 번호',
     telegramId: 'Telegram ID',
-    app: '앱',
+    type: '유형',
+    amount: '금액',
     status: '상태',
-    updated: '업데이트',
-    fulfilled: '티켓 발급됨',
+    date: '날짜 / 시간',
+    passLookupTitle: '패스 이용 권한 확인',
+    passLookupHint: 'Telegram 계정 또는 결제 거래 ID로 검색할 수 있습니다. 거래 ID는 검색에만 사용되며 결과에 포함되지 않습니다.',
+    passLookupPlaceholder: 'Telegram ID 또는 결제 거래 ID 입력',
+    passLookupByTelegram: 'Telegram ID',
+    passLookupByCharge: '결제 거래 ID',
+    passLookupProfileMissing: '검색 결과 프로필이 없습니다.',
+    passLookupReceipts: '나이 숨기기 / 비공개 모드 결제 내역',
+    passLookupNoReceipts: '일치하는 패스 결제 내역이 없습니다.',
+    passLookupHideAge: '나이 숨기기',
+    passLookupInvisibility: '비공개 모드',
+    passLookupEnabled: '사용',
+    passLookupDisabled: '사용 안 함',
+    passLookupActive: '활성',
+    passLookupInactive: '비활성',
+    passLookupGridVisible: '그리드에 표시',
+    passLookupGridHidden: '그리드에서 숨김',
+    passLookupExpires: '만료',
+    passLookupNoExpiry: '만료 기록 없음',
+    passLookupMoreReceipts: '최근 25개 내역만 표시합니다.',
+    paid: '결제됨',
+    fulfilled: '완료',
     refunded: '환불됨',
     rejected: '거부됨',
     pending: '대기 중',
     prechecked: '확인 중',
     cancelled: '취소됨',
+    failed: '실패',
+    typeLabels: {
+      hide_age: '나이 숨기기',
+      invisible: '비공개 모드',
+      edit_profile: '프로필 수정 패스',
+      change_filter: '필터 구독',
+      change_preference: '선호도 변경',
+      raffle_ticket: '추첨 티켓',
+      flying_message: '플라잉 메시지',
+    },
   },
   ru: {
-    title: 'Проверка платежей розыгрыша',
-    privacy: 'Доступно только администраторам. ID платежей Telegram не показываются.',
-    searchPlaceholder: 'Номер билета или ID пользователя Telegram',
+    title: 'Проверка платежей',
+    privacy: 'Доступно только администраторам. ID платежей не возвращаются в результатах поиска.',
+    searchPlaceholder: 'Номер платежа или ID пользователя Telegram',
     search: 'Найти',
     refresh: 'Обновить',
-    loading: 'Загрузка платежей розыгрыша…',
-    loadError: 'Не удалось загрузить платежи розыгрыша. Попробуйте ещё раз.',
-    empty: 'Записи о билетах не найдены.',
+    loading: 'Загрузка платежей…',
+    loadError: 'Не удалось загрузить платежи. Попробуйте ещё раз.',
+    empty: 'Записи о платежах не найдены.',
     loadMore: 'Показать ещё',
     close: 'Закрыть',
-    reference: 'Номер билета',
+    reference: 'Номер платежа',
     telegramId: 'ID Telegram',
-    app: 'Приложение',
+    type: 'Тип',
+    amount: 'Сумма',
     status: 'Статус',
-    updated: 'Обновлено',
-    fulfilled: 'Билет выдан',
+    date: 'Дата и время',
+    passLookupTitle: 'Проверить доступ по пропускам',
+    passLookupHint: 'Поиск по аккаунту Telegram или ID платежа. ID используется только для сопоставления и не включается в результаты.',
+    passLookupPlaceholder: 'Введите Telegram ID или ID платежа',
+    passLookupByTelegram: 'ID Telegram',
+    passLookupByCharge: 'ID платежа',
+    passLookupProfileMissing: 'Профиль не найден.',
+    passLookupReceipts: 'Платежи за скрытие возраста / невидимость',
+    passLookupNoReceipts: 'Платежи за эти пропуски не найдены.',
+    passLookupHideAge: 'Скрытие возраста',
+    passLookupInvisibility: 'Невидимость',
+    passLookupEnabled: 'Включено',
+    passLookupDisabled: 'Выключено',
+    passLookupActive: 'Активно',
+    passLookupInactive: 'Неактивно',
+    passLookupGridVisible: 'Профиль виден в сетке',
+    passLookupGridHidden: 'Профиль скрыт в сетке',
+    passLookupExpires: 'Истекает',
+    passLookupNoExpiry: 'Срок не указан',
+    passLookupMoreReceipts: 'Показаны последние 25 записей.',
+    paid: 'Оплачено',
+    fulfilled: 'Выполнено',
     refunded: 'Возвращено',
     rejected: 'Отклонено',
     pending: 'Ожидает',
     prechecked: 'Проверяется',
     cancelled: 'Отменено',
+    failed: 'Не удалось',
+    typeLabels: {
+      hide_age: 'Скрытие возраста',
+      invisible: 'Режим невидимости',
+      edit_profile: 'Доступ к редактированию профиля',
+      change_filter: 'Подписка на фильтры',
+      change_preference: 'Изменение предпочтений',
+      raffle_ticket: 'Билет розыгрыша',
+      flying_message: 'Летающее сообщение',
+    },
   },
 };
 
+const rafflePaymentReviewCopy: Record<LangKey, RafflePaymentReviewCopy> = {
+  en: {
+    title: 'Raffle payment recovery',
+    hint: 'Admin-only. Recover a missing ticket from its verified paid receipt, or refund a paid ticket with no issued ticket. No new charge is created.',
+    searchPlaceholder: 'Intent reference or Telegram user ID',
+    empty: 'No raffle payment intents found.',
+    issued: 'Ticket issued',
+    missing: 'No ticket issued',
+    fulfill: 'Issue missing ticket',
+    refund: 'Refund payment',
+    confirmRefund: 'This will refund the payment through the bot that received it. Continue?',
+    history: 'Recovery history',
+    noHistory: 'No recovery actions recorded.',
+    actionLabel: { fulfill: 'Issue ticket', refund: 'Refund' },
+    statusLabels: {
+      in_progress: 'In progress',
+      fulfilled: 'Ticket issued',
+      already_fulfilled: 'Already issued',
+      refunded: 'Refunded',
+      failed: 'Failed',
+      uncertain: 'Uncertain',
+      ineligible: 'Not eligible',
+    },
+  },
+  'zh-CN': {
+    title: '抽奖付款恢复',
+    hint: '仅管理员可用。可根据已验证的付款记录补发漏发的抽奖券，或退款给已付款但未出票的订单；不会再次扣款。',
+    searchPlaceholder: '订单参考号或 Telegram 用户 ID',
+    empty: '未找到抽奖付款记录。',
+    issued: '已出票',
+    missing: '未出票',
+    fulfill: '补发抽奖券',
+    refund: '退款',
+    confirmRefund: '将通过收款的机器人退款。是否继续？',
+    history: '恢复记录',
+    noHistory: '暂无恢复操作。',
+    actionLabel: { fulfill: '补发抽奖券', refund: '退款' },
+    statusLabels: {
+      in_progress: '处理中',
+      fulfilled: '已出票',
+      already_fulfilled: '已出票',
+      refunded: '已退款',
+      failed: '失败',
+      uncertain: '结果待确认',
+      ineligible: '不符合条件',
+    },
+  },
+  'zh-TW': {
+    title: '抽獎付款恢復',
+    hint: '僅管理員可用。可根據已驗證的付款紀錄補發漏發的抽獎券，或退款給已付款但未出票的訂單；不會再次扣款。',
+    searchPlaceholder: '訂單參考號或 Telegram 使用者 ID',
+    empty: '找不到抽獎付款紀錄。',
+    issued: '已出票',
+    missing: '未出票',
+    fulfill: '補發抽獎券',
+    refund: '退款',
+    confirmRefund: '將透過收款的機器人退款。要繼續嗎？',
+    history: '恢復紀錄',
+    noHistory: '目前沒有恢復操作。',
+    actionLabel: { fulfill: '補發抽獎券', refund: '退款' },
+    statusLabels: {
+      in_progress: '處理中',
+      fulfilled: '已出票',
+      already_fulfilled: '已出票',
+      refunded: '已退款',
+      failed: '失敗',
+      uncertain: '結果待確認',
+      ineligible: '不符合資格',
+    },
+  },
+  ja: {
+    title: '抽選支払いの復旧',
+    hint: '管理者専用。確認済みの支払い記録から未発行チケットを復旧するか、未発行の支払いを返金します。再請求は行いません。',
+    searchPlaceholder: '注文番号または Telegram ユーザー ID',
+    empty: '抽選の支払い記録がありません。',
+    issued: 'チケット発行済み',
+    missing: 'チケット未発行',
+    fulfill: 'チケットを発行',
+    refund: '返金',
+    confirmRefund: '受け取り元のボットを通じて返金します。続行しますか？',
+    history: '復旧履歴',
+    noHistory: '復旧操作はありません。',
+    actionLabel: { fulfill: 'チケット発行', refund: '返金' },
+    statusLabels: {
+      in_progress: '処理中',
+      fulfilled: '発行済み',
+      already_fulfilled: '発行済み',
+      refunded: '返金済み',
+      failed: '失敗',
+      uncertain: '結果未確認',
+      ineligible: '対象外',
+    },
+  },
+  ko: {
+    title: '추첨 결제 복구',
+    hint: '관리자 전용입니다. 확인된 결제 기록으로 누락된 티켓을 복구하거나, 티켓이 발급되지 않은 결제를 환불합니다. 다시 청구하지 않습니다.',
+    searchPlaceholder: '주문 참조 또는 Telegram 사용자 ID',
+    empty: '추첨 결제 기록이 없습니다.',
+    issued: '티켓 발급됨',
+    missing: '티켓 미발급',
+    fulfill: '누락된 티켓 발급',
+    refund: '결제 환불',
+    confirmRefund: '결제를 받은 봇을 통해 환불합니다. 계속할까요?',
+    history: '복구 기록',
+    noHistory: '복구 작업이 없습니다.',
+    actionLabel: { fulfill: '티켓 발급', refund: '환불' },
+    statusLabels: {
+      in_progress: '진행 중',
+      fulfilled: '발급됨',
+      already_fulfilled: '이미 발급됨',
+      refunded: '환불됨',
+      failed: '실패',
+      uncertain: '결과 확인 필요',
+      ineligible: '대상 아님',
+    },
+  },
+  ru: {
+    title: 'Восстановление платежей розыгрыша',
+    hint: 'Только для администраторов. Можно выдать пропущенный билет по подтверждённой оплате или вернуть оплату без билета. Повторного списания не будет.',
+    searchPlaceholder: 'Номер заказа или Telegram ID пользователя',
+    empty: 'Платежи розыгрыша не найдены.',
+    issued: 'Билет выдан',
+    missing: 'Билет не выдан',
+    fulfill: 'Выдать пропущенный билет',
+    refund: 'Вернуть оплату',
+    confirmRefund: 'Оплата будет возвращена через бота, который её получил. Продолжить?',
+    history: 'История восстановления',
+    noHistory: 'Действий по восстановлению пока нет.',
+    actionLabel: { fulfill: 'Выдать билет', refund: 'Возврат' },
+    statusLabels: {
+      in_progress: 'Выполняется',
+      fulfilled: 'Билет выдан',
+      already_fulfilled: 'Уже выдан',
+      refunded: 'Возвращено',
+      failed: 'Ошибка',
+      uncertain: 'Результат не подтверждён',
+      ineligible: 'Недоступно',
+    },
+  },
+};
+
+function parsePaymentReviewPage(value: unknown): {
+  payments: PaymentRecord[];
+  hasMore: boolean;
+} {
+  const page = value as { payments?: unknown; hasMore?: unknown } | null;
+  if (!page || !Array.isArray(page.payments) || typeof page.hasMore !== 'boolean') {
+    throw new Error('Invalid payment review response');
+  }
+  const payments = page.payments.map((raw): PaymentRecord => {
+    const row = raw as Partial<PaymentRecord> | null;
+    if (!row ||
+        typeof row.paymentId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.paymentId) ||
+        typeof row.telegramId !== 'string' ||
+        !/^[0-9]{1,20}$/.test(row.telegramId) ||
+        typeof row.type !== 'string' ||
+        !/^[a-z][a-z0-9_-]{0,47}$/.test(row.type) ||
+        (row.amount !== null && (typeof row.amount !== 'number' || !Number.isSafeInteger(row.amount) || row.amount < 0)) ||
+        typeof row.currency !== 'string' ||
+        !/^[A-Z]{3}$/.test(row.currency) ||
+        typeof row.status !== 'string' ||
+        !/^[a-z][a-z0-9_-]{0,47}$/.test(row.status) ||
+        (row.occurredAt !== null &&
+          (typeof row.occurredAt !== 'string' || !Number.isFinite(Date.parse(row.occurredAt))))) {
+      throw new Error('Invalid payment review record');
+    }
+    return {
+      paymentId: row.paymentId,
+      telegramId: row.telegramId,
+      type: row.type,
+      amount: row.amount,
+      currency: row.currency,
+      status: row.status,
+      occurredAt: row.occurredAt,
+    };
+  });
+  return { payments, hasMore: page.hasMore };
+}
+
+const rafflePaymentUuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function parseRafflePaymentReviewPage(value: unknown): {
-  intents: RafflePaymentIntent[];
+  intents: RafflePaymentReviewIntent[];
   hasMore: boolean;
 } {
   const page = value as { intents?: unknown; hasMore?: unknown } | null;
   if (!page || !Array.isArray(page.intents) || typeof page.hasMore !== 'boolean') {
-    throw new Error('Invalid raffle payment review response');
+    throw new Error('Invalid raffle recovery response');
   }
-  const intents = page.intents.map((raw): RafflePaymentIntent => {
-    const row = raw as Partial<RafflePaymentIntent> | null;
+  const intents = page.intents.map((raw): RafflePaymentReviewIntent => {
+    const row = raw as Partial<RafflePaymentReviewIntent> | null;
     if (!row ||
         typeof row.intentId !== 'string' ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.intentId) ||
+        !rafflePaymentUuidPattern.test(row.intentId) ||
         typeof row.telegramId !== 'string' ||
         !/^[0-9]{1,20}$/.test(row.telegramId) ||
         (row.bot !== 'botA' && row.bot !== 'botB') ||
         typeof row.status !== 'string' ||
         !/^[a-z][a-z0-9_-]{0,47}$/.test(row.status) ||
         (row.updatedAt !== null &&
-          (typeof row.updatedAt !== 'string' || !Number.isFinite(Date.parse(row.updatedAt))))) {
-      throw new Error('Invalid raffle payment review intent');
+          (typeof row.updatedAt !== 'string' || !Number.isFinite(Date.parse(row.updatedAt)))) ||
+        typeof row.ticketIssued !== 'boolean' ||
+        typeof row.canRetryFulfillment !== 'boolean' ||
+        typeof row.canRefund !== 'boolean' ||
+        !Array.isArray(row.recoveryHistory) ||
+        row.recoveryHistory.length > 5 ||
+        (row.ticketIssued && (row.canRetryFulfillment || row.canRefund)) ||
+        (row.canRetryFulfillment && row.status !== 'paid') ||
+        (row.canRefund && !['paid', 'refund_pending'].includes(row.status))) {
+      throw new Error('Invalid raffle recovery record');
     }
+    const recoveryHistory = row.recoveryHistory.map((rawEvent) => {
+      const event = rawEvent as RafflePaymentReviewIntent['recoveryHistory'][number] | null;
+      if (!event ||
+          (event.action !== 'fulfill' && event.action !== 'refund') ||
+          typeof event.status !== 'string' ||
+          !/^[a-z][a-z0-9_-]{0,47}$/.test(event.status) ||
+          (event.outcome !== null &&
+            (typeof event.outcome !== 'string' || event.outcome.length > 140)) ||
+          (event.createdAt !== null &&
+            (typeof event.createdAt !== 'string' || !Number.isFinite(Date.parse(event.createdAt))))) {
+        throw new Error('Invalid raffle recovery history record');
+      }
+      return {
+        action: event.action,
+        status: event.status,
+        outcome: event.outcome,
+        createdAt: event.createdAt,
+      };
+    });
     return {
       intentId: row.intentId,
       telegramId: row.telegramId,
       bot: row.bot,
       status: row.status,
       updatedAt: row.updatedAt,
+      ticketIssued: row.ticketIssued,
+      canRetryFulfillment: row.canRetryFulfillment,
+      canRefund: row.canRefund,
+      recoveryHistory,
     };
   });
   return { intents, hasMore: page.hasMore };
+}
+
+function parseRaffleRecoveryResult(value: unknown): {
+  requestId: string;
+  action: 'fulfill' | 'refund';
+  status: string;
+  outcome: string | null;
+} {
+  const result = value as {
+    requestId?: unknown;
+    action?: unknown;
+    status?: unknown;
+    outcome?: unknown;
+  } | null;
+  if (!result ||
+      typeof result.requestId !== 'string' ||
+      !rafflePaymentUuidPattern.test(result.requestId) ||
+      (result.action !== 'fulfill' && result.action !== 'refund') ||
+      typeof result.status !== 'string' ||
+      !['in_progress', 'fulfilled', 'already_fulfilled', 'refunded', 'failed', 'uncertain', 'ineligible'].includes(result.status) ||
+      (result.outcome !== null &&
+        (typeof result.outcome !== 'string' || result.outcome.length > 140))) {
+    throw new Error('Invalid raffle recovery result');
+  }
+  return {
+    requestId: result.requestId,
+    action: result.action,
+    status: result.status,
+    outcome: result.outcome,
+  };
+}
+
+function parsePassPaymentLookup(value: unknown): PassPaymentLookup {
+  const result = value as Partial<PassPaymentLookup> | null;
+  if (!result ||
+      (result.telegramId !== null &&
+        (typeof result.telegramId !== 'string' || !/^[0-9]{1,20}$/.test(result.telegramId))) ||
+      !Array.isArray(result.receipts) ||
+      typeof result.hasMore !== 'boolean' ||
+      (result.currentAccess !== null && typeof result.currentAccess !== 'object')) {
+    throw new Error('Invalid pass payment lookup response');
+  }
+
+  const receipts = result.receipts.map((raw): PassPaymentLookup['receipts'][number] => {
+    const receipt = raw as Partial<PassPaymentLookup['receipts'][number]> | null;
+    if (!receipt ||
+        typeof receipt.paymentId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receipt.paymentId) ||
+        typeof receipt.telegramId !== 'string' ||
+        !/^[0-9]{1,20}$/.test(receipt.telegramId) ||
+        (receipt.product !== 'hide_age' && receipt.product !== 'invisible') ||
+        typeof receipt.amount !== 'number' ||
+        !Number.isSafeInteger(receipt.amount) ||
+        receipt.amount < 0 ||
+        typeof receipt.currency !== 'string' ||
+        !/^[A-Z]{3}$/.test(receipt.currency) ||
+        typeof receipt.status !== 'string' ||
+        !/^[a-z][a-z0-9_-]{0,47}$/.test(receipt.status) ||
+        (receipt.occurredAt !== null &&
+          (typeof receipt.occurredAt !== 'string' ||
+            !Number.isFinite(Date.parse(receipt.occurredAt))))) {
+      throw new Error('Invalid pass payment receipt');
+    }
+    return {
+      paymentId: receipt.paymentId,
+      telegramId: receipt.telegramId,
+      product: receipt.product,
+      amount: receipt.amount,
+      currency: receipt.currency,
+      status: receipt.status,
+      occurredAt: receipt.occurredAt,
+    };
+  });
+
+  let currentAccess: PassPaymentLookup['currentAccess'] = null;
+  if (result.currentAccess !== null) {
+    const access = result.currentAccess as PassPaymentLookup['currentAccess'];
+    const validExpiry = (expiry: unknown): expiry is string | null =>
+      expiry === null ||
+      (typeof expiry === 'string' && Number.isFinite(Date.parse(expiry)));
+    if (!access ||
+        typeof access.hideAge?.enabled !== 'boolean' ||
+        typeof access.hideAge?.active !== 'boolean' ||
+        !validExpiry(access.hideAge?.expiresAt) ||
+        typeof access.invisibility?.gridVisible !== 'boolean' ||
+        typeof access.invisibility?.active !== 'boolean' ||
+        !validExpiry(access.invisibility?.expiresAt)) {
+      throw new Error('Invalid current pass access state');
+    }
+    currentAccess = {
+      hideAge: {
+        enabled: access.hideAge.enabled,
+        active: access.hideAge.active,
+        expiresAt: access.hideAge.expiresAt,
+      },
+      invisibility: {
+        gridVisible: access.invisibility.gridVisible,
+        active: access.invisibility.active,
+        expiresAt: access.invisibility.expiresAt,
+      },
+    };
+  }
+
+  return {
+    telegramId: result.telegramId ?? null,
+    receipts,
+    hasMore: result.hasMore,
+    currentAccess,
+  };
 }
 
 const flyingMessageCopy: Record<LangKey, FlyingMessageCopy> = {
@@ -928,36 +1472,54 @@ const flyingMessageCopy: Record<LangKey, FlyingMessageCopy> = {
     priceLabel: 'Flying message price (Stars)', save: 'Save', sending: 'Sending…',
     cooldown: 'Send again in {seconds}s', invoiceFallback: 'Complete the invoice in Telegram. Your message appears after payment is confirmed.',
     paymentProcessing: 'Payment received; your message is still being confirmed.',
+    paymentRefunded: 'Your payment was refunded. No message was sent; your draft is still here.',
+    paymentRejected: 'The payment was rejected. No message was sent; your draft is still here.',
+    dismiss: 'Dismiss',
   },
   'zh-CN': {
     placeholder: '发送飞行消息…', send: '发送', free: '免费',
     priceLabel: '飞行消息价格（Stars）', save: '保存', sending: '发送中…',
     cooldown: '{seconds} 秒后可再次发送', invoiceFallback: '请在 Telegram 中完成付款。确认付款后消息将显示。',
     paymentProcessing: '已收到付款，正在确认您的消息。',
+    paymentRefunded: '付款已退款。消息未发送，草稿仍保留在输入框中。',
+    paymentRejected: '付款未获接受。消息未发送，草稿仍保留在输入框中。',
+    dismiss: '关闭',
   },
   'zh-TW': {
     placeholder: '傳送飛行訊息…', send: '傳送', free: '免費',
     priceLabel: '飛行訊息價格（Stars）', save: '儲存', sending: '傳送中…',
     cooldown: '{seconds} 秒後可再次傳送', invoiceFallback: '請在 Telegram 中完成付款。確認付款後訊息將顯示。',
     paymentProcessing: '已收到付款，正在確認您的訊息。',
+    paymentRefunded: '款項已退款。訊息未傳送，草稿仍保留在輸入框中。',
+    paymentRejected: '付款未獲接受。訊息未傳送，草稿仍保留在輸入框中。',
+    dismiss: '關閉',
   },
   ja: {
     placeholder: 'フライングメッセージを送信…', send: '送信', free: '無料',
     priceLabel: 'フライングメッセージの料金（Stars）', save: '保存', sending: '送信中…',
     cooldown: 'あと {seconds} 秒で送信できます', invoiceFallback: 'Telegramで支払いを完了してください。決済確認後にメッセージが表示されます。',
     paymentProcessing: '支払いを受け付けました。メッセージを確認中です。',
+    paymentRefunded: 'お支払いは返金されました。メッセージは送信されず、下書きは入力欄に残っています。',
+    paymentRejected: '決済は受け付けられませんでした。メッセージは送信されず、下書きは入力欄に残っています。',
+    dismiss: '閉じる',
   },
   ko: {
     placeholder: '플라잉 메시지 보내기…', send: '보내기', free: '무료',
     priceLabel: '플라잉 메시지 가격(Stars)', save: '저장', sending: '전송 중…',
     cooldown: '{seconds}초 후 다시 보낼 수 있습니다', invoiceFallback: 'Telegram에서 결제를 완료하세요. 결제가 확인되면 메시지가 표시됩니다.',
     paymentProcessing: '결제가 접수되었습니다. 메시지를 확인 중입니다.',
+    paymentRefunded: '결제가 환불되었습니다. 메시지는 전송되지 않았으며 초안은 입력란에 남아 있습니다.',
+    paymentRejected: '결제가 거부되었습니다. 메시지는 전송되지 않았으며 초안은 입력란에 남아 있습니다.',
+    dismiss: '닫기',
   },
   ru: {
     placeholder: 'Отправить летящее сообщение…', send: 'Отправить', free: 'БЕСПЛАТНО',
     priceLabel: 'Цена сообщения (Stars)', save: 'Сохранить', sending: 'Отправка…',
     cooldown: 'Повторная отправка через {seconds} с', invoiceFallback: 'Завершите оплату в Telegram. Сообщение появится после подтверждения.',
     paymentProcessing: 'Оплата получена, сообщение ещё подтверждается.',
+    paymentRefunded: 'Оплата возвращена. Сообщение не отправлено; черновик остался в поле ввода.',
+    paymentRejected: 'Платёж отклонён. Сообщение не отправлено; черновик остался в поле ввода.',
+    dismiss: 'Закрыть',
   },
 };
 
@@ -979,7 +1541,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     forceReset: 'Force reset', gamesApps: 'Games & Apps', resetProfile: 'Reset Profile',
     selectedUser: 'Selected user: {n}', profileReset: 'Profile reset.', resetFailed: 'Reset failed.',
     forceResetConfirm: 'Force reset profile of {n}?',
-    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: 'Admin Menu', adminVipList: 'Admin / VIP List', owner: 'Owner', addRole: 'Add', removeRole: 'Remove', roleUsernamePlaceholder: 'username (without @)', roleUpdateFailed: 'Update failed.', ownerImmutable: 'The owner role cannot be changed.', noRolesYet: 'No admins or VIPs yet.', close: 'Close', grantVipAll: 'Grant VIP to all', revokeVipAll: 'Revoke VIP for all', forceResetAll: 'Force reset all users', forceResetAllConfirm: 'Reset ALL users? Everyone will see the "complete your info" screen on next login.', resetAllDone: 'All users reset.', period_1w: '1 week', period_1mo: '1 month', period_3mo: '3 months', period_6mo: '6 months', period_1y: '1 year'
+    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: 'Admin Menu', adminVipList: 'Admin / VIP List', profileSetupPreview: 'Preview profile setup', owner: 'Owner', addRole: 'Add', removeRole: 'Remove', roleUsernamePlaceholder: 'username (without @)', roleUpdateFailed: 'Update failed.', ownerImmutable: 'The owner role cannot be changed.', noRolesYet: 'No admins or VIPs yet.', close: 'Close', grantVipAll: 'Grant VIP to all', revokeVipAll: 'Revoke VIP for all', forceResetAll: 'Force reset all users', forceResetAllConfirm: 'Reset ALL users? Everyone will see the "complete your info" screen on next login.', resetAllDone: 'All users reset.', period_1w: '1 week', period_1mo: '1 month', period_3mo: '3 months', period_6mo: '6 months', period_1y: '1 year'
   },
   'zh-CN': {
     period_1d: '1 天', period_3d: '3 天',
@@ -998,7 +1560,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     forceReset: '强制重置', gamesApps: '游戏和应用',
     selectedUser: '��选中用户: {n}', profileReset: '资料已重置。', resetFailed: '重置失败。',
     forceResetConfirm: '强制重置 {n} 的资料？',
-    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '管理菜单', adminVipList: '管理员 / VIP 列表', owner: '拥有者', addRole: '添加', removeRole: '移除', roleUsernamePlaceholder: '用户名（不含 @）', roleUpdateFailed: '更新失败。', ownerImmutable: '拥有者角色无法更改。', noRolesYet: '暂无管理员或 VIP。', close: '关闭', grantVipAll: '为所有用户授予 VIP', revokeVipAll: '取消所有用户 VIP', forceResetAll: '强制重置所有用户', forceResetAllConfirm: '重置所有用户？所有人下次登录时都会看到"完善资料"页面。', resetAllDone: '所有用户已重置。', period_1w: '1 周', period_1mo: '1 个月', period_3mo: '3 个月', period_6mo: '6 个月', period_1y: '1 年'
+    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '管理菜单', adminVipList: '管理员 / VIP 列表', profileSetupPreview: '预览资料设置', owner: '拥有者', addRole: '添加', removeRole: '移除', roleUsernamePlaceholder: '用户名（不含 @）', roleUpdateFailed: '更新失败。', ownerImmutable: '拥有者角色无法更改。', noRolesYet: '暂无管理员或 VIP。', close: '关闭', grantVipAll: '为所有用户授予 VIP', revokeVipAll: '取消所有用户 VIP', forceResetAll: '强制重置所有用户', forceResetAllConfirm: '重置所有用户？所有人下次登录时都会看到"完善资料"页面。', resetAllDone: '所有用户已重置。', period_1w: '1 周', period_1mo: '1 个月', period_3mo: '3 个月', period_6mo: '6 个月', period_1y: '1 年'
   },
   'zh-TW': {
     period_1d: '1 天', period_3d: '3 天',
@@ -1017,7 +1579,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     forceReset: '強制重置', gamesApps: '遊戲和應用',
     selectedUser: '已選中用戶: {n}', profileReset: '資料已重置。', resetFailed: '重置失敗。',
     forceResetConfirm: '強制重置 {n} 的資料？',
-    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '管理選單', adminVipList: '管理員 / VIP 列表', owner: '擁有者', addRole: '新增', removeRole: '移除', roleUsernamePlaceholder: '用戶名（不含 @）', roleUpdateFailed: '更新失敗。', ownerImmutable: '擁有者角色無法更改。', noRolesYet: '暫無管理員或 VIP。', close: '關閉', grantVipAll: '為所有用戶授予 VIP', revokeVipAll: '取消所有用戶 VIP', forceResetAll: '強制重置所有用戶', forceResetAllConfirm: '重置所有用戶？所有人下次登入時都會看到「完善資料」頁面。', resetAllDone: '所有用戶已重置。', period_1w: '1 週', period_1mo: '1 個月', period_3mo: '3 個月', period_6mo: '6 個月', period_1y: '1 年'
+    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '管理選單', adminVipList: '管理員 / VIP 列表', profileSetupPreview: '預覽資料設定', owner: '擁有者', addRole: '新增', removeRole: '移除', roleUsernamePlaceholder: '用戶名（不含 @）', roleUpdateFailed: '更新失敗。', ownerImmutable: '擁有者角色無法更改。', noRolesYet: '暫無管理員或 VIP。', close: '關閉', grantVipAll: '為所有用戶授予 VIP', revokeVipAll: '取消所有用戶 VIP', forceResetAll: '強制重置所有用戶', forceResetAllConfirm: '重置所有用戶？所有人下次登入時都會看到「完善資料」頁面。', resetAllDone: '所有用戶已重置。', period_1w: '1 週', period_1mo: '1 個月', period_3mo: '3 個月', period_6mo: '6 個月', period_1y: '1 年'
   },
   'ja': {
     period_1d: '1 日', period_3d: '3 日',
@@ -1036,7 +1598,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     forceReset: '強制リセット', gamesApps: 'ゲーム&アプリ',
     selectedUser: '選択したユーザー: {n}', profileReset: 'プロフィールをリセットしました。', resetFailed: 'リセットに失敗しま��た。',
     forceResetConfirm: '{n} のプロフィールを強制リセットしますか？',
-    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '管理メニュー', adminVipList: '管理者 / VIP リスト', owner: 'オーナー', addRole: '追加', removeRole: '削除', roleUsernamePlaceholder: 'ユーザー名（@なし）', roleUpdateFailed: '更新に失敗しました。', ownerImmutable: 'オーナー権限は変更できません。', noRolesYet: '管理者または VIP はまだいません。', close: '閉じる', grantVipAll: '全ユーザーに VIP を付与', revokeVipAll: '全ユーザーの VIP を取消', forceResetAll: '全ユーザーを強制リセット', forceResetAllConfirm: '全ユーザーをリセットしますか？全員が次回ログイン時に「情報入力」画面を見ます。', resetAllDone: '全ユーザーをリセットしました。', period_1w: '1 週間', period_1mo: '1 か月', period_3mo: '3 か月', period_6mo: '6 か月', period_1y: '1 年'
+    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '管理メニュー', adminVipList: '管理者 / VIP リスト', profileSetupPreview: 'プロフィール設定をプレビュー', owner: 'オーナー', addRole: '追加', removeRole: '削除', roleUsernamePlaceholder: 'ユーザー名（@なし）', roleUpdateFailed: '更新に失敗しました。', ownerImmutable: 'オーナー権限は変更できません。', noRolesYet: '管理者または VIP はまだいません。', close: '閉じる', grantVipAll: '全ユーザーに VIP を付与', revokeVipAll: '全ユーザーの VIP を取消', forceResetAll: '全ユーザーを強制リセット', forceResetAllConfirm: '全ユーザーをリセットしますか？全員が次回ログイン時に「情報入力」画面を見ます。', resetAllDone: '全ユーザーをリセットしました。', period_1w: '1 週間', period_1mo: '1 か月', period_3mo: '3 か月', period_6mo: '6 か月', period_1y: '1 年'
   },
   'ko': {
     period_1d: '1일', period_3d: '3일',
@@ -1055,7 +1617,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     forceReset: '강제 초기화', gamesApps: '게임 & 앱',
     selectedUser: '선택한 사용자: {n}', profileReset: '프로필이 초기화되었습니다.', resetFailed: '초기화에 실패했습니다.',
     forceResetConfirm: '{n} 님의 프로필을 강제 초기화할까요?',
-    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '관리자 메뉴', adminVipList: '관리자 / VIP 목록', owner: '소유자', addRole: '추가', removeRole: '삭제', roleUsernamePlaceholder: '사용자명 (@ 제외)', roleUpdateFailed: '업데이트 실패.', ownerImmutable: '소유자 권한은 변경할 수 없습니다.', noRolesYet: '아직 관리자나 VIP가 없습니다.', close: '닫기', grantVipAll: '모든 사용자에게 VIP 부여', revokeVipAll: '모든 사용자 VIP 해제', forceResetAll: '모든 사용자 강제 초기화', forceResetAllConfirm: '모든 사용자를 초기화할까요? 모두 다음 로그인 시 "정보 입력" 화면을 보게 됩니다.', resetAllDone: '모든 사용자가 초기화되었습니다.', period_1w: '1주', period_1mo: '1개월', period_3mo: '3개월', period_6mo: '6개월', period_1y: '1년'
+    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: '관리자 메뉴', adminVipList: '관리자 / VIP 목록', profileSetupPreview: '프로필 설정 미리보기', owner: '소유자', addRole: '추가', removeRole: '삭제', roleUsernamePlaceholder: '사용자명 (@ 제외)', roleUpdateFailed: '업데이트 실패.', ownerImmutable: '소유자 권한은 변경할 수 없습니다.', noRolesYet: '아직 관리자나 VIP가 없습니다.', close: '닫기', grantVipAll: '모든 사용자에게 VIP 부여', revokeVipAll: '모든 사용자 VIP 해제', forceResetAll: '모든 사용자 강제 초기화', forceResetAllConfirm: '모든 사용자를 초기화할까요? 모두 다음 로그인 시 "정보 입력" 화면을 보게 됩니다.', resetAllDone: '모든 사용자가 초기화되었습니다.', period_1w: '1주', period_1mo: '1개월', period_3mo: '3개월', period_6mo: '6개월', period_1y: '1년'
   },
   'ru': {
     period_1d: '1 день', period_3d: '3 дня',
@@ -1074,7 +1636,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     forceReset: 'Принуд. сброс', gamesApps: 'Игры и приложения',
     selectedUser: 'Выбран пользователь: {n}', profileReset: 'Профиль сброшен.', resetFailed: 'Ошибка сброса.',
     forceResetConfirm: 'Сбросить профиль {n}?',
-    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: 'Меню админа', adminVipList: 'Список админ / VIP', owner: 'Владелец', addRole: 'Добавить', removeRole: 'Удалить', roleUsernamePlaceholder: 'имя пользователя (без @)', roleUpdateFailed: 'Ошибка обновления.', ownerImmutable: 'Роль владельца изменить нельзя.', noRolesYet: 'Пока нет админов или VIP.', close: 'Закрыть', grantVipAll: 'Выдать VIP всем', revokeVipAll: 'Отозвать VIP у всех', forceResetAll: 'Сбросить всех пользователей', forceResetAllConfirm: 'Сбросить ВСЕХ пользователей? При следующем входе все увидят экран «заполните профиль».', resetAllDone: 'Все пользователи сброшены.', period_1w: '1 неделя', period_1mo: '1 месяц', period_3mo: '3 месяца', period_6mo: '6 месяцев', period_1y: '1 год'
+    vip: 'VIP', vipUnlimited: 'VIP · ∞', adminMenu: 'Меню админа', adminVipList: 'Список админ / VIP', profileSetupPreview: 'Предпросмотр настройки профиля', owner: 'Владелец', addRole: 'Добавить', removeRole: 'Удалить', roleUsernamePlaceholder: 'имя пользователя (без @)', roleUpdateFailed: 'Ошибка обновления.', ownerImmutable: 'Роль владельца изменить нельзя.', noRolesYet: 'Пока нет админов или VIP.', close: 'Закрыть', grantVipAll: 'Выдать VIP всем', revokeVipAll: 'Отозвать VIP у всех', forceResetAll: 'Сбросить всех пользователей', forceResetAllConfirm: 'Сбросить ВСЕХ пользователей? При следующем входе все увидят экран «заполните профиль».', resetAllDone: 'Все пользователи сброшены.', period_1w: '1 неделя', period_1mo: '1 месяц', period_3mo: '3 месяца', period_6mo: '6 месяцев', period_1y: '1 год'
   }
 };
 
@@ -1093,7 +1655,7 @@ const vipGrantCopy: Record<LangKey, {
   campaignCreated: string;
   popupTitle: string;
   popupBody: string;
-  popupClose: string;
+  popupConfirm: string;
   campaignsTitle: string;
   campaign: string;
   sourceApp: string;
@@ -1115,6 +1677,13 @@ const vipGrantCopy: Record<LangKey, {
   campaignFailedRewardNotifications: string;
   campaignFailedRewardNotificationsUnavailable: string;
   campaignFailedRewardsReview: string;
+  campaignCrossFailedRewardsTitle: string;
+  campaignCrossFailedRewardsPlaceholder: string;
+  campaignCrossFailedRewardsSearch: string;
+  campaignCrossFailedRewardsSourceBot: string;
+  campaignCrossFailedRewardsAllSources: string;
+  campaignCrossFailedRewardsInitialHint: string;
+  campaignCrossFailedRewardsDetails: string;
   campaignFailedRewardsEmpty: string;
   campaignFailedRewardDeliveryUncertain: string;
   campaignFailedRewardDeliveryUncertainConfirm: string;
@@ -1130,11 +1699,30 @@ const vipGrantCopy: Record<LangKey, {
   campaignFailedRewardRetrySent: string;
   campaignFailedRewardRetryFailed: string;
   campaignFailedRewardLoadMore: string;
+  campaignRetryAuditToggle: string;
+  campaignRetryAuditTitle: string;
+  campaignRetryAuditEmpty: string;
+  campaignRetryAuditLoading: string;
+  campaignRetryAuditLoadFailed: string;
+  campaignRetryAuditEntry: string;
+  campaignRetryAuditPending: string;
+  campaignRetryAuditDelivered: string;
+  campaignRetryAuditFailed: string;
+  campaignRetryAuditUncertain: string;
+  campaignRetryAuditLoadMore: string;
   campaignNewFailureAlertTitle: string;
   campaignNewFailureAlertSeparate: string;
   campaignNewFailureAlertLatest: string;
   campaignNewFailureAlertChecking: string;
   campaignNewFailureAlertLoadFailed: string;
+  campaignQueueHealthTitle: string;
+  campaignQueueHealthSeparate: string;
+  campaignQueueHealthPending: string;
+  campaignQueueHealthExpiredSending: string;
+  campaignQueueHealthOldest: string;
+  campaignQueueHealthEmpty: string;
+  campaignQueueHealthChecking: string;
+  campaignQueueHealthLoadFailed: string;
   campaignNewUsers: string;
   announcementStatus: string;
   announcementPending: string;
@@ -1160,7 +1748,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignCreated: 'VIP campaign created. Its announcement is queued. Eligible users receive VIP days when they log in.',
     popupTitle: 'VIP reward received',
     popupBody: 'Your account received {days} VIP days.',
-    popupClose: 'Continue',
+    popupConfirm: 'Confirm',
     campaignsTitle: 'VIP campaigns',
     campaign: 'Campaign',
     sourceApp: 'Campaign app: {app}',
@@ -1182,6 +1770,13 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardNotifications: 'Reward messages needing review: {count}',
     campaignFailedRewardNotificationsUnavailable: 'Reward message count unavailable on the current backend.',
     campaignFailedRewardsReview: 'Review messages ({count})',
+    campaignCrossFailedRewardsTitle: 'Failed reward messages across campaigns',
+    campaignCrossFailedRewardsPlaceholder: 'Search username or Telegram account ID',
+    campaignCrossFailedRewardsSearch: 'Search all campaigns',
+    campaignCrossFailedRewardsSourceBot: 'Source app',
+    campaignCrossFailedRewardsAllSources: 'All apps',
+    campaignCrossFailedRewardsInitialHint: 'Search by username or account ID, or choose a source app.',
+    campaignCrossFailedRewardsDetails: 'Campaign {campaign} · source {source} · notification bot {bot}',
     campaignFailedRewardsEmpty: 'No reward messages need review.',
     campaignFailedRewardDeliveryUncertain: 'Delivery is uncertain: Telegram may already have sent this message. A manual retry could send a duplicate.',
     campaignFailedRewardDeliveryUncertainConfirm: 'Telegram may already have delivered this message. Retry anyway? The user could receive a duplicate.',
@@ -1197,12 +1792,31 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardRetrySent: 'Reward message sent.',
     campaignFailedRewardRetryFailed: 'The message still failed. You may retry if attempts remain.',
     campaignFailedRewardLoadMore: 'Load more failed messages',
+    campaignRetryAuditToggle: 'View retry audit',
+    campaignRetryAuditTitle: 'Manual retry audit',
+    campaignRetryAuditEmpty: 'No manual retries are recorded for this campaign.',
+    campaignRetryAuditLoading: 'Loading retry audit…',
+    campaignRetryAuditLoadFailed: 'Could not load retry audit. Refresh to retry.',
+    campaignRetryAuditEntry: 'Admin {admin} · {time} · claim {claim} · campaign {source} · notification bot {bot} · result {outcome}',
+    campaignRetryAuditPending: 'Pending',
+    campaignRetryAuditDelivered: 'Delivered',
+    campaignRetryAuditFailed: 'Failed',
+    campaignRetryAuditUncertain: 'Delivery uncertain',
+    campaignRetryAuditLoadMore: 'Load more retry records',
     campaignNewUsers: 'Includes new accounts created before the cutoff',
     campaignNewFailureAlertTitle: 'New failed VIP reward messages: {count}',
     campaignNewFailureAlertSeparate: 'These reward DMs are separate from public campaign announcements.',
     campaignNewFailureAlertLatest: 'Latest reward failure: {time}',
     campaignNewFailureAlertChecking: 'Checking for new failed reward messages…',
     campaignNewFailureAlertLoadFailed: 'Could not check for new reward messages. Refresh to try again.',
+    campaignQueueHealthTitle: 'VIP reward delivery queue health',
+    campaignQueueHealthSeparate: 'Pending notices are overdue after 10 minutes; sending notices are counted when their lease expires. Excludes terminally failed reward DMs and public announcements.',
+    campaignQueueHealthPending: 'Overdue pending: {count}',
+    campaignQueueHealthExpiredSending: 'Expired sending leases: {count}',
+    campaignQueueHealthOldest: 'Oldest wait: {time} · {minutes} min',
+    campaignQueueHealthEmpty: 'No overdue pending or expired sending notices.',
+    campaignQueueHealthChecking: 'Checking scheduled reward queue…',
+    campaignQueueHealthLoadFailed: 'Could not load scheduled reward queue health. Refresh to retry.',
     announcementStatus: 'Announcement',
     announcementPending: 'Queued',
     announcementDelivered: 'Posted',
@@ -1227,7 +1841,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignCreated: 'VIP 活动已创建，公告已加入发送队列。符合条件的用户登录后会收到 VIP 天数。',
     popupTitle: '已收到 VIP 奖励',
     popupBody: '你的账户已获得 {days} 天 VIP。',
-    popupClose: '继续',
+    popupConfirm: '确认',
     campaignsTitle: 'VIP 活动',
     campaign: '活动',
     sourceApp: '活动所属应用：{app}',
@@ -1249,6 +1863,13 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardNotifications: '需要检查的奖励通知：{count} 条',
     campaignFailedRewardNotificationsUnavailable: '目前的后端版本未提供奖励通知数量。',
     campaignFailedRewardsReview: '查看通知（{count}）',
+    campaignCrossFailedRewardsTitle: '跨活动失败的奖励通知',
+    campaignCrossFailedRewardsPlaceholder: '搜索用户名或 Telegram 账号 ID',
+    campaignCrossFailedRewardsSearch: '搜索所有活动',
+    campaignCrossFailedRewardsSourceBot: '来源应用',
+    campaignCrossFailedRewardsAllSources: '所有应用',
+    campaignCrossFailedRewardsInitialHint: '按用户名或账号 ID 搜索，或选择来源应用。',
+    campaignCrossFailedRewardsDetails: '活动 {campaign} · 来源 {source} · 通知机器人 {bot}',
     campaignFailedRewardsEmpty: '没有需要检查的奖励通知。',
     campaignFailedRewardDeliveryUncertain: '发送状态不确定：Telegram 可能已发送该消息。手动重试可能造成重复通知。',
     campaignFailedRewardDeliveryUncertainConfirm: 'Telegram 可能已发送该消息。仍要重试吗？用户可能会收到重复消息。',
@@ -1264,12 +1885,31 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardRetrySent: '奖励通知已发送。',
     campaignFailedRewardRetryFailed: '通知仍发送失败；如有剩余次数，可再次重试。',
     campaignFailedRewardLoadMore: '加载更多失败通知',
+    campaignRetryAuditToggle: '查看重试审计',
+    campaignRetryAuditTitle: '手动重试审计',
+    campaignRetryAuditEmpty: '此活动没有手动重试记录。',
+    campaignRetryAuditLoading: '正在加载重试审计…',
+    campaignRetryAuditLoadFailed: '无法加载重试审计，请刷新后重试。',
+    campaignRetryAuditEntry: '管理员 {admin} · {time} · 领取记录 {claim} · 活动来源 {source} · 通知机器人 {bot} · 结果 {outcome}',
+    campaignRetryAuditPending: '待处理',
+    campaignRetryAuditDelivered: '已送达',
+    campaignRetryAuditFailed: '失败',
+    campaignRetryAuditUncertain: '发送状态不明',
+    campaignRetryAuditLoadMore: '加载更多重试记录',
     campaignNewUsers: '包含截止时间前创建的新账号',
     campaignNewFailureAlertTitle: '新失败的 VIP 奖励通知：{count} 条',
     campaignNewFailureAlertSeparate: '这些奖励私信与公开活动公告的发送状态分开显示。',
     campaignNewFailureAlertLatest: '最近一次奖励通知失败：{time}',
     campaignNewFailureAlertChecking: '正在检查新的奖励通知失败…',
     campaignNewFailureAlertLoadFailed: '无法检查新的奖励通知失败，请刷新重试。',
+    campaignQueueHealthTitle: 'VIP奖励通知队列状态',
+    campaignQueueHealthSeparate: '待处理超过10分钟后计为超时；发送中的通知在租约过期后计入。此处不包括最终失败的奖励私信或公开公告。',
+    campaignQueueHealthPending: '超时待处理：{count}',
+    campaignQueueHealthExpiredSending: '发送租约已过期：{count}',
+    campaignQueueHealthOldest: '最早等待：{time} · {minutes} 分钟',
+    campaignQueueHealthEmpty: '没有超时待处理或发送租约过期的通知。',
+    campaignQueueHealthChecking: '正在检查定时奖励通知队列…',
+    campaignQueueHealthLoadFailed: '无法加载奖励通知队列状态，请刷新重试。',
     announcementStatus: '公告状态',
     announcementPending: '排队中',
     announcementDelivered: '已发布',
@@ -1294,7 +1934,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignCreated: 'VIP 活動已建立，公告已加入傳送佇列。符合資格的使用者登入後會收到 VIP 天數。',
     popupTitle: '已收到 VIP 獎勵',
     popupBody: '你的帳戶已獲得 {days} 天 VIP。',
-    popupClose: '繼續',
+    popupConfirm: '確認',
     campaignsTitle: 'VIP 活動',
     campaign: '活動',
     sourceApp: '活動所屬應用程式：{app}',
@@ -1316,6 +1956,13 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardNotifications: '需要檢查的獎勵通知：{count} 則',
     campaignFailedRewardNotificationsUnavailable: '目前的後端版本未提供獎勵通知數量。',
     campaignFailedRewardsReview: '查看通知（{count}）',
+    campaignCrossFailedRewardsTitle: '跨活動失敗的獎勵通知',
+    campaignCrossFailedRewardsPlaceholder: '搜尋使用者名稱或 Telegram 帳號 ID',
+    campaignCrossFailedRewardsSearch: '搜尋所有活動',
+    campaignCrossFailedRewardsSourceBot: '來源應用程式',
+    campaignCrossFailedRewardsAllSources: '所有應用程式',
+    campaignCrossFailedRewardsInitialHint: '按使用者名稱或帳號 ID 搜尋，或選擇來源應用程式。',
+    campaignCrossFailedRewardsDetails: '活動 {campaign} · 來源 {source} · 通知機器人 {bot}',
     campaignFailedRewardsEmpty: '沒有需要檢查的獎勵通知。',
     campaignFailedRewardDeliveryUncertain: '傳送狀態不確定：Telegram 可能已傳送此訊息。手動重試可能造成重複通知。',
     campaignFailedRewardDeliveryUncertainConfirm: 'Telegram 可能已傳送此訊息。仍要重試嗎？使用者可能會收到重複訊息。',
@@ -1331,12 +1978,31 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardRetrySent: '獎勵通知已傳送。',
     campaignFailedRewardRetryFailed: '通知仍傳送失敗；如有剩餘次數，可再次重試。',
     campaignFailedRewardLoadMore: '載入更多失敗通知',
+    campaignRetryAuditToggle: '查看重試審計',
+    campaignRetryAuditTitle: '手動重試審計',
+    campaignRetryAuditEmpty: '此活動沒有手動重試記錄。',
+    campaignRetryAuditLoading: '正在載入重試審計…',
+    campaignRetryAuditLoadFailed: '無法載入重試審計，請重新整理後再試。',
+    campaignRetryAuditEntry: '管理員 {admin} · {time} · 領取記錄 {claim} · 活動來源 {source} · 通知機器人 {bot} · 結果 {outcome}',
+    campaignRetryAuditPending: '待處理',
+    campaignRetryAuditDelivered: '已送達',
+    campaignRetryAuditFailed: '失敗',
+    campaignRetryAuditUncertain: '傳送狀態不明',
+    campaignRetryAuditLoadMore: '載入更多重試記錄',
     campaignNewUsers: '包含截止時間前建立的新帳戶',
     campaignNewFailureAlertTitle: '新失敗的 VIP 獎勵通知：{count} 則',
     campaignNewFailureAlertSeparate: '這些獎勵私訊與公開活動公告的傳送狀態分開顯示。',
     campaignNewFailureAlertLatest: '最近一次獎勵通知失敗：{time}',
     campaignNewFailureAlertChecking: '正在檢查新的獎勵通知失敗…',
     campaignNewFailureAlertLoadFailed: '無法檢查新的獎勵通知失敗，請重新整理再試。',
+    campaignQueueHealthTitle: 'VIP獎勵通知佇列狀態',
+    campaignQueueHealthSeparate: '待處理超過10分鐘後列為逾期；傳送中的通知會在租約到期後列入。這不包括最終失敗的獎勵私訊或公開公告。',
+    campaignQueueHealthPending: '逾期待處理：{count}',
+    campaignQueueHealthExpiredSending: '傳送租約已過期：{count}',
+    campaignQueueHealthOldest: '最早等待：{time} · {minutes} 分鐘',
+    campaignQueueHealthEmpty: '沒有逾期待處理或傳送租約過期的通知。',
+    campaignQueueHealthChecking: '正在檢查定時獎勵通知佇列…',
+    campaignQueueHealthLoadFailed: '無法載入獎勵通知佇列狀態，請重新整理再試。',
     announcementStatus: '公告狀態',
     announcementPending: '排隊中',
     announcementDelivered: '已發布',
@@ -1361,7 +2027,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignCreated: 'VIPキャンペーンを作成し、告知を送信キューに追加しました。対象ユーザーはログイン時にVIP日数を受け取ります。',
     popupTitle: 'VIP特典を受け取りました',
     popupBody: 'アカウントにVIPが{days}日分追加されました。',
-    popupClose: '続ける',
+    popupConfirm: '確認',
     campaignsTitle: 'VIPキャンペーン',
     campaign: 'キャンペーン',
     sourceApp: '対象アプリ：{app}',
@@ -1383,6 +2049,13 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardNotifications: '確認が必要な報酬通知：{count}件',
     campaignFailedRewardNotificationsUnavailable: '現在のバックエンド版では報酬通知数を取得できません。',
     campaignFailedRewardsReview: '通知を確認（{count}）',
+    campaignCrossFailedRewardsTitle: '全キャンペーンの未配信報酬通知',
+    campaignCrossFailedRewardsPlaceholder: 'ユーザー名またはTelegramアカウントIDを検索',
+    campaignCrossFailedRewardsSearch: '全キャンペーンを検索',
+    campaignCrossFailedRewardsSourceBot: '元のアプリ',
+    campaignCrossFailedRewardsAllSources: 'すべてのアプリ',
+    campaignCrossFailedRewardsInitialHint: 'ユーザー名またはアカウントIDで検索するか、元のアプリを選択してください。',
+    campaignCrossFailedRewardsDetails: 'キャンペーン {campaign} · 元のアプリ {source} · 通知ボット {bot}',
     campaignFailedRewardsEmpty: '確認が必要な報酬通知はありません。',
     campaignFailedRewardDeliveryUncertain: '配信状況が不明です。Telegramがすでに送信した可能性があり、手動で再試行すると重複することがあります。',
     campaignFailedRewardDeliveryUncertainConfirm: 'Telegramがすでに送信した可能性があります。それでも再試行しますか？重複して届くことがあります。',
@@ -1398,12 +2071,31 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardRetrySent: '報酬通知を送信しました。',
     campaignFailedRewardRetryFailed: '通知を送信できませんでした。残り回数があれば再試行できます。',
     campaignFailedRewardLoadMore: '失敗した通知をさらに読み込む',
+    campaignRetryAuditToggle: '再試行履歴を表示',
+    campaignRetryAuditTitle: '手動再試行履歴',
+    campaignRetryAuditEmpty: 'このキャンペーンに手動再試行の記録はありません。',
+    campaignRetryAuditLoading: '再試行履歴を読み込み中…',
+    campaignRetryAuditLoadFailed: '再試行履歴を読み込めません。更新して再試行してください。',
+    campaignRetryAuditEntry: '管理者 {admin} · {time} · 申請 {claim} · キャンペーン元 {source} · 通知Bot {bot} · 結果 {outcome}',
+    campaignRetryAuditPending: '保留中',
+    campaignRetryAuditDelivered: '配信済み',
+    campaignRetryAuditFailed: '失敗',
+    campaignRetryAuditUncertain: '配信状況不明',
+    campaignRetryAuditLoadMore: '再試行履歴をさらに読み込む',
     campaignNewUsers: '締切前に作成された新規アカウントを含む',
     campaignNewFailureAlertTitle: '新たに失敗したVIP報酬通知：{count}件',
     campaignNewFailureAlertSeparate: '報酬のDMは公開キャンペーン告知とは別に表示されます。',
     campaignNewFailureAlertLatest: '最新の報酬通知失敗：{time}',
     campaignNewFailureAlertChecking: '新しい報酬通知の失敗を確認中…',
     campaignNewFailureAlertLoadFailed: '新しい報酬通知の失敗を確認できません。更新して再試行してください。',
+    campaignQueueHealthTitle: 'VIP報酬通知キューの状態',
+    campaignQueueHealthSeparate: '保留中の通知は10分後に遅延扱いとなり、送信中の通知はリース期限切れ後に表示されます。最終失敗した報酬DMや公開告知は含みません。',
+    campaignQueueHealthPending: '遅延中の保留：{count}',
+    campaignQueueHealthExpiredSending: '期限切れの送信リース：{count}',
+    campaignQueueHealthOldest: '最も長い待機：{time} · {minutes}分',
+    campaignQueueHealthEmpty: '遅延中またはリース期限切れの通知はありません。',
+    campaignQueueHealthChecking: '予約済み報酬通知キューを確認中…',
+    campaignQueueHealthLoadFailed: '報酬通知キューを読み込めません。更新して再試行してください。',
     announcementStatus: '告知状況',
     announcementPending: '送信待ち',
     announcementDelivered: '投稿済み',
@@ -1428,7 +2120,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignCreated: 'VIP 캠페인이 생성되었고 공지가 전송 대기열에 추가되었습니다. 대상 사용자는 로그인할 때 VIP 일수를 받습니다.',
     popupTitle: 'VIP 보상을 받았습니다',
     popupBody: '계정에 VIP {days}일이 추가되었습니다.',
-    popupClose: '계속',
+    popupConfirm: '확인',
     campaignsTitle: 'VIP 캠페인',
     campaign: '캠페인',
     sourceApp: '캠페인 앱: {app}',
@@ -1450,6 +2142,13 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardNotifications: '확인이 필요한 보상 알림: {count}건',
     campaignFailedRewardNotificationsUnavailable: '현재 백엔드 버전에서는 보상 알림 수를 제공하지 않습니다.',
     campaignFailedRewardsReview: '알림 확인 ({count})',
+    campaignCrossFailedRewardsTitle: '전체 캠페인의 실패한 보상 알림',
+    campaignCrossFailedRewardsPlaceholder: '사용자 이름 또는 Telegram 계정 ID 검색',
+    campaignCrossFailedRewardsSearch: '전체 캠페인 검색',
+    campaignCrossFailedRewardsSourceBot: '원본 앱',
+    campaignCrossFailedRewardsAllSources: '모든 앱',
+    campaignCrossFailedRewardsInitialHint: '사용자 이름이나 계정 ID로 검색하거나 원본 앱을 선택하세요.',
+    campaignCrossFailedRewardsDetails: '캠페인 {campaign} · 원본 앱 {source} · 알림 봇 {bot}',
     campaignFailedRewardsEmpty: '확인이 필요한 보상 알림이 없습니다.',
     campaignFailedRewardDeliveryUncertain: '전송 상태를 확인할 수 없습니다. Telegram이 이미 보냈을 수 있으며, 수동 재시도 시 중복 전송될 수 있습니다.',
     campaignFailedRewardDeliveryUncertainConfirm: 'Telegram이 이미 보냈을 수 있습니다. 그래도 다시 보낼까요? 중복 메시지가 전송될 수 있습니다.',
@@ -1465,12 +2164,31 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardRetrySent: '보상 알림을 전송했습니다.',
     campaignFailedRewardRetryFailed: '알림 전송에 실패했습니다. 남은 횟수가 있으면 다시 시도할 수 있습니다.',
     campaignFailedRewardLoadMore: '실패한 알림 더 보기',
+    campaignRetryAuditToggle: '재시도 기록 보기',
+    campaignRetryAuditTitle: '수동 재시도 기록',
+    campaignRetryAuditEmpty: '이 캠페인에는 수동 재시도 기록이 없습니다.',
+    campaignRetryAuditLoading: '재시도 기록 불러오는 중…',
+    campaignRetryAuditLoadFailed: '재시도 기록을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.',
+    campaignRetryAuditEntry: '관리자 {admin} · {time} · 청구 {claim} · 캠페인 출처 {source} · 알림 봇 {bot} · 결과 {outcome}',
+    campaignRetryAuditPending: '대기 중',
+    campaignRetryAuditDelivered: '전송 완료',
+    campaignRetryAuditFailed: '실패',
+    campaignRetryAuditUncertain: '전송 상태 불확실',
+    campaignRetryAuditLoadMore: '재시도 기록 더 보기',
     campaignNewUsers: '마감 전에 생성된 신규 계정 포함',
     campaignNewFailureAlertTitle: '새 VIP 보상 알림 전송 실패: {count}건',
     campaignNewFailureAlertSeparate: '보상 DM 상태는 공개 캠페인 공지 전송 상태와 별도로 표시됩니다.',
     campaignNewFailureAlertLatest: '최근 보상 알림 실패: {time}',
     campaignNewFailureAlertChecking: '새 보상 알림 실패를 확인하는 중…',
     campaignNewFailureAlertLoadFailed: '새 보상 알림 실패를 확인할 수 없습니다. 새로고침 후 다시 시도하세요.',
+    campaignQueueHealthTitle: 'VIP 보상 알림 대기열 상태',
+    campaignQueueHealthSeparate: '대기 알림은 10분 후 지연으로 표시되고, 전송 중인 알림은 임대 시간이 만료되면 표시됩니다. 최종 실패한 보상 DM과 공개 공지는 포함하지 않습니다.',
+    campaignQueueHealthPending: '지연 대기: {count}',
+    campaignQueueHealthExpiredSending: '전송 임대 만료: {count}',
+    campaignQueueHealthOldest: '가장 오래 기다린 항목: {time} · {minutes}분',
+    campaignQueueHealthEmpty: '지연 대기 또는 임대 만료 알림이 없습니다.',
+    campaignQueueHealthChecking: '예약된 보상 알림 대기열 확인 중…',
+    campaignQueueHealthLoadFailed: '보상 알림 대기열을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.',
     announcementStatus: '공지 상태',
     announcementPending: '전송 대기 중',
     announcementDelivered: '게시됨',
@@ -1495,7 +2213,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignCreated: 'VIP-кампания создана, объявление поставлено в очередь. Подходящие пользователи получат VIP-дни при входе.',
     popupTitle: 'VIP-награда получена',
     popupBody: 'Ваш аккаунт получил VIP на {days} дн.',
-    popupClose: 'Продолжить',
+    popupConfirm: 'Подтвердить',
     campaignsTitle: 'VIP-кампании',
     campaign: 'Кампания',
     sourceApp: 'Приложение кампании: {app}',
@@ -1517,6 +2235,13 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardNotifications: 'Уведомлений, требующих проверки: {count}',
     campaignFailedRewardNotificationsUnavailable: 'Текущая версия бэкенда не предоставляет число таких уведомлений.',
     campaignFailedRewardsReview: 'Проверить уведомления ({count})',
+    campaignCrossFailedRewardsTitle: 'Неотправленные уведомления по всем VIP-кампаниям',
+    campaignCrossFailedRewardsPlaceholder: 'Поиск по имени пользователя или ID Telegram',
+    campaignCrossFailedRewardsSearch: 'Искать во всех кампаниях',
+    campaignCrossFailedRewardsSourceBot: 'Исходное приложение',
+    campaignCrossFailedRewardsAllSources: 'Все приложения',
+    campaignCrossFailedRewardsInitialHint: 'Найдите пользователя по имени или ID либо выберите исходное приложение.',
+    campaignCrossFailedRewardsDetails: 'Кампания {campaign} · источник {source} · бот уведомления {bot}',
     campaignFailedRewardsEmpty: 'Нет уведомлений, требующих проверки.',
     campaignFailedRewardDeliveryUncertain: 'Статус доставки неизвестен: Telegram мог уже отправить сообщение. Ручной повтор может создать дубликат.',
     campaignFailedRewardDeliveryUncertainConfirm: 'Telegram мог уже доставить сообщение. Повторить отправку? Пользователь может получить дубликат.',
@@ -1532,12 +2257,31 @@ const vipGrantCopy: Record<LangKey, {
     campaignFailedRewardRetrySent: 'Уведомление о награде отправлено.',
     campaignFailedRewardRetryFailed: 'Не удалось отправить сообщение. Повторите, если попытки остались.',
     campaignFailedRewardLoadMore: 'Загрузить ещё неудачные уведомления',
+    campaignRetryAuditToggle: 'История повторных отправок',
+    campaignRetryAuditTitle: 'История ручных повторов',
+    campaignRetryAuditEmpty: 'Для этой кампании нет ручных повторов.',
+    campaignRetryAuditLoading: 'Загружаем историю повторов…',
+    campaignRetryAuditLoadFailed: 'Не удалось загрузить историю. Обновите страницу и попробуйте снова.',
+    campaignRetryAuditEntry: 'Администратор {admin} · {time} · заявка {claim} · источник кампании {source} · бот уведомления {bot} · результат {outcome}',
+    campaignRetryAuditPending: 'Ожидает',
+    campaignRetryAuditDelivered: 'Доставлено',
+    campaignRetryAuditFailed: 'Не доставлено',
+    campaignRetryAuditUncertain: 'Доставка не подтверждена',
+    campaignRetryAuditLoadMore: 'Загрузить ещё записи',
     campaignNewUsers: 'Включает новые аккаунты, созданные до срока',
     campaignNewFailureAlertTitle: 'Новые сбои VIP-уведомлений о наградах: {count}',
     campaignNewFailureAlertSeparate: 'Личные сообщения о наградах показаны отдельно от публичных объявлений кампании.',
     campaignNewFailureAlertLatest: 'Последний сбой уведомления о награде: {time}',
     campaignNewFailureAlertChecking: 'Проверка новых сбоев уведомлений о наградах…',
     campaignNewFailureAlertLoadFailed: 'Не удалось проверить новые сбои уведомлений. Обновите страницу и повторите попытку.',
+    campaignQueueHealthTitle: 'Состояние очереди VIP-уведомлений о наградах',
+    campaignQueueHealthSeparate: 'Ожидающие уведомления считаются просроченными через 10 минут; отправка учитывается после истечения аренды. Терминальные сбои DM и публичные объявления не включены.',
+    campaignQueueHealthPending: 'Просрочено в ожидании: {count}',
+    campaignQueueHealthExpiredSending: 'Истекшая аренда отправки: {count}',
+    campaignQueueHealthOldest: 'Ожидает дольше всего: {time} · {minutes} мин',
+    campaignQueueHealthEmpty: 'Просроченных ожидающих уведомлений и истекших аренд отправки нет.',
+    campaignQueueHealthChecking: 'Проверка очереди запланированных наград…',
+    campaignQueueHealthLoadFailed: 'Не удалось загрузить состояние очереди наград. Обновите страницу.',
     announcementStatus: 'Объявление',
     announcementPending: 'В очереди',
     announcementDelivered: 'Опубликовано',
@@ -1871,8 +2615,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [isFilterAccessRenewing, setIsFilterAccessRenewing] = useState<boolean>(false);
   const filterAccessPurchaseInProgressRef = useRef(false);
   const [pendingAccessRecheck, setPendingAccessRecheck] = useState<PendingAccessRecheck | null>(null);
+  const [pendingAccessRecoveryAccountId, setPendingAccessRecoveryAccountId] = useState<string | null>(null);
   const [isPaymentRetryRunning, setIsPaymentRetryRunning] = useState(false);
   const pendingAccessRecheckRef = useRef<PendingAccessRecheck | null>(null);
+  const pendingAccessRecoverySyncRef = useRef<Promise<void>>(Promise.resolve());
   const accessRecheckAttemptsRef = useRef<{ key: string; attempts: number }>({ key: '', attempts: 0 });
   const paidProfileVerificationInProgressRef = useRef(false);
   const applyOwnProfileRef = useRef<(profile: UserProfile) => void>(() => {});
@@ -1921,6 +2667,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [rolesLoadError, setRolesLoadError] = useState('');
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
+  const [showProfileSetupPreview, setShowProfileSetupPreview] = useState(false);
+  const profileSetupPreviewDialogRef = useRef<HTMLDivElement | null>(null);
   const [showRolesModal, setShowRolesModal] = useState<boolean>(false);
   const [showVipPeriods, setShowVipPeriods] = useState<boolean>(false);
   const [vipGrantWindowEnabled, setVipGrantWindowEnabled] = useState<boolean>(false);
@@ -1931,12 +2679,28 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const vipGrantSaveLockRef = useRef<boolean>(false);
   const [vipGrantNotice, setVipGrantNotice] = useState<VipGrantNotice | null>(null);
   const [showVipCampaignsModal, setShowVipCampaignsModal] = useState(false);
-  const [showRafflePaymentReview, setShowRafflePaymentReview] = useState(false);
-  const [rafflePaymentIntents, setRafflePaymentIntents] = useState<RafflePaymentIntent[]>([]);
-  const [rafflePaymentsHasMore, setRafflePaymentsHasMore] = useState(false);
-  const [rafflePaymentsLoading, setRafflePaymentsLoading] = useState(false);
-  const [rafflePaymentsError, setRafflePaymentsError] = useState('');
-  const [rafflePaymentsSearch, setRafflePaymentsSearch] = useState('');
+  const [showPaymentReview, setShowPaymentReview] = useState(false);
+  const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
+  const [paymentsHasMore, setPaymentsHasMore] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState('');
+  const [paymentsSearch, setPaymentsSearch] = useState('');
+  const [rafflePaymentIntents, setRafflePaymentIntents] =
+    useState<RafflePaymentReviewIntent[]>([]);
+  const [rafflePaymentHasMore, setRafflePaymentHasMore] = useState(false);
+  const [rafflePaymentLoading, setRafflePaymentLoading] = useState(false);
+  const [rafflePaymentError, setRafflePaymentError] = useState('');
+  const [rafflePaymentSearch, setRafflePaymentSearch] = useState('');
+  const [raffleRecoveringIntentId, setRaffleRecoveringIntentId] = useState<string | null>(null);
+  const [raffleRecoveryNotice, setRaffleRecoveryNotice] = useState('');
+  const [raffleRecoveryError, setRaffleRecoveryError] = useState('');
+  const [passLookupSearch, setPassLookupSearch] = useState('');
+  const [passLookupSearchBy, setPassLookupSearchBy] =
+    useState<PassPaymentSearchBy>('telegram_id');
+  const [passLookupLoading, setPassLookupLoading] = useState(false);
+  const [passLookupError, setPassLookupError] = useState('');
+  const [passLookupResult, setPassLookupResult] = useState<PassPaymentLookup | null>(null);
+  const passPaymentLookupRequestRef = useRef(0);
   const [vipCampaigns, setVipCampaigns] = useState<VipCampaign[]>([]);
   const [vipCampaignsHasMore, setVipCampaignsHasMore] = useState(false);
   const [vipCampaignsLoading, setVipCampaignsLoading] = useState(false);
@@ -1948,18 +2712,109 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [failedRewardClaimsHasMore, setFailedRewardClaimsHasMore] = useState(false);
   const [failedRewardClaimsLoading, setFailedRewardClaimsLoading] = useState(false);
   const [failedRewardClaimsError, setFailedRewardClaimsError] = useState('');
+  const [crossCampaignFailedRewardSearch, setCrossCampaignFailedRewardSearch] = useState('');
+  const [crossCampaignFailedRewardSourceBot, setCrossCampaignFailedRewardSourceBot] =
+    useState<'all' | 'botA' | 'botB'>('all');
+  const [crossCampaignFailedRewardActiveSearch, setCrossCampaignFailedRewardActiveSearch] = useState('');
+  const [crossCampaignFailedRewardActiveSourceBot, setCrossCampaignFailedRewardActiveSourceBot] =
+    useState<'all' | 'botA' | 'botB'>('all');
+  const [crossCampaignFailedRewardSearched, setCrossCampaignFailedRewardSearched] = useState(false);
+  const [crossCampaignFailedRewardClaims, setCrossCampaignFailedRewardClaims] =
+    useState<VipFailedRewardClaim[]>([]);
+  const [crossCampaignFailedRewardClaimsHasMore, setCrossCampaignFailedRewardClaimsHasMore] =
+    useState(false);
+  const [crossCampaignFailedRewardClaimsLoading, setCrossCampaignFailedRewardClaimsLoading] =
+    useState(false);
+  const [crossCampaignFailedRewardClaimsError, setCrossCampaignFailedRewardClaimsError] = useState('');
   const [retryingFailedRewardClaimId, setRetryingFailedRewardClaimId] = useState<string | null>(null);
+  const [retryAuditCampaignId, setRetryAuditCampaignId] = useState<string | null>(null);
+  const [retryAuditRecords, setRetryAuditRecords] = useState<VipRewardRetryAudit[]>([]);
+  const [retryAuditHasMore, setRetryAuditHasMore] = useState(false);
+  const [retryAuditLoading, setRetryAuditLoading] = useState(false);
+  const [retryAuditError, setRetryAuditError] = useState('');
   const vipCampaignListRequestRef = useRef(0);
   const vipFailedRewardRequestRef = useRef(0);
+  const crossCampaignFailedRewardRequestRef = useRef(0);
+  const vipRetryAuditRequestRef = useRef(0);
+  const paymentReviewRequestRef = useRef(0);
   const rafflePaymentReviewRequestRef = useRef(0);
+  const raffleRecoveryRequestRef = useRef(0);
   const [vipFailureAlert, setVipFailureAlert] = useState<VipFailureAlertSummary | null>(null);
   const [vipFailureAlertLoading, setVipFailureAlertLoading] = useState(false);
   const [vipFailureAlertError, setVipFailureAlertError] = useState('');
   const vipFailureAlertRequestRef = useRef(0);
+  const vipFailureAlertAckRequestRef = useRef(0);
+  const vipFailureAlertAcknowledgedCursorRef = useRef<string | null>(null);
+  const vipFailureAlertOwnerRef = useRef<string | null>(null);
+  const vipFailureAlertPollingUserRef = useRef<string | null>(null);
+  const loadNewVipFailureAlertsRef = useRef<() => Promise<void>>(async () => {});
+  const [vipRewardQueueHealth, setVipRewardQueueHealth] =
+    useState<VipRewardNotificationQueueHealth | null>(null);
+  const [vipRewardQueueHealthLoading, setVipRewardQueueHealthLoading] = useState(false);
+  const [vipRewardQueueHealthError, setVipRewardQueueHealthError] = useState('');
+  const vipRewardQueueHealthRequestRef = useRef(0);
+  const loadVipRewardQueueHealthRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    if (!showProfileSetupPreview) return;
+    if (!isAdmin) {
+      setShowProfileSetupPreview(false);
+      return;
+    }
+
+    const dialog = profileSetupPreviewDialogRef.current;
+    if (!dialog) return;
+
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () =>
+      Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+    focusableElements()[0]?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setShowProfileSetupPreview(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusables = focusableElements();
+      const first = focusables[0];
+      const last = focusables.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [showProfileSetupPreview, isAdmin]);
+
   useEffect(() => {
     vipCampaignListRequestRef.current += 1;
     vipFailedRewardRequestRef.current += 1;
+    crossCampaignFailedRewardRequestRef.current += 1;
     vipFailureAlertRequestRef.current += 1;
+    vipFailureAlertAckRequestRef.current += 1;
+    vipFailureAlertAcknowledgedCursorRef.current = null;
+    vipFailureAlertOwnerRef.current = null;
+    vipFailureAlertPollingUserRef.current = null;
+    vipRewardQueueHealthRequestRef.current += 1;
     setShowVipCampaignsModal(false);
     setVipCampaigns([]);
     setVipCampaignsHasMore(false);
@@ -1972,27 +2827,102 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setFailedRewardClaimsHasMore(false);
     setFailedRewardClaimsLoading(false);
     setFailedRewardClaimsError('');
+    setCrossCampaignFailedRewardSearch('');
+    setCrossCampaignFailedRewardSourceBot('all');
+    setCrossCampaignFailedRewardActiveSearch('');
+    setCrossCampaignFailedRewardActiveSourceBot('all');
+    setCrossCampaignFailedRewardSearched(false);
+    setCrossCampaignFailedRewardClaims([]);
+    setCrossCampaignFailedRewardClaimsHasMore(false);
+    setCrossCampaignFailedRewardClaimsLoading(false);
+    setCrossCampaignFailedRewardClaimsError('');
     setRetryingFailedRewardClaimId(null);
     setVipFailureAlert(null);
     setVipFailureAlertLoading(false);
     setVipFailureAlertError('');
+    setVipRewardQueueHealth(null);
+    setVipRewardQueueHealthLoading(false);
+    setVipRewardQueueHealthError('');
   }, [currentUser?.id]);
   useEffect(() => {
-    if (!showVipCampaignsModal || !currentUser?.id || !vipFailureAlert?.cursor) return;
-    try {
-      writeVipFailureAlertCursor(window.localStorage, currentUser.id, vipFailureAlert.cursor);
-    } catch {
-      // Storage can be unavailable in private or embedded browser contexts.
-    }
-  }, [showVipCampaignsModal, currentUser?.id, vipFailureAlert]);
+    const userId = currentUser?.id;
+    const eventId = vipFailureAlert?.cursor?.eventId;
+    if (!showVipCampaignsModal || !userId || !eventId ||
+        vipFailureAlertOwnerRef.current !== userId) return;
+    const lastAcknowledgedEventId = vipFailureAlertAcknowledgedCursorRef.current;
+    if (lastAcknowledgedEventId && BigInt(lastAcknowledgedEventId) >= BigInt(eventId)) return;
+
+    const requestSequence = ++vipFailureAlertAckRequestRef.current;
+    void (async () => {
+      try {
+        const result = await workerPostRef.current('/api/vip-campaigns', {
+          action: 'acknowledge_failure_alerts',
+          afterFailureEventId: eventId,
+        });
+        const cursor = parseVipFailureAlertAcknowledgement(result, eventId);
+        if (requestSequence !== vipFailureAlertAckRequestRef.current || currentUser?.id !== userId) return;
+        vipFailureAlertAcknowledgedCursorRef.current = cursor.eventId;
+        setVipFailureAlertError('');
+      } catch (error) {
+        if (requestSequence === vipFailureAlertAckRequestRef.current && currentUser?.id === userId) {
+          console.error('Could not acknowledge new VIP reward notification failures:', error);
+          setVipFailureAlertError(vipGrantCopy[lang].campaignNewFailureAlertLoadFailed);
+        }
+      }
+    })();
+  }, [showVipCampaignsModal, currentUser?.id, vipFailureAlert?.cursor?.eventId, lang]);
   useEffect(() => {
+    const userId = currentUser?.id;
+    if (!showVipCampaignsModal || !isAdmin || !userId) {
+      vipFailureAlertPollingUserRef.current = null;
+      return;
+    }
+
+    vipFailureAlertPollingUserRef.current = userId;
+    const stopPolling = startVipFailureAlertPolling({
+      enabled: true,
+      userId,
+      timer: window,
+      onPoll: () => {
+        if (vipFailureAlertPollingUserRef.current === userId) {
+          void loadNewVipFailureAlertsRef.current();
+          void loadVipRewardQueueHealthRef.current();
+        }
+      },
+    });
+    return () => {
+      vipFailureAlertRequestRef.current += 1;
+      vipRewardQueueHealthRequestRef.current += 1;
+      if (vipFailureAlertPollingUserRef.current === userId) {
+        vipFailureAlertPollingUserRef.current = null;
+      }
+      stopPolling();
+    };
+  }, [showVipCampaignsModal, isAdmin, currentUser?.id]);
+  useEffect(() => {
+    paymentReviewRequestRef.current += 1;
     rafflePaymentReviewRequestRef.current += 1;
-    setShowRafflePaymentReview(false);
+    raffleRecoveryRequestRef.current += 1;
+    passPaymentLookupRequestRef.current += 1;
+    setShowPaymentReview(false);
+    setPaymentRecords([]);
+    setPaymentsHasMore(false);
+    setPaymentsLoading(false);
+    setPaymentsError('');
+    setPaymentsSearch('');
     setRafflePaymentIntents([]);
-    setRafflePaymentsHasMore(false);
-    setRafflePaymentsLoading(false);
-    setRafflePaymentsError('');
-    setRafflePaymentsSearch('');
+    setRafflePaymentHasMore(false);
+    setRafflePaymentLoading(false);
+    setRafflePaymentError('');
+    setRafflePaymentSearch('');
+    setRaffleRecoveringIntentId(null);
+    setRaffleRecoveryNotice('');
+    setRaffleRecoveryError('');
+    setPassLookupSearch('');
+    setPassLookupSearchBy('telegram_id');
+    setPassLookupLoading(false);
+    setPassLookupError('');
+    setPassLookupResult(null);
   }, [currentUser?.id, isAdmin]);
   const [showFlyingPriceEditor, setShowFlyingPriceEditor] = useState<boolean>(false);
   const [flyingPriceDraft, setFlyingPriceDraft] = useState<string>('0');
@@ -2021,7 +2951,17 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const confirmRaffleTicketPurchaseRef = useRef<
     ((intentId: string, response: unknown) => RafflePurchaseOutcome) | null
   >(null);
-  const [flyingMessageNotice, setFlyingMessageNotice] = useState<string>('');
+  const [flyingMessageNoticeState, setFlyingMessageNoticeState] =
+    useState<FlyingMessageNoticeState>(() => createFlyingMessageNotice());
+  const flyingMessageNotice = flyingMessageNoticeState.message;
+  const showFlyingMessageNotice = (message: string, persistent = false) => {
+    setFlyingMessageNoticeState((current) =>
+      getFlyingMessageNoticeAfterMessage(current, message, persistent),
+    );
+  };
+  const dismissFlyingMessageNotice = () => {
+    setFlyingMessageNoticeState(getFlyingMessageNoticeAfterDismissal());
+  };
   const [sendingFlyingMessage, setSendingFlyingMessage] = useState<boolean>(false);
   const [flyingCooldownUntil, setFlyingCooldownUntil] = useState<number>(0);
   const [cooldownClock, setCooldownClock] = useState<number>(Date.now());
@@ -2051,6 +2991,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [filterHeightMin, setFilterHeightMin] = useState<number>(140);
   const [filterHeightMax, setFilterHeightMax] = useState<number>(200);
   const [filterGenderVals, setFilterGenderVals] = useState<GenderFilterValue[]>([]);
+  const vipEntitlementActive = isVip || temporaryVipActive || globalVipActive;
+  const hkmoMenOnlyFilterLocked = isHkmoDateMenOnlyFilterLocked(
+    verifiedBotKeyRef.current,
+    vipEntitlementActive,
+  );
+  const effectiveFilterGenderVals = getEffectiveGenderFilterValues(
+    filterGenderVals,
+    verifiedBotKeyRef.current,
+    vipEntitlementActive,
+  );
   const [filterPrefMatcherOn, setFilterPrefMatcherOn] = useState<boolean>(true);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [noteDraft, setNoteDraft] = useState<string>('');
@@ -2102,39 +3052,24 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [filterHowManyVal, setFilterHowManyVal] = useState<string>(DEFAULT_HOW_MANY_FILTER);
   const [filterWhereVal, setFilterWhereVal] = useState<string | null>(null);
 
-  const roleCycleOptions = ['Versatile', 'Top', 'Bottom', 'Side'];
-  const safetyCycleOptions = ['Safe', 'Raw'];
-  const howManyCycleOptions = ['1on1', 'group', 'DoesntMatter'];
-  const whereCycleOptions = ['Host', 'Travel', null];
   const filterRoleCycleOptions = FILTER_CYCLE_OPTIONS.role;
   const filterSafetyCycleOptions = FILTER_CYCLE_OPTIONS.safety;
   const filterPlaystyleCycleOptions = FILTER_CYCLE_OPTIONS.playstyle;
   const filterWhereCycleOptions = FILTER_CYCLE_OPTIONS.where;
 
-  const cycleNext = (current: string, options: string[]) => {
+  const cycleNext = (current: string, options: readonly string[]) => {
     const idx = options.indexOf(current);
     if (idx === -1 || idx === options.length - 1) return options[0];
     return options[idx + 1];
   };
-  const cycleWhere = (current: string | null, options: (string | null)[]) => {
+  const cycleWhere = (current: string | null, options: readonly (string | null)[]) => {
     const idx = options.indexOf(current);
     if (idx === -1 || idx === options.length - 1) return options[0];
     return options[idx + 1];
   };
 
-  const heightOptions = [];
-  for (let cm = 152; cm <= 300; cm += 1) {
-    const totalInches = Math.round(cm / 2.54);
-    const ft = Math.floor(totalInches / 12);
-    const inch = totalInches % 12;
-    heightOptions.push(`${cm}cm (${ft}ft ${inch}in)`);
-  }
-  if (height && !heightOptions.includes(height)) heightOptions.unshift(height);
-  const weightOptions = [];
-  for (let kg = 35; kg <= 160; kg += 1) {
-    const lbs = Math.round(kg * 2.20462);
-    weightOptions.push(`${kg}kg (${lbs}lbs)`);
-  }
+  const heightOptions = buildProfileHeightOptions(height);
+  const weightOptions = buildProfileWeightOptions();
 
   const getActiveBotKey = () => {
     if (verifiedBotKeyRef.current) return verifiedBotKeyRef.current;
@@ -2188,14 +3123,31 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
   workerPostRef.current = workerPost;
 
-  const persistPendingAccessRecheck = (
+  const enqueuePendingAccessRecoverySync = (operation: () => Promise<unknown>) => {
+    const next = pendingAccessRecoverySyncRef.current.then(
+      async () => { await operation(); },
+      async () => { await operation(); },
+    );
+    pendingAccessRecoverySyncRef.current = next.catch(() => {});
+    return next;
+  };
+
+  const queuePendingAccessRecoverySave = (marker: PendingAccessRecheck) =>
+    enqueuePendingAccessRecoverySync(() =>
+      workerPostRef.current('/api/access-recovery/save', { marker }),
+    ).catch((error) => {
+      console.warn('Pending payment recovery could not be saved to the Worker.', error);
+    });
+
+  const persistPendingAccessRecheck = async (
     input: Parameters<typeof createPendingAccessRecheck>[0],
-  ): PendingAccessRecheck | null => {
+  ): Promise<PendingAccessRecheck | null> => {
     const marker = createPendingAccessRecheck(input);
     if (!marker) return null;
     try { savePendingAccessRecheck(localStorage, marker); } catch {}
     pendingAccessRecheckRef.current = marker;
     setPendingAccessRecheck(marker);
+    await queuePendingAccessRecoverySave(marker);
     return marker;
   };
 
@@ -2209,6 +3161,11 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       stored.startedAt !== expected.startedAt
     )) return;
     try { clearPendingAccessRecheckStorage(localStorage, expected); } catch {}
+    void enqueuePendingAccessRecoverySync(() =>
+      workerPostRef.current('/api/access-recovery/clear', { marker: expected }),
+    ).catch((error) => {
+      console.warn('Pending payment recovery could not be cleared from the Worker.', error);
+    });
     setPendingAccessRecheck((current) => {
       if (current &&
           (current.accountId !== expected.accountId || current.startedAt !== expected.startedAt)) {
@@ -2226,6 +3183,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     accountId = currentUserRef.current?.id,
   ) => {
     if (typeof accountId !== 'string' || !accountId.trim()) return false;
+    if (pendingAccessRecoveryAccountId !== accountId) return true;
     const now = Date.now();
     let stored: PendingAccessRecheck | null = null;
     try { stored = loadPendingAccessRecheck(localStorage, accountId, now); } catch {}
@@ -2476,10 +3434,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   }, [flyingCooldownUntil]);
 
   useEffect(() => {
-    if (!flyingMessageNotice) return;
-    const timer = window.setTimeout(() => setFlyingMessageNotice(''), 6000);
+    if (!shouldAutoDismissFlyingMessageNotice(flyingMessageNoticeState)) return;
+    const timer = window.setTimeout(
+      () => setFlyingMessageNoticeState(getFlyingMessageNoticeAfterDismissal()),
+      6000,
+    );
     return () => window.clearTimeout(timer);
-  }, [flyingMessageNotice]);
+  }, [flyingMessageNoticeState]);
 
   useEffect(() => {
     if (!raffleNotice) return;
@@ -2822,6 +3783,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
 
   const handleToggleFilterGender = async (genderValue: GenderFilterValue) => {
+    if (hkmoMenOnlyFilterLocked) return;
     if (!filterAccessActive) {
       const ok = await verifyFilterSubscription('filter_option');
       if (!ok) return;
@@ -3017,7 +3979,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const handleSendFlyingMessage = async () => {
     const text = flyingMessageText.trim();
     if (!flyingMessageEnabled || !text || sendingFlyingMessage) return;
-    setFlyingMessageNotice('');
+    dismissFlyingMessageNotice();
     setSendingFlyingMessage(true);
     try {
       const result = await workerPost('/api/messages', { text });
@@ -3037,18 +3999,27 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       const invoiceStatus = await startInvoice(result.invoiceLink as string);
       if (invoiceStatus === 'paid') {
         let paidMessage: FlyingMessage | null = null;
+        let terminalOutcome: FlyingMessageTerminalOutcome | null = null;
         for (let attempt = 0; attempt < 12; attempt++) {
           try {
             const fulfillment = await workerPost('/api/messages/status', { intentId: result.intentId });
-            const message = getFlyingMessageFulfillmentMessage(
+            const resolution = getFlyingMessagePurchaseResolution(
               invoiceStatus,
               result.intentId,
               fulfillment,
               currentUser?.id,
               entry.botKey,
             );
-            if (message) {
-              paidMessage = message;
+            if (
+              resolution.outcome === 'refunded' ||
+              resolution.outcome === 'rejected' ||
+              resolution.outcome === 'cancelled'
+            ) {
+              terminalOutcome = resolution.outcome;
+              break;
+            }
+            if (resolution.message) {
+              paidMessage = resolution.message;
               break;
             }
           } catch {
@@ -3058,23 +4029,46 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         }
         if (paidMessage) {
           mergeFlyingMessages([paidMessage]);
-          setFlyingMessageText((current) => current.trim() === text ? '' : current);
+          setFlyingMessageText((current) =>
+            getFlyingMessageDraftAfterOutcome(current, text, 'fulfilled'),
+          );
           setFlyingCooldownUntil(Date.now() + 60_000);
-          setFlyingMessageNotice('');
+          dismissFlyingMessageNotice();
+        } else if (terminalOutcome === 'refunded') {
+          setFlyingMessageText((current) =>
+            getFlyingMessageDraftAfterOutcome(current, text, terminalOutcome),
+          );
+          showFlyingMessageNotice(
+            flyingMessageCopy[lang].paymentRefunded,
+            shouldPersistFlyingMessageOutcome(terminalOutcome),
+          );
+        } else if (terminalOutcome === 'rejected') {
+          setFlyingMessageText((current) =>
+            getFlyingMessageDraftAfterOutcome(current, text, terminalOutcome),
+          );
+          showFlyingMessageNotice(
+            flyingMessageCopy[lang].paymentRejected,
+            shouldPersistFlyingMessageOutcome(terminalOutcome),
+          );
+        } else if (terminalOutcome === 'cancelled') {
+          setFlyingMessageText((current) =>
+            getFlyingMessageDraftAfterOutcome(current, text, terminalOutcome),
+          );
+          showFlyingMessageNotice(t('paymentCancelled'));
         } else {
-          setFlyingMessageNotice(flyingMessageCopy[lang].paymentProcessing);
+          showFlyingMessageNotice(flyingMessageCopy[lang].paymentProcessing);
         }
       } else if (invoiceStatus === 'unsupported') {
-        setFlyingMessageNotice(flyingMessageCopy[lang].invoiceFallback);
+        showFlyingMessageNotice(flyingMessageCopy[lang].invoiceFallback);
       } else {
         try { await workerPost('/api/messages/cancel', { intentId: result.intentId }); } catch {}
         setFlyingMessageText(text);
-        setFlyingMessageNotice(t('paymentCancelled'));
+        showFlyingMessageNotice(t('paymentCancelled'));
       }
     } catch (error) {
       const apiError = error as Error & { retryAfter?: number };
       if (apiError.retryAfter) setFlyingCooldownUntil(Date.now() + apiError.retryAfter * 1000);
-      setFlyingMessageNotice(apiError.message || 'Message could not be sent.');
+      showFlyingMessageNotice(apiError.message || 'Message could not be sent.');
     } finally {
       setSendingFlyingMessage(false);
     }
@@ -3105,7 +4099,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       let marker: PendingAccessRecheck | null = null;
       if (status === 'paid') {
         if (purchaseAccountId) {
-          marker = persistPendingAccessRecheck({
+          marker = await persistPendingAccessRecheck({
             accountId: purchaseAccountId,
             entitlement: 'filter',
             minimumExpiry,
@@ -3234,6 +4228,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     paidProfileVerificationInProgressRef.current = true;
     try {
       for (let attempt = 0; attempt < 6; attempt++) {
+        let retryDelayMs = 500;
         if (marker) {
           if (!shouldContinueAccessRechecks(marker.attempts, marker.startedAt, Date.now())) break;
           const updatedMarker = { ...marker, attempts: marker.attempts + 1 };
@@ -3241,19 +4236,32 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           try { savePendingAccessRecheck(localStorage, updatedMarker); } catch {}
         }
         try {
-          const result = await workerPost('/api/profile/check');
+          const result = marker
+            ? await checkPendingAccessProfile(
+              marker,
+              async () => (await workerPost('/api/profile/check')).profile,
+            )
+            : {
+              status: 'pending' as const,
+              profile: (await workerPost('/api/profile/check')).profile,
+              error: null,
+            };
+          if (result.status === 'unavailable') throw result.error;
           latestProfile = result.profile;
           const profileMatchesAccount = !marker || String(latestProfile?.id) === marker.accountId;
           const entitlementConfirmed = latestProfile && profileMatchesAccount &&
-            (marker ? isPendingAccessConfirmed(marker, latestProfile) : isGranted(latestProfile));
+            (marker ? result.status === 'confirmed' : isGranted(latestProfile));
           if (latestProfile && profileMatchesAccount && (applyUnconfirmedProfile || isGranted(latestProfile))) {
             applyOwnProfile(latestProfile);
           }
           if (entitlementConfirmed) return latestProfile;
         } catch (error) {
           console.warn('Paid access is awaiting Worker profile confirmation.', error);
+          retryDelayMs = getAccessRecheckRetryDelayMs(error);
         }
-        if (attempt < 5) await new Promise((resolve) => window.setTimeout(resolve, 500));
+        if (attempt < 5) {
+          await new Promise((resolve) => window.setTimeout(resolve, retryDelayMs));
+        }
       }
       return latestProfile;
     } finally {
@@ -3274,19 +4282,89 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
 
   useEffect(() => {
-    if (!isReady || !currentUserId) return;
+    if (!isReady || !currentUserId) {
+      setPendingAccessRecoveryAccountId(null);
+      return;
+    }
+    const accountId = currentUserId;
+    setPendingAccessRecoveryAccountId(null);
+    let cancelled = false;
     const syncPendingAccessRecheck = () => {
       let pending: PendingAccessRecheck | null = null;
-      try { pending = loadPendingAccessRecheck(localStorage, currentUserId, Date.now()); } catch {}
+      try { pending = loadPendingAccessRecheck(localStorage, accountId, Date.now()); } catch {}
       pendingAccessRecheckRef.current = pending;
       setPendingAccessRecheck(pending);
     };
     syncPendingAccessRecheck();
+    const recoverPendingAccessRecheck = async () => {
+      try {
+        const response = await workerPostRef.current('/api/access-recovery/recover');
+        if (cancelled || currentUserRef.current?.id !== accountId) return;
+        if (!response || !Object.prototype.hasOwnProperty.call(response, 'pending')) {
+          throw new Error('Invalid pending access recovery response.');
+        }
+
+        let recoveredMarker: PendingAccessRecheck | null = null;
+        if (response.pending !== null) {
+          const remote = response.pending;
+          if (!remote || typeof remote !== 'object' || Array.isArray(remote)) {
+            throw new Error('Invalid pending access recovery record.');
+          }
+          recoveredMarker = createPendingAccessRecheck({
+            accountId,
+            entitlement: remote.entitlement as PendingAccessRecheck['entitlement'],
+            startedAt: Number(remote.startedAt),
+            createdAt: Number(remote.createdAt),
+            minimumExpiry: Number(remote.minimumExpiry),
+            ...(remote.entitlement === 'filter'
+              ? {
+                location: remote.location as PendingAccessRecheck['location'],
+                allowActiveRenewal: remote.allowActiveRenewal,
+              }
+              : {}),
+          });
+          if (!recoveredMarker) throw new Error('Invalid pending access recovery record.');
+        }
+
+        let localMarker: PendingAccessRecheck | null = null;
+        try { localMarker = loadPendingAccessRecheck(localStorage, accountId, Date.now()); } catch {}
+        const selectedMarker = selectMostRecentPendingAccessRecheck(
+          localMarker,
+          recoveredMarker,
+          accountId,
+        );
+        if (!selectedMarker) {
+          pendingAccessRecheckRef.current = null;
+          setPendingAccessRecheck(null);
+          return;
+        }
+
+        try { savePendingAccessRecheck(localStorage, selectedMarker); } catch {}
+        pendingAccessRecheckRef.current = selectedMarker;
+        setPendingAccessRecheck(selectedMarker);
+        if (selectedMarker === localMarker &&
+            (!recoveredMarker || localMarker?.startedAt > recoveredMarker.startedAt)) {
+          void queuePendingAccessRecoverySave(selectedMarker);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Could not restore pending payment status from the Worker.', error);
+        }
+      } finally {
+        if (!cancelled && currentUserRef.current?.id === accountId) {
+          setPendingAccessRecoveryAccountId(accountId);
+        }
+      }
+    };
+    void recoverPendingAccessRecheck();
     const handlePendingAccessStorage = (event: StorageEvent) => {
       if (event.key === PENDING_ACCESS_RECHECK_STORAGE_KEY) syncPendingAccessRecheck();
     };
     window.addEventListener('storage', handlePendingAccessStorage);
-    return () => window.removeEventListener('storage', handlePendingAccessStorage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', handlePendingAccessStorage);
+    };
   }, [isReady, currentUserId]);
 
   useEffect(() => {
@@ -3414,24 +4492,24 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         isPaymentRetryRunning || paidProfileVerificationInProgressRef.current) return;
     if (!canRetryPendingPaymentCheck(pending, accountId, now)) return;
 
-    const retryMarker = persistPendingAccessRecheck({
-      accountId: pending.accountId,
-      entitlement: pending.entitlement,
-      startedAt: now,
-      createdAt: pending.createdAt,
-      minimumExpiry: pending.minimumExpiry,
-      ...(pending.entitlement === 'filter'
-        ? { location: pending.location, allowActiveRenewal: pending.allowActiveRenewal }
-        : {}),
-    });
-    if (!retryMarker) return;
-
-    accessRecheckAttemptsRef.current = {
-      key: `${retryMarker.accountId}:${retryMarker.entitlement}:${retryMarker.startedAt}`,
-      attempts: 0,
-    };
     setIsPaymentRetryRunning(true);
     try {
+      const retryMarker = await persistPendingAccessRecheck({
+        accountId: pending.accountId,
+        entitlement: pending.entitlement,
+        startedAt: now,
+        createdAt: pending.createdAt,
+        minimumExpiry: pending.minimumExpiry,
+        ...(pending.entitlement === 'filter'
+          ? { location: pending.location, allowActiveRenewal: pending.allowActiveRenewal }
+          : {}),
+      });
+      if (!retryMarker) return;
+
+      accessRecheckAttemptsRef.current = {
+        key: `${retryMarker.accountId}:${retryMarker.entitlement}:${retryMarker.startedAt}`,
+        attempts: 0,
+      };
       const confirmsThisAccount = (profile: any) =>
         isPendingAccessConfirmed(retryMarker, profile);
       const profile = await waitForPaidProfile(confirmsThisAccount, false, retryMarker);
@@ -3639,7 +4717,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       const minimumExpiry = getMinimumPaidEntitlementExpiry(Date.now(), currentExpiry);
       const status = await startPurchase('invisible');
       if (status === 'paid') {
-        marker = persistPendingAccessRecheck({
+        marker = await persistPendingAccessRecheck({
           accountId: currentUser.id,
           entitlement: 'invisible',
           minimumExpiry,
@@ -3754,7 +4832,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       const minimumExpiry = getMinimumPaidEntitlementExpiry(Date.now(), currentExpiry);
       const status = await startPurchase('hide_age');
       if (status === 'paid') {
-        marker = persistPendingAccessRecheck({
+        marker = await persistPendingAccessRecheck({
           accountId: currentUser.id,
           entitlement: 'hideAge',
           minimumExpiry,
@@ -3816,7 +4894,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       const status = await startPurchase('edit_profile');
       if (status === 'paid') {
         const minimumExpiry = Date.now() + 1;
-        marker = persistPendingAccessRecheck({
+        marker = await persistPendingAccessRecheck({
           accountId: currentUser.id,
           entitlement: 'editProfile',
           minimumExpiry,
@@ -3861,7 +4939,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const checkFilterPass = (user: UserProfile) => {
     if (!gridFilterEnabled) return true;
     if (currentUser && user.id === currentUser.id) return true;
-    if (filterAccessActive && !matchesGenderFilter(filterGenderVals, user.gender)) return false;
+    if ((filterAccessActive || hkmoMenOnlyFilterLocked) &&
+        !matchesGenderFilter(effectiveFilterGenderVals, user.gender)) return false;
     if (filterAgeOn) { const age = typeof user.age === 'number' ? user.age : calculateAge(user.dob); if (age === null || age < filterAgeMin || age > filterAgeMax) return false; }
     if (filterHeightOn) { const h = parseHeightMeters(user.height); if (h === null || h < filterHeightMin || h > filterHeightMax) return false; }
     const userIsManSeekingMan = user.gender === 'man' && user.seeking === 'men';
@@ -4053,16 +5132,57 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
-  const loadAdminRafflePayments = async (
-    search = rafflePaymentsSearch,
+  const loadAdminPayments = async (
+    search = paymentsSearch,
+    offset = 0,
+    append = false,
+  ) => {
+    const requestSequence = ++paymentReviewRequestRef.current;
+    const viewerId = currentUser?.id;
+    if (!viewerId || !isAdmin) return;
+    setPaymentsLoading(true);
+    setPaymentsError('');
+    try {
+      const result = await workerPost('/api/admin/payments', {
+        action: 'list',
+        search,
+        offset,
+      });
+      const page = parsePaymentReviewPage(result);
+      if (requestSequence !== paymentReviewRequestRef.current ||
+          currentUser?.id !== viewerId ||
+          !isAdmin) return;
+      setPaymentRecords((current) => {
+        if (!append) return page.payments;
+        const combined = new Map(current.map((payment) => [payment.paymentId, payment]));
+        for (const payment of page.payments) combined.set(payment.paymentId, payment);
+        return Array.from(combined.values());
+      });
+      setPaymentsHasMore(page.hasMore);
+    } catch (error) {
+      if (requestSequence === paymentReviewRequestRef.current &&
+          currentUser?.id === viewerId &&
+          isAdmin) {
+        console.error('Could not load payment review:', error);
+        setPaymentsError(formatAdminFailure(error, paymentReviewCopy[lang].loadError));
+      }
+    } finally {
+      if (requestSequence === paymentReviewRequestRef.current) {
+        setPaymentsLoading(false);
+      }
+    }
+  };
+
+  const loadRafflePaymentReview = async (
+    search = rafflePaymentSearch,
     offset = 0,
     append = false,
   ) => {
     const requestSequence = ++rafflePaymentReviewRequestRef.current;
     const viewerId = currentUser?.id;
     if (!viewerId || !isAdmin) return;
-    setRafflePaymentsLoading(true);
-    setRafflePaymentsError('');
+    setRafflePaymentLoading(true);
+    setRafflePaymentError('');
     try {
       const result = await workerPost('/api/admin/raffle-payments', {
         action: 'list',
@@ -4079,42 +5199,171 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         for (const intent of page.intents) combined.set(intent.intentId, intent);
         return Array.from(combined.values());
       });
-      setRafflePaymentsHasMore(page.hasMore);
+      setRafflePaymentHasMore(page.hasMore);
     } catch (error) {
       if (requestSequence === rafflePaymentReviewRequestRef.current &&
           currentUser?.id === viewerId &&
           isAdmin) {
-        console.error('Could not load raffle payment review:', error);
-        setRafflePaymentsError(formatAdminFailure(error, rafflePaymentReviewCopy[lang].loadError));
+        console.error('Could not load raffle payment recovery records:', error);
+        setRafflePaymentError(formatAdminFailure(
+          error,
+          paymentReviewCopy[lang].loadError,
+        ));
       }
     } finally {
       if (requestSequence === rafflePaymentReviewRequestRef.current) {
-        setRafflePaymentsLoading(false);
+        setRafflePaymentLoading(false);
       }
     }
   };
 
-  const openRafflePaymentReview = () => {
+  const recoverRafflePayment = async (
+    intentId: string,
+    recoveryAction: 'fulfill' | 'refund',
+  ) => {
+    const viewerId = currentUser?.id;
+    if (!viewerId || !isAdmin || !showPaymentReview || raffleRecoveringIntentId) return;
+    const recoveryId = window.crypto?.randomUUID?.();
+    if (!recoveryId) {
+      setRaffleRecoveryError('Secure recovery requests are unavailable in this browser.');
+      setRaffleRecoveryNotice('');
+      return;
+    }
+
+    const requestSequence = ++raffleRecoveryRequestRef.current;
+    setRaffleRecoveringIntentId(intentId);
+    setRaffleRecoveryNotice('');
+    setRaffleRecoveryError('');
+    try {
+      const result = parseRaffleRecoveryResult(await workerPost('/api/admin/raffle-payments', {
+        action: 'recover',
+        intentId,
+        recoveryId,
+        recoveryAction,
+      }));
+      if (requestSequence !== raffleRecoveryRequestRef.current ||
+          currentUser?.id !== viewerId ||
+          !isAdmin ||
+          !showPaymentReview) return;
+      const resultLabel = rafflePaymentReviewCopy[lang].statusLabels[result.status] || result.status;
+      setRaffleRecoveryNotice(
+        `${rafflePaymentReviewCopy[lang].actionLabel[result.action]}: ${resultLabel}`,
+      );
+      await loadRafflePaymentReview(rafflePaymentSearch, 0, false);
+    } catch (error) {
+      if (requestSequence === raffleRecoveryRequestRef.current &&
+          currentUser?.id === viewerId &&
+          isAdmin &&
+          showPaymentReview) {
+        console.error('Could not recover raffle payment:', error);
+        setRaffleRecoveryError(formatAdminFailure(
+          error,
+          paymentReviewCopy[lang].loadError,
+        ));
+        await loadRafflePaymentReview(rafflePaymentSearch, 0, false);
+      }
+    } finally {
+      if (requestSequence === raffleRecoveryRequestRef.current) {
+        setRaffleRecoveringIntentId(null);
+      }
+    }
+  };
+
+  const loadPassPaymentLookup = async (
+    search = passLookupSearch,
+    searchBy = passLookupSearchBy,
+  ) => {
+    const requestSequence = ++passPaymentLookupRequestRef.current;
+    const viewerId = currentUser?.id;
+    const normalizedSearch = search.trim();
+    if (!viewerId || !isAdmin || !normalizedSearch) {
+      setPassLookupLoading(false);
+      setPassLookupResult(null);
+      setPassLookupError('');
+      return;
+    }
+
+    setPassLookupLoading(true);
+    setPassLookupError('');
+    setPassLookupResult(null);
+    try {
+      const result = await workerPost('/api/admin/payments', {
+        action: 'lookup_pass',
+        searchBy,
+        search: normalizedSearch,
+      });
+      const lookup = parsePassPaymentLookup(result);
+      if (requestSequence !== passPaymentLookupRequestRef.current ||
+          currentUser?.id !== viewerId ||
+          !isAdmin) return;
+      setPassLookupResult(lookup);
+    } catch (error) {
+      if (requestSequence === passPaymentLookupRequestRef.current &&
+          currentUser?.id === viewerId &&
+          isAdmin) {
+        console.error('Could not load pass payment lookup:', error);
+        setPassLookupError(formatAdminFailure(
+          error,
+          paymentReviewCopy[lang].loadError,
+        ));
+      }
+    } finally {
+      if (requestSequence === passPaymentLookupRequestRef.current) {
+        setPassLookupLoading(false);
+      }
+    }
+  };
+
+  const openPaymentReview = () => {
     if (!isAdmin || !currentUser?.id) return;
     setShowAdminMenu(false);
     setShowRolesModal(false);
     setShowVipCampaignsModal(false);
-    setRafflePaymentsSearch('');
+    setPaymentsSearch('');
+    setPaymentRecords([]);
+    setPaymentsHasMore(false);
+    setPaymentsError('');
+    setRafflePaymentSearch('');
     setRafflePaymentIntents([]);
-    setRafflePaymentsHasMore(false);
-    setRafflePaymentsError('');
-    setShowRafflePaymentReview(true);
-    void loadAdminRafflePayments('', 0, false);
+    setRafflePaymentHasMore(false);
+    setRafflePaymentError('');
+    setRaffleRecoveryNotice('');
+    setRaffleRecoveryError('');
+    setPassLookupSearch('');
+    setPassLookupSearchBy('telegram_id');
+    setPassLookupLoading(false);
+    setPassLookupError('');
+    setPassLookupResult(null);
+    passPaymentLookupRequestRef.current += 1;
+    setShowPaymentReview(true);
+    void loadAdminPayments('', 0, false);
+    void loadRafflePaymentReview('', 0, false);
   };
 
-  const closeRafflePaymentReview = () => {
+  const closePaymentReview = () => {
+    paymentReviewRequestRef.current += 1;
     rafflePaymentReviewRequestRef.current += 1;
-    setShowRafflePaymentReview(false);
+    raffleRecoveryRequestRef.current += 1;
+    passPaymentLookupRequestRef.current += 1;
+    setShowPaymentReview(false);
+    setPaymentRecords([]);
+    setPaymentsHasMore(false);
+    setPaymentsLoading(false);
+    setPaymentsError('');
+    setPaymentsSearch('');
     setRafflePaymentIntents([]);
-    setRafflePaymentsHasMore(false);
-    setRafflePaymentsLoading(false);
-    setRafflePaymentsError('');
-    setRafflePaymentsSearch('');
+    setRafflePaymentHasMore(false);
+    setRafflePaymentLoading(false);
+    setRafflePaymentError('');
+    setRafflePaymentSearch('');
+    setRaffleRecoveringIntentId(null);
+    setRaffleRecoveryNotice('');
+    setRaffleRecoveryError('');
+    setPassLookupSearch('');
+    setPassLookupSearchBy('telegram_id');
+    setPassLookupLoading(false);
+    setPassLookupError('');
+    setPassLookupResult(null);
   };
 
   const handleAddRole = async () => {
@@ -4200,18 +5449,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setVipFailureAlertLoading(true);
     setVipFailureAlertError('');
     try {
-      let cursor = null;
-      try {
-        cursor = readVipFailureAlertCursor(window.localStorage, userId);
-      } catch {
-        // Continue without a saved cursor if browser storage is unavailable.
-      }
       const result = await workerPost('/api/vip-campaigns', {
         action: 'failure_alerts',
-        afterFailureEventId: cursor?.eventId ?? null,
       });
       const summary = parseVipFailureAlertSummary(result);
       if (requestSequence !== vipFailureAlertRequestRef.current || currentUser?.id !== userId) return;
+      vipFailureAlertOwnerRef.current = summary.newFailureCount > 0 ? userId : null;
       setVipFailureAlert(summary.newFailureCount > 0 ? summary : null);
     } catch (error) {
       if (requestSequence === vipFailureAlertRequestRef.current && currentUser?.id === userId) {
@@ -4222,6 +5465,33 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       if (requestSequence === vipFailureAlertRequestRef.current) setVipFailureAlertLoading(false);
     }
   };
+  loadNewVipFailureAlertsRef.current = loadNewVipFailureAlerts;
+
+  const loadVipRewardQueueHealth = async () => {
+    const requestSequence = ++vipRewardQueueHealthRequestRef.current;
+    const userId = currentUser?.id;
+    if (!userId) return;
+    setVipRewardQueueHealthLoading(true);
+    setVipRewardQueueHealthError('');
+    try {
+      const result = await workerPost('/api/vip-campaigns', {
+        action: 'queue_health',
+      });
+      const summary = parseVipRewardNotificationQueueHealth(result);
+      if (requestSequence !== vipRewardQueueHealthRequestRef.current || currentUser?.id !== userId) return;
+      setVipRewardQueueHealth(summary);
+    } catch (error) {
+      if (requestSequence === vipRewardQueueHealthRequestRef.current && currentUser?.id === userId) {
+        console.error('Could not load VIP reward notification queue health:', error);
+        setVipRewardQueueHealthError(vipGrantCopy[lang].campaignQueueHealthLoadFailed);
+      }
+    } finally {
+      if (requestSequence === vipRewardQueueHealthRequestRef.current) {
+        setVipRewardQueueHealthLoading(false);
+      }
+    }
+  };
+  loadVipRewardQueueHealthRef.current = loadVipRewardQueueHealth;
 
   const loadFailedRewardClaims = async (campaignId: string, offset = 0, append = false) => {
     const requestSequence = ++vipFailedRewardRequestRef.current;
@@ -4265,6 +5535,133 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
+  const loadCrossCampaignFailedRewardClaims = async (
+    offset = 0,
+    append = false,
+    search = crossCampaignFailedRewardActiveSearch,
+    sourceBotKey: 'all' | 'botA' | 'botB' = crossCampaignFailedRewardActiveSourceBot,
+  ) => {
+    const requestSequence = ++crossCampaignFailedRewardRequestRef.current;
+    const normalizedSearch = search.trim();
+    if (!append) {
+      setCrossCampaignFailedRewardActiveSearch(normalizedSearch);
+      setCrossCampaignFailedRewardActiveSourceBot(sourceBotKey);
+      setCrossCampaignFailedRewardSearched(true);
+      setCrossCampaignFailedRewardClaims([]);
+      setCrossCampaignFailedRewardClaimsHasMore(false);
+    }
+    setCrossCampaignFailedRewardClaimsLoading(true);
+    setCrossCampaignFailedRewardClaimsError('');
+    try {
+      const result = await workerPost('/api/vip-campaigns', {
+        action: 'failed_rewards_search',
+        search: normalizedSearch,
+        sourceBotKey,
+        offset,
+      });
+      const page = parseVipFailedRewardPage(result);
+      if (requestSequence !== crossCampaignFailedRewardRequestRef.current) return;
+      setCrossCampaignFailedRewardClaims((current) => {
+        if (!append) return page.claims;
+        const combined = new Map(current.map((claim) => [claim.id, claim]));
+        for (const claim of page.claims) combined.set(claim.id, claim);
+        return Array.from(combined.values());
+      });
+      setCrossCampaignFailedRewardClaimsHasMore(page.hasMore);
+    } catch (error) {
+      if (requestSequence === crossCampaignFailedRewardRequestRef.current) {
+        console.error('Could not search failed VIP reward messages across campaigns:', error);
+        setCrossCampaignFailedRewardClaimsError(formatAdminFailure(
+          error,
+          vipGrantCopy[lang].campaignFailedRewardsLoadFailed,
+        ));
+      }
+    } finally {
+      if (requestSequence === crossCampaignFailedRewardRequestRef.current) {
+        setCrossCampaignFailedRewardClaimsLoading(false);
+      }
+    }
+  };
+
+  const searchCrossCampaignFailedRewardClaims = (
+    search: string,
+    sourceBotKey: 'all' | 'botA' | 'botB',
+  ) => {
+    setCrossCampaignFailedRewardSearch(search);
+    setCrossCampaignFailedRewardSourceBot(sourceBotKey);
+    void loadCrossCampaignFailedRewardClaims(0, false, search, sourceBotKey);
+  };
+
+  const loadMoreCrossCampaignFailedRewardClaims = () => {
+    if (!crossCampaignFailedRewardSearched ||
+        !crossCampaignFailedRewardClaimsHasMore ||
+        crossCampaignFailedRewardClaimsLoading) return;
+    void loadCrossCampaignFailedRewardClaims(
+      crossCampaignFailedRewardClaims.length,
+      true,
+      crossCampaignFailedRewardActiveSearch,
+      crossCampaignFailedRewardActiveSourceBot,
+    );
+  };
+
+  const loadVipRewardRetryAudit = async (campaignId: string, offset = 0, append = false) => {
+    const requestSequence = ++vipRetryAuditRequestRef.current;
+    if (!append) {
+      setRetryAuditCampaignId(campaignId);
+      setRetryAuditRecords([]);
+      setRetryAuditHasMore(false);
+      setRetryAuditError('');
+    }
+    setRetryAuditLoading(true);
+    setRetryAuditError('');
+    try {
+      const result = await workerPost('/api/vip-campaigns', {
+        action: 'retry_audit',
+        campaignId,
+        offset,
+      });
+      const page = parseVipRewardRetryAuditPage(result);
+      if (requestSequence !== vipRetryAuditRequestRef.current) return;
+      setRetryAuditRecords((current) => {
+        if (!append) return page.records;
+        const combined = new Map(current.map((record) => [record.id, record]));
+        for (const record of page.records) combined.set(record.id, record);
+        return Array.from(combined.values());
+      });
+      setRetryAuditHasMore(page.hasMore);
+    } catch (error) {
+      if (requestSequence === vipRetryAuditRequestRef.current) {
+        console.error('Could not load VIP reward retry audit:', error);
+        setRetryAuditError(formatAdminFailure(
+          error,
+          vipGrantCopy[lang].campaignRetryAuditLoadFailed,
+        ));
+      }
+    } finally {
+      if (requestSequence === vipRetryAuditRequestRef.current) {
+        setRetryAuditLoading(false);
+      }
+    }
+  };
+
+  const toggleVipRewardRetryAudit = (campaignId: string) => {
+    if (retryAuditCampaignId === campaignId) {
+      vipRetryAuditRequestRef.current += 1;
+      setRetryAuditCampaignId(null);
+      setRetryAuditRecords([]);
+      setRetryAuditHasMore(false);
+      setRetryAuditLoading(false);
+      setRetryAuditError('');
+      return;
+    }
+    void loadVipRewardRetryAudit(campaignId);
+  };
+
+  const loadMoreVipRewardRetryAudit = (campaignId: string) => {
+    if (campaignId !== retryAuditCampaignId || retryAuditLoading) return;
+    void loadVipRewardRetryAudit(campaignId, retryAuditRecords.length, true);
+  };
+
   const toggleFailedRewardClaims = (campaignId: string) => {
     if (retryingFailedRewardClaimId) return;
     if (failedRewardCampaignId === campaignId) {
@@ -4280,11 +5677,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
 
   const retryFailedVipReward = async (claimId: string) => {
-    const campaignId = failedRewardCampaignId;
-    const claim = failedRewardClaims.find((item) => item.id === claimId);
+    const campaignScopedClaim = failedRewardClaims.find((item) => item.id === claimId);
+    const crossCampaignClaim = crossCampaignFailedRewardClaims.find((item) => item.id === claimId);
+    const claim = campaignScopedClaim ?? crossCampaignClaim;
+    const campaignId = claim?.campaignId ?? null;
     if (!campaignId || !claim || claim.manualRetryCount >= 3 || retryingFailedRewardClaimId) return;
     setRetryingFailedRewardClaimId(claimId);
     setFailedRewardClaimsError('');
+    setCrossCampaignFailedRewardClaimsError('');
     setVipCampaignsNotice('');
     try {
       const result = await workerPost('/api/vip-campaigns', {
@@ -4301,19 +5701,34 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       }
       await Promise.all([
         loadVipCampaigns(0, false),
-        loadFailedRewardClaims(campaignId, 0, false),
+        ...(failedRewardCampaignId === campaignId
+          ? [loadFailedRewardClaims(campaignId, 0, false)]
+          : []),
+        ...(crossCampaignFailedRewardSearched
+          ? [loadCrossCampaignFailedRewardClaims(
+            0,
+            false,
+            crossCampaignFailedRewardActiveSearch,
+            crossCampaignFailedRewardActiveSourceBot,
+          )]
+          : []),
+        ...(retryAuditCampaignId === campaignId
+          ? [loadVipRewardRetryAudit(campaignId, 0, false)]
+          : []),
       ]);
       void loadNewVipFailureAlerts();
+      void loadVipRewardQueueHealth();
       setVipCampaignsNotice(result.delivered
         ? vipGrantCopy[lang].campaignFailedRewardRetrySent
         : vipGrantCopy[lang].campaignFailedRewardRetryFailed);
     } catch (error) {
       console.error('Could not retry VIP reward message:', error);
-      setFailedRewardClaimsError(
+      const retryError =
         (error as Error & { notificationStatus?: string })?.notificationStatus === 'delivery_uncertain'
           ? vipGrantCopy[lang].campaignFailedRewardDeliveryUncertain
-          : formatAdminFailure(error, vipGrantCopy[lang].campaignFailedRewardRetryFailed),
-      );
+          : formatAdminFailure(error, vipGrantCopy[lang].campaignFailedRewardRetryFailed);
+      if (campaignScopedClaim) setFailedRewardClaimsError(retryError);
+      if (crossCampaignClaim) setCrossCampaignFailedRewardClaimsError(retryError);
     } finally {
       setRetryingFailedRewardClaimId(null);
     }
@@ -4335,11 +5750,31 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setFailedRewardClaims([]);
     setFailedRewardClaimsHasMore(false);
     setFailedRewardClaimsError('');
+    crossCampaignFailedRewardRequestRef.current += 1;
+    setCrossCampaignFailedRewardSearch('');
+    setCrossCampaignFailedRewardSourceBot('all');
+    setCrossCampaignFailedRewardActiveSearch('');
+    setCrossCampaignFailedRewardActiveSourceBot('all');
+    setCrossCampaignFailedRewardSearched(false);
+    setCrossCampaignFailedRewardClaims([]);
+    setCrossCampaignFailedRewardClaimsHasMore(false);
+    setCrossCampaignFailedRewardClaimsLoading(false);
+    setCrossCampaignFailedRewardClaimsError('');
+    vipRetryAuditRequestRef.current += 1;
+    setRetryAuditCampaignId(null);
+    setRetryAuditRecords([]);
+    setRetryAuditHasMore(false);
+    setRetryAuditLoading(false);
+    setRetryAuditError('');
     setVipFailureAlert(null);
     setVipFailureAlertError('');
+    setVipRewardQueueHealth(null);
+    setVipRewardQueueHealthLoading(false);
+    setVipRewardQueueHealthError('');
     setShowVipCampaignsModal(true);
     void loadVipCampaigns(0, false);
     void loadNewVipFailureAlerts();
+    void loadVipRewardQueueHealth();
   };
 
   const handleStopVipCampaign = async (campaignId: string) => {
@@ -4387,7 +5822,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const handleSaveFlyingPrice = async () => {
     const price = Number(flyingPriceDraft);
     if (!Number.isSafeInteger(price) || price < 0 || price > 10_000) {
-      setFlyingMessageNotice('Price must be between 0 and 10000 Stars.');
+      showFlyingMessageNotice('Price must be between 0 and 10000 Stars.');
       return;
     }
     setSavingFlyingPrice(true);
@@ -4397,9 +5832,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       setFlyingPriceDraft(String(result.starsPrice));
       setShowFlyingPriceEditor(false);
       setShowAdminMenu(false);
-      setFlyingMessageNotice('');
+      showFlyingMessageNotice('');
     } catch (error) {
-      setFlyingMessageNotice(formatAdminFailure(error, 'Price could not be saved.'));
+      showFlyingMessageNotice(formatAdminFailure(error, 'Price could not be saved.'));
     } finally {
       setSavingFlyingPrice(false);
     }
@@ -4498,6 +5933,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         <ProfileCompletionModule
           entry={entry}
           isCompletionFlow={showProfileSetup && !showProfileEditModal}
+          language={lang}
           missingFields={profileCompletionMissingFields}
           values={{
             dob,
@@ -4532,11 +5968,31 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           heightOptions={heightOptions}
           weightOptions={weightOptions}
           t={t}
-          onCycleRole={() => setRolePref(cycleNext(rolePref, roleCycleOptions))}
-          onCycleSafety={() => setSafetyPref(cycleNext(safetyPref, safetyCycleOptions))}
-          onCyclePlaystyle={() => setPlaystylePref(cycleNext(playstylePref, ['Clean', 'Party']))}
-          onCycleHowMany={() => setHowManyPref(cycleNext(howManyPref, howManyCycleOptions))}
-          onCycleWhere={() => setWherePref(cycleWhere(wherePref, whereCycleOptions))}
+          onCycleRole={() => {
+            const nextValue = cycleNext(rolePref, PROFILE_ROLE_CYCLE_OPTIONS);
+            setRolePref(nextValue);
+            return nextValue;
+          }}
+          onCycleSafety={() => {
+            const nextValue = cycleNext(safetyPref, PROFILE_SAFETY_CYCLE_OPTIONS);
+            setSafetyPref(nextValue);
+            return nextValue;
+          }}
+          onCyclePlaystyle={() => {
+            const nextValue = cycleNext(playstylePref, PROFILE_PLAYSTYLE_CYCLE_OPTIONS);
+            setPlaystylePref(nextValue);
+            return nextValue;
+          }}
+          onCycleHowMany={() => {
+            const nextValue = cycleNext(howManyPref, PROFILE_HOW_MANY_CYCLE_OPTIONS);
+            setHowManyPref(nextValue);
+            return nextValue;
+          }}
+          onCycleWhere={() => {
+            const nextValue = cycleWhere(wherePref, PROFILE_WHERE_CYCLE_OPTIONS);
+            setWherePref(nextValue);
+            return nextValue;
+          }}
         />
       )}
 
@@ -4572,6 +6028,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             >
             <div style={{ position: 'absolute', top: '44px', right: '0', zIndex: 2000, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '12px', width: '280px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{t('filterUsers')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: isAdmin ? '#4ade80' : isVip || temporaryVipActive ? '#f5c518' : globalVipActive ? '#f5c518' : filterSubStatusInfo.color }}>{isAdmin ? t('admin') : isVip ? t('vipUnlimited') : temporaryVipActive ? `${t('vip')} · ${t('expires')} ${new Date(vipExpiry as string).toLocaleDateString()}` : globalVipActive ? `${t('vip')} · ${t('expires')} ${new Date(globalVipUntil).toLocaleDateString()}` : `${filterSubStatusInfo.label}${filterSubscriptionActive ? ` · ${t('expires')} ${new Date(filterSubUntil).toLocaleDateString()}` : ''}`}</span></div>
+               {hkmoMenOnlyFilterLocked && (
+                 <div
+                   role="note"
+                   data-testid="hkmo-men-only-filter-lock"
+                   style={{
+                     borderTop: '1px solid #333',
+                     paddingTop: '8px',
+                     color: '#93c5fd',
+                     fontSize: '11px',
+                     lineHeight: 1.4,
+                   }}
+                 >
+                   {FILTER_UI_COPY[lang].hkmoMenOnly}
+                 </div>
+               )}
               {canUseHideNonMatching && (
                 <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => handleToggleFilterItem('hideNonMatching')}>
@@ -4582,15 +6053,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               )}
               {filterAccessActive ? (
                 <>
-              <div role="group" aria-label={`${t('men')} / ${t('women')}`} style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
+              <div role="group" aria-label={hkmoMenOnlyFilterLocked ? FILTER_UI_COPY[lang].hkmoMenOnly : `${t('men')} / ${t('women')}`} style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {(['man', 'woman'] as const).map((genderValue) => {
-                    const selected = filterGenderVals.includes(genderValue);
+                    const selected = effectiveFilterGenderVals.includes(genderValue);
                     return (
                       <button
                         key={genderValue}
                         type="button"
                         data-testid={`button-filter-gender-${genderValue}`}
+                        disabled={hkmoMenOnlyFilterLocked}
                         aria-pressed={selected}
                         onClick={() => { void handleToggleFilterGender(genderValue); }}
                         style={{
@@ -4603,8 +6075,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                           borderRadius: '6px',
                           fontSize: '12px',
                           fontWeight: 'bold',
-                          cursor: 'pointer',
-                          opacity: selected ? 1 : 0.72,
+                          cursor: hkmoMenOnlyFilterLocked ? 'not-allowed' : 'pointer',
+                          opacity: selected ? 1 : hkmoMenOnlyFilterLocked ? 0.5 : 0.72,
                         }}
                       >
                         {genderValue === 'man' ? t('men') : t('women')}
@@ -4825,11 +6297,22 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     <button type="button" onClick={() => { setShowAdminMenu(false); setShowVipPeriods(false); setShowRolesModal(true); loadRoles(); }} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('adminVipList')}</button>
                     <button
                       type="button"
-                      onClick={openRafflePaymentReview}
-                      data-testid="button-open-raffle-payment-review"
+                      onClick={() => {
+                        setShowAdminMenu(false);
+                        setShowProfileSetupPreview(true);
+                      }}
+                      data-testid="button-open-profile-setup-preview"
                       style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
                     >
-                      {rafflePaymentReviewCopy[lang].title}
+                      {t('profileSetupPreview')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openPaymentReview}
+                      data-testid="button-open-payment-review"
+                      style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      {paymentReviewCopy[lang].title}
                     </button>
                     <button type="button" onClick={openVipCampaigns} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{vipGrantCopy[lang].campaignsTitle}</button>
                     {flyingMessageEnabled && (
@@ -5143,11 +6626,57 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           priceLabel={effectiveFlyingMessagePrice > 0 ? `${effectiveFlyingMessagePrice} ⭐` : flyingCopy.free}
           sendLabel={flyingCopy.send}
           status={flyingComposerStatus}
+           statusPersistent={flyingMessageNoticeState.persistent}
+           dismissLabel={flyingCopy.dismiss}
+           onDismissStatus={dismissFlyingMessageNotice}
           inputDisabled={!currentUser || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
           sendDisabled={!currentUser || !flyingMessageText.trim() || sendingFlyingMessage || flyingMessageWaitSeconds > 0}
           onTextChange={setFlyingMessageText}
           onSubmit={(event) => { event.preventDefault(); void handleSendFlyingMessage(); }}
         />
+      )}
+
+      {showProfileSetupPreview && isAdmin && (
+        <div
+          onClick={() => setShowProfileSetupPreview(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 5000,
+            backgroundColor: 'rgba(0,0,0,0.76)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '12px',
+            boxSizing: 'border-box',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            ref={profileSetupPreviewDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-setup-preview-title"
+            data-testid="dialog-profile-setup-preview"
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '1104px',
+              maxHeight: 'calc(100vh - 24px)',
+              overflowY: 'auto',
+              borderRadius: '16px',
+              outline: 'none',
+            }}
+          >
+            <ProfileSetupPreviewModule
+              entries={Object.values(config.entries)}
+              language={lang}
+              onClose={() => setShowProfileSetupPreview(false)}
+              t={t}
+            />
+          </div>
+        </div>
       )}
 
       {showRolesModal && (
@@ -5211,9 +6740,28 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           failedRewardClaimsLoading={failedRewardClaimsLoading}
           failedRewardClaimsError={failedRewardClaimsError}
           retryingFailedRewardClaimId={retryingFailedRewardClaimId}
+          crossCampaignFailedRewardSearchValue={crossCampaignFailedRewardSearch}
+          crossCampaignFailedRewardSourceBotKey={crossCampaignFailedRewardSourceBot}
+          crossCampaignFailedRewardSearched={crossCampaignFailedRewardSearched}
+          crossCampaignFailedRewardClaims={crossCampaignFailedRewardClaims}
+          crossCampaignFailedRewardClaimsHasMore={crossCampaignFailedRewardClaimsHasMore}
+          crossCampaignFailedRewardClaimsLoading={crossCampaignFailedRewardClaimsLoading}
+          crossCampaignFailedRewardClaimsError={crossCampaignFailedRewardClaimsError}
+          onCrossCampaignFailedRewardSearchChange={setCrossCampaignFailedRewardSearch}
+          onCrossCampaignFailedRewardSourceChange={setCrossCampaignFailedRewardSourceBot}
+          onSearchCrossCampaignFailedRewards={searchCrossCampaignFailedRewardClaims}
+          onLoadMoreCrossCampaignFailedRewards={loadMoreCrossCampaignFailedRewardClaims}
+          retryAuditCampaignId={retryAuditCampaignId}
+          retryAuditRecords={retryAuditRecords}
+          retryAuditHasMore={retryAuditHasMore}
+          retryAuditLoading={retryAuditLoading}
+          retryAuditError={retryAuditError}
           newFailureAlert={vipFailureAlert}
           failureAlertLoading={vipFailureAlertLoading}
           failureAlertError={vipFailureAlertError}
+          queueHealth={vipRewardQueueHealth}
+          queueHealthLoading={vipRewardQueueHealthLoading}
+          queueHealthError={vipRewardQueueHealthError}
           copy={{
             title: vipGrantCopy[lang].campaignsTitle,
             campaign: vipGrantCopy[lang].campaign,
@@ -5236,6 +6784,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             failedRewardNotifications: vipGrantCopy[lang].campaignFailedRewardNotifications,
             failedRewardNotificationsUnavailable: vipGrantCopy[lang].campaignFailedRewardNotificationsUnavailable,
             failedRewardsReview: vipGrantCopy[lang].campaignFailedRewardsReview,
+            crossCampaignFailedRewardsTitle: vipGrantCopy[lang].campaignCrossFailedRewardsTitle,
+            crossCampaignFailedRewardsPlaceholder: vipGrantCopy[lang].campaignCrossFailedRewardsPlaceholder,
+            crossCampaignFailedRewardsSearch: vipGrantCopy[lang].campaignCrossFailedRewardsSearch,
+            crossCampaignFailedRewardsSourceBot: vipGrantCopy[lang].campaignCrossFailedRewardsSourceBot,
+            crossCampaignFailedRewardsAllSources: vipGrantCopy[lang].campaignCrossFailedRewardsAllSources,
+            crossCampaignFailedRewardsInitialHint: vipGrantCopy[lang].campaignCrossFailedRewardsInitialHint,
+            crossCampaignFailedRewardsDetails: vipGrantCopy[lang].campaignCrossFailedRewardsDetails,
             failedRewardsEmpty: vipGrantCopy[lang].campaignFailedRewardsEmpty,
             failedRewardDeliveryUncertain: vipGrantCopy[lang].campaignFailedRewardDeliveryUncertain,
             failedRewardDeliveryUncertainConfirm: vipGrantCopy[lang].campaignFailedRewardDeliveryUncertainConfirm,
@@ -5251,11 +6806,30 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             failedRewardRetrySent: vipGrantCopy[lang].campaignFailedRewardRetrySent,
             failedRewardRetryFailed: vipGrantCopy[lang].campaignFailedRewardRetryFailed,
             failedRewardLoadMore: vipGrantCopy[lang].campaignFailedRewardLoadMore,
+            retryAuditToggle: vipGrantCopy[lang].campaignRetryAuditToggle,
+            retryAuditTitle: vipGrantCopy[lang].campaignRetryAuditTitle,
+            retryAuditEmpty: vipGrantCopy[lang].campaignRetryAuditEmpty,
+            retryAuditLoading: vipGrantCopy[lang].campaignRetryAuditLoading,
+            retryAuditLoadFailed: vipGrantCopy[lang].campaignRetryAuditLoadFailed,
+            retryAuditEntry: vipGrantCopy[lang].campaignRetryAuditEntry,
+            retryAuditPending: vipGrantCopy[lang].campaignRetryAuditPending,
+            retryAuditDelivered: vipGrantCopy[lang].campaignRetryAuditDelivered,
+            retryAuditFailed: vipGrantCopy[lang].campaignRetryAuditFailed,
+            retryAuditUncertain: vipGrantCopy[lang].campaignRetryAuditUncertain,
+            retryAuditLoadMore: vipGrantCopy[lang].campaignRetryAuditLoadMore,
             newFailureAlertTitle: vipGrantCopy[lang].campaignNewFailureAlertTitle,
             newFailureAlertSeparate: vipGrantCopy[lang].campaignNewFailureAlertSeparate,
             newFailureAlertLatest: vipGrantCopy[lang].campaignNewFailureAlertLatest,
             newFailureAlertChecking: vipGrantCopy[lang].campaignNewFailureAlertChecking,
             newFailureAlertLoadFailed: vipGrantCopy[lang].campaignNewFailureAlertLoadFailed,
+            queueHealthTitle: vipGrantCopy[lang].campaignQueueHealthTitle,
+            queueHealthSeparate: vipGrantCopy[lang].campaignQueueHealthSeparate,
+            queueHealthPending: vipGrantCopy[lang].campaignQueueHealthPending,
+            queueHealthExpiredSending: vipGrantCopy[lang].campaignQueueHealthExpiredSending,
+            queueHealthOldest: vipGrantCopy[lang].campaignQueueHealthOldest,
+            queueHealthEmpty: vipGrantCopy[lang].campaignQueueHealthEmpty,
+            queueHealthChecking: vipGrantCopy[lang].campaignQueueHealthChecking,
+            queueHealthLoadFailed: vipGrantCopy[lang].campaignQueueHealthLoadFailed,
             newUsers: vipGrantCopy[lang].campaignNewUsers,
             announcementStatus: vipGrantCopy[lang].announcementStatus,
             announcementPending: vipGrantCopy[lang].announcementPending,
@@ -5286,41 +6860,88 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           onRefresh={() => {
             void loadVipCampaigns(0, false);
             void loadNewVipFailureAlerts();
+            void loadVipRewardQueueHealth();
           }}
           onLoadMore={() => void loadVipCampaigns(vipCampaigns.length, true)}
           onStop={(campaignId) => void handleStopVipCampaign(campaignId)}
           onToggleFailedRewards={toggleFailedRewardClaims}
           onLoadMoreFailedRewards={loadMoreFailedRewardClaims}
           onRetryFailedReward={(claimId) => void retryFailedVipReward(claimId)}
+          onToggleRetryAudit={toggleVipRewardRetryAudit}
+          onLoadMoreRetryAudit={loadMoreVipRewardRetryAudit}
         />
       )}
 
-      {showRafflePaymentReview && isAdmin && (
-        <RafflePaymentReviewPanel
-          intents={rafflePaymentIntents}
-          hasMore={rafflePaymentsHasMore}
-          loading={rafflePaymentsLoading}
-          error={rafflePaymentsError}
-          search={rafflePaymentsSearch}
-          copy={rafflePaymentReviewCopy[lang]}
-          appLabels={{
-            botA: Object.values(config.entries).find((candidate) => candidate.botKey === 'botA')?.label ?? 'botA',
-            botB: Object.values(config.entries).find((candidate) => candidate.botKey === 'botB')?.label ?? 'botB',
-          }}
+      {showPaymentReview && isAdmin && (
+        <PaymentReviewPanel
+          payments={paymentRecords}
+          hasMore={paymentsHasMore}
+          loading={paymentsLoading}
+          error={paymentsError}
+          search={paymentsSearch}
+          passLookup={passLookupResult}
+          passLookupLoading={passLookupLoading}
+          passLookupError={passLookupError}
+          passLookupSearch={passLookupSearch}
+          passLookupSearchBy={passLookupSearchBy}
+          copy={paymentReviewCopy[lang]}
           formatDate={(value) => new Intl.DateTimeFormat(lang, {
             dateStyle: 'medium',
             timeStyle: 'short',
             timeZone: 'Asia/Hong_Kong',
           }).format(new Date(value))}
-          onSearchChange={setRafflePaymentsSearch}
-          onSearch={() => void loadAdminRafflePayments(rafflePaymentsSearch, 0, false)}
-          onRefresh={() => void loadAdminRafflePayments(rafflePaymentsSearch, 0, false)}
-          onLoadMore={() => void loadAdminRafflePayments(
-            rafflePaymentsSearch,
-            rafflePaymentIntents.length,
+          onSearchChange={setPaymentsSearch}
+          onSearch={() => void loadAdminPayments(paymentsSearch, 0, false)}
+          onPassLookupSearchChange={(value) => {
+            passPaymentLookupRequestRef.current += 1;
+            setPassLookupSearch(value);
+            setPassLookupLoading(false);
+            setPassLookupError('');
+            setPassLookupResult(null);
+          }}
+          onPassLookupSearchByChange={(value) => {
+            passPaymentLookupRequestRef.current += 1;
+            setPassLookupSearchBy(value);
+            setPassLookupLoading(false);
+            setPassLookupError('');
+            setPassLookupResult(null);
+          }}
+          onPassLookup={() => void loadPassPaymentLookup(
+            passLookupSearch,
+            passLookupSearchBy,
+          )}
+          onRefresh={() => void loadAdminPayments(paymentsSearch, 0, false)}
+          onLoadMore={() => void loadAdminPayments(
+            paymentsSearch,
+            paymentRecords.length,
             true,
           )}
-          onClose={closeRafflePaymentReview}
+          onClose={closePaymentReview}
+          raffleReview={{
+            intents: rafflePaymentIntents,
+            hasMore: rafflePaymentHasMore,
+            loading: rafflePaymentLoading,
+            error: rafflePaymentError,
+            search: rafflePaymentSearch,
+            recoveringIntentId: raffleRecoveringIntentId,
+            notice: raffleRecoveryNotice,
+            recoveryError: raffleRecoveryError,
+            copy: rafflePaymentReviewCopy[lang],
+            onSearchChange: (value) => {
+              rafflePaymentReviewRequestRef.current += 1;
+              setRafflePaymentSearch(value);
+              setRafflePaymentLoading(false);
+              setRafflePaymentError('');
+            },
+            onSearch: () => void loadRafflePaymentReview(rafflePaymentSearch, 0, false),
+            onRefresh: () => void loadRafflePaymentReview(rafflePaymentSearch, 0, false),
+            onLoadMore: () => void loadRafflePaymentReview(
+              rafflePaymentSearch,
+              rafflePaymentIntents.length,
+              true,
+            ),
+            onRecover: (intentId, action) => void recoverRafflePayment(intentId, action),
+          }}
         />
       )}
 
@@ -5329,6 +6950,30 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="vip-grant-notice-title"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setVipGrantNotice(null);
+              return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = event.currentTarget.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            );
+            if (!focusable.length) {
+              event.preventDefault();
+              return;
+            }
+            const first = focusable.item(0);
+            const last = focusable.item(focusable.length - 1);
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }}
           style={{ position: 'fixed', inset: 0, zIndex: 3100, backgroundColor: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
         >
           <div style={{ width: '100%', maxWidth: '360px', padding: '22px', backgroundColor: '#1e1e1e', border: '1px solid #665500', borderRadius: '14px', boxShadow: '0 14px 48px rgba(0,0,0,0.75)', textAlign: 'center' }}>
@@ -5343,7 +6988,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               onClick={() => void handleAcknowledgeVipGrant()}
               style={{ width: '100%', padding: '11px 14px', border: 0, borderRadius: '8px', backgroundColor: '#d4a900', color: '#171717', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
             >
-              {vipGrantCopy[lang].popupClose}
+              {vipGrantCopy[lang].popupConfirm}
             </button>
           </div>
         </div>

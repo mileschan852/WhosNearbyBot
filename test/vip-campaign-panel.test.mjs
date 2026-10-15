@@ -5,10 +5,13 @@ import {
   getVipCampaignStatus,
   parseVipCampaignPage,
   parseVipFailedRewardPage,
+  parseVipFailureAlertAcknowledgement,
   parseVipFailureAlertSummary,
-  readVipFailureAlertCursor,
+  parseVipRewardNotificationQueueHealth,
+  parseVipRewardRetryAuditPage,
+  startVipFailureAlertPolling,
+  VIP_FAILURE_ALERT_POLL_INTERVAL_MS,
   VipCampaignPanel,
-  writeVipFailureAlertCursor,
 } from '../src/components/vip-campaign-panel.js';
 
 const campaignId = '0c9c0802-6dd2-4453-a93b-8fef06d1a3d2';
@@ -47,6 +50,13 @@ const copy = {
   failedRewardNotifications: 'Failed reward messages: {count}',
   failedRewardNotificationsUnavailable: 'Failed reward message count unavailable on the current backend.',
   failedRewardsReview: 'Review failed messages ({count})',
+  crossCampaignFailedRewardsTitle: 'Failed reward messages across campaigns',
+  crossCampaignFailedRewardsPlaceholder: 'Search username or Telegram account ID',
+  crossCampaignFailedRewardsSearch: 'Search all campaigns',
+  crossCampaignFailedRewardsSourceBot: 'Source app',
+  crossCampaignFailedRewardsAllSources: 'All apps',
+  crossCampaignFailedRewardsInitialHint: 'Search by username or account ID, or choose a source app.',
+  crossCampaignFailedRewardsDetails: 'Campaign {campaign} · source {source} · notification bot {bot}',
   failedRewardsEmpty: 'No failed messages remain.',
   failedRewardDeliveryUncertain: 'Telegram may already have sent this message.',
   failedRewardDeliveryUncertainConfirm: 'Retry even though this message may already be delivered?',
@@ -62,11 +72,30 @@ const copy = {
   failedRewardRetrySent: 'Reward message sent.',
   failedRewardRetryFailed: 'The message still failed.',
   failedRewardLoadMore: 'Load more failed messages',
+  retryAuditToggle: 'View retry audit',
+  retryAuditTitle: 'Manual retry audit',
+  retryAuditEmpty: 'No manual retries are recorded for this campaign.',
+  retryAuditLoading: 'Loading retry audit…',
+  retryAuditLoadFailed: 'Could not load retry audit.',
+  retryAuditEntry: 'Admin {admin} · {time} · claim {claim} · campaign {source} · notification bot {bot} · result {outcome}',
+  retryAuditPending: 'Pending',
+  retryAuditDelivered: 'Delivered',
+  retryAuditFailed: 'Failed',
+  retryAuditUncertain: 'Delivery uncertain',
+  retryAuditLoadMore: 'Load more retry records',
   newFailureAlertTitle: 'New failed VIP reward messages: {count}',
   newFailureAlertSeparate: 'These reward DMs are separate from public campaign announcements.',
   newFailureAlertLatest: 'Latest reward failure: {time}',
   newFailureAlertChecking: 'Checking for new failed reward messages…',
   newFailureAlertLoadFailed: 'Could not check for new reward messages.',
+  queueHealthTitle: 'VIP reward delivery queue health',
+  queueHealthSeparate: 'Pending is overdue after 10 minutes; sending appears after its lease expires. Excludes terminal failures and public announcements.',
+  queueHealthPending: 'Overdue pending: {count}',
+  queueHealthExpiredSending: 'Expired sending leases: {count}',
+  queueHealthOldest: 'Oldest wait: {time} · {minutes} min',
+  queueHealthEmpty: 'No overdue pending or expired sending notices.',
+  queueHealthChecking: 'Checking scheduled reward queue…',
+  queueHealthLoadFailed: 'Could not load scheduled reward queue health.',
   newUsers: 'Includes new accounts',
   announcementStatus: 'Announcement',
   announcementPending: 'Queued',
@@ -90,6 +119,13 @@ const props = {
   failedRewardClaimsLoading: false,
   failedRewardClaimsError: '',
   retryingFailedRewardClaimId: null,
+  crossCampaignFailedRewardSearchValue: '',
+  crossCampaignFailedRewardSourceBotKey: 'all',
+  crossCampaignFailedRewardSearched: false,
+  crossCampaignFailedRewardClaims: [],
+  crossCampaignFailedRewardClaimsHasMore: false,
+  crossCampaignFailedRewardClaimsLoading: false,
+  crossCampaignFailedRewardClaimsError: '',
   copy,
   sourceAppLabels: {
     botA: 'HKMO Date',
@@ -110,6 +146,12 @@ const props = {
   onToggleFailedRewards() {},
   onLoadMoreFailedRewards() {},
   onRetryFailedReward() {},
+  onCrossCampaignFailedRewardSearchChange() {},
+  onCrossCampaignFailedRewardSourceChange() {},
+  onSearchCrossCampaignFailedRewards() {},
+  onLoadMoreCrossCampaignFailedRewards() {},
+  onToggleRetryAudit() {},
+  onLoadMoreRetryAudit() {},
 };
 
 const failedClaim = {
@@ -127,6 +169,16 @@ const failedClaim = {
   lastAttemptAt: '2026-11-02T00:00:00.000Z',
   lastBotKey: 'botA',
   deliveryStatus: 'failed',
+};
+const retryAuditRecord = {
+  id: 'f847d3a9-9dd4-4d21-9f22-cbe4f85d7a91',
+  claimId: failedClaim.id,
+  adminTgId: 'tg_123456',
+  adminUsername: 'mileschan852',
+  retriedAt: '2026-11-03T00:00:00.000Z',
+  sourceBotKey: 'botA',
+  originalBotKey: 'botB',
+  deliveryOutcome: 'delivered',
 };
 
 function findElement(node, predicate) {
@@ -195,18 +247,93 @@ test('new failure alert summary validates its cursor and count', () => {
   }));
 });
 
-test('failure alert cursor is persisted separately for each Telegram admin', () => {
-  const values = new Map();
-  const storage = {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
-  };
-  const cursor = { eventId: '12' };
+test('failure alert acknowledgement accepts a monotonic server cursor only', () => {
+  assert.deepEqual(parseVipFailureAlertAcknowledgement({
+    acknowledged: true,
+    cursor: { eventId: '15' },
+  }, '12'), { eventId: '15' });
+  assert.throws(() => parseVipFailureAlertAcknowledgement({
+    acknowledged: false,
+    cursor: { eventId: '12' },
+  }, '12'));
+  assert.throws(() => parseVipFailureAlertAcknowledgement({
+    acknowledged: true,
+    cursor: { eventId: '11' },
+  }, '12'));
+});
 
-  assert.equal(writeVipFailureAlertCursor(storage, 'tg_123', cursor), true);
-  assert.deepEqual(readVipFailureAlertCursor(storage, 'tg_123'), cursor);
-  assert.equal(readVipFailureAlertCursor(storage, 'tg_456'), null);
-  assert.equal(writeVipFailureAlertCursor(storage, 'not-a-telegram-id', cursor), false);
+test('failure alert polling is disabled when the panel is not active or account is missing', () => {
+  let scheduled = 0;
+  const timer = {
+    setInterval() {
+      scheduled += 1;
+      return scheduled;
+    },
+    clearInterval() {},
+  };
+  const stopClosed = startVipFailureAlertPolling({
+    enabled: false,
+    userId: 'tg_123',
+    onPoll() {},
+    timer,
+  });
+  const stopNoAccount = startVipFailureAlertPolling({
+    enabled: true,
+    userId: null,
+    onPoll() {},
+    timer,
+  });
+
+  stopClosed();
+  stopNoAccount();
+  assert.equal(scheduled, 0);
+});
+
+test('failure alert polling cleans up on account changes and does not call stale callbacks', () => {
+  let nextHandle = 1;
+  const callbacks = new Map();
+  const timer = {
+    setInterval(callback, intervalMs) {
+      assert.equal(intervalMs, VIP_FAILURE_ALERT_POLL_INTERVAL_MS);
+      const handle = nextHandle++;
+      callbacks.set(handle, callback);
+      return handle;
+    },
+    clearInterval(handle) {
+      callbacks.delete(handle);
+    },
+  };
+  let firstAccountPolls = 0;
+  let secondAccountPolls = 0;
+  const stopFirstAccount = startVipFailureAlertPolling({
+    enabled: true,
+    userId: 'tg_123',
+    onPoll() {
+      firstAccountPolls += 1;
+    },
+    timer,
+  });
+  const staleCallback = callbacks.get(1);
+  staleCallback();
+  assert.equal(firstAccountPolls, 1);
+
+  stopFirstAccount();
+  const stopSecondAccount = startVipFailureAlertPolling({
+    enabled: true,
+    userId: 'tg_456',
+    onPoll() {
+      secondAccountPolls += 1;
+    },
+    timer,
+  });
+  staleCallback();
+  [...callbacks.values()][0]();
+  assert.equal(firstAccountPolls, 1);
+  assert.equal(secondAccountPolls, 1);
+  assert.equal(callbacks.size, 1);
+
+  stopSecondAccount();
+  assert.equal(callbacks.size, 0);
 });
 
 test('new reward DM failures appear in a distinct admin alert, apart from announcements', () => {
@@ -234,6 +361,74 @@ test('the reward failure alert is absent when there are no unseen failures', () 
   assert.doesNotMatch(html, /New failed VIP reward messages/);
 });
 
+test('VIP reward queue health is a separate admin summary from failures and announcements', () => {
+  const html = renderToStaticMarkup(VipCampaignPanel({
+    ...props,
+    queueHealth: {
+      overduePendingCount: 3,
+      expiredSendingCount: 2,
+      oldestWaitingAt: '2030-01-02T00:00:00.000Z',
+      oldestWaitingSeconds: 7200,
+    },
+    newFailureAlert: {
+      newFailureCount: 1,
+      latestFailureAt: '2030-01-03T00:00:00.000Z',
+      cursor: { eventId: '12' },
+    },
+  }));
+
+  assert.match(html, /data-testid="region-vip-reward-queue-health"/);
+  assert.match(html, /VIP reward delivery queue health/);
+  assert.match(html, /Overdue pending: 3/);
+  assert.match(html, /Expired sending leases: 2/);
+  assert.match(html, /Oldest wait: Dec 1, 2026 · 120 min/);
+  assert.match(html, /New failed VIP reward messages: 1/);
+  assert.match(html, /Announcement: Queued/);
+});
+
+test('VIP reward queue health parser validates counts, timestamp and empty summary', () => {
+  assert.deepEqual(parseVipRewardNotificationQueueHealth({
+    overduePendingCount: 2,
+    expiredSendingCount: 1,
+    oldestWaitingAt: '2030-01-02T00:00:00.000Z',
+    oldestWaitingSeconds: 300,
+  }), {
+    overduePendingCount: 2,
+    expiredSendingCount: 1,
+    oldestWaitingAt: '2030-01-02T00:00:00.000Z',
+    oldestWaitingSeconds: 300,
+  });
+  assert.deepEqual(parseVipRewardNotificationQueueHealth({
+    overduePendingCount: 0,
+    expiredSendingCount: 0,
+    oldestWaitingAt: null,
+    oldestWaitingSeconds: null,
+  }), {
+    overduePendingCount: 0,
+    expiredSendingCount: 0,
+    oldestWaitingAt: null,
+    oldestWaitingSeconds: null,
+  });
+  assert.throws(() => parseVipRewardNotificationQueueHealth({
+    overduePendingCount: -1,
+    expiredSendingCount: 0,
+    oldestWaitingAt: null,
+    oldestWaitingSeconds: null,
+  }));
+  assert.throws(() => parseVipRewardNotificationQueueHealth({
+    overduePendingCount: 1,
+    expiredSendingCount: 0,
+    oldestWaitingAt: 'not a time',
+    oldestWaitingSeconds: 1,
+  }));
+  assert.throws(() => parseVipRewardNotificationQueueHealth({
+    overduePendingCount: 0,
+    expiredSendingCount: 0,
+    oldestWaitingAt: '2030-01-02T00:00:00.000Z',
+    oldestWaitingSeconds: 1,
+  }));
+});
+
 test('failed reward page parser validates recipient and retry details', () => {
   const parsed = parseVipFailedRewardPage({ claims: [failedClaim], hasMore: false });
   assert.deepEqual(parsed, { claims: [failedClaim], hasMore: false });
@@ -245,6 +440,120 @@ test('failed reward page parser validates recipient and retry details', () => {
     claims: [{ ...failedClaim, manualRetryCount: 4 }],
     hasMore: false,
   }));
+});
+
+test('retry audit page parser validates actor, claim, bot keys, time, and outcome', () => {
+  const parsed = parseVipRewardRetryAuditPage({
+    records: [retryAuditRecord],
+    hasMore: false,
+  });
+  assert.deepEqual(parsed, {
+    records: [retryAuditRecord],
+    hasMore: false,
+  });
+  assert.throws(() => parseVipRewardRetryAuditPage({
+    records: [{ ...retryAuditRecord, adminTgId: 'not-an-admin-id' }],
+    hasMore: false,
+  }));
+  assert.throws(() => parseVipRewardRetryAuditPage({
+    records: [{ ...retryAuditRecord, deliveryOutcome: 'anything' }],
+    hasMore: false,
+  }));
+});
+
+test('admins can review retry actor, time, claim, bot, and outcome', () => {
+  const tree = VipCampaignPanel({
+    ...props,
+    retryAuditCampaignId: campaignId,
+    retryAuditRecords: [retryAuditRecord],
+  });
+  const html = renderToStaticMarkup(tree);
+  assert.match(html, /Manual retry audit/);
+  assert.match(html, /@mileschan852/);
+  assert.match(html, /Dec 1, 2026/);
+  assert.match(html, new RegExp(failedClaim.id));
+  assert.match(html, /Who&#x27;s Nearby/);
+  assert.match(html, /Delivered/);
+
+  let toggledId = null;
+  const toggleTree = VipCampaignPanel({
+    ...props,
+    onToggleRetryAudit: (id) => { toggledId = id; },
+  });
+  const toggleButton = findElement(toggleTree, (node) =>
+    node.type === 'button' && node.props['aria-label'] === undefined &&
+      node.props['data-testid'] === `button-toggle-vip-retry-audit-${campaignId}`
+  );
+  assert.ok(toggleButton);
+  toggleButton.props.onClick();
+  assert.equal(toggledId, campaignId);
+});
+
+test('admins can search and retry failed reward messages across campaigns', () => {
+  const otherCampaignId = '0c9c0802-6dd2-4453-a93b-8fef06d1a3d3';
+  const crossCampaignClaim = {
+    ...failedClaim,
+    campaignId: otherCampaignId,
+    sourceBotKey: 'botB',
+    botKey: 'botA',
+  };
+  let changedSearch = null;
+  let changedSource = null;
+  let submitted = null;
+  let retriedId = null;
+  let loadedMore = false;
+  const tree = VipCampaignPanel({
+    ...props,
+    crossCampaignFailedRewardSearchValue: 'member_test',
+    crossCampaignFailedRewardSourceBotKey: 'botB',
+    crossCampaignFailedRewardSearched: true,
+    crossCampaignFailedRewardClaims: [crossCampaignClaim],
+    crossCampaignFailedRewardClaimsHasMore: true,
+    onCrossCampaignFailedRewardSearchChange: (value) => { changedSearch = value; },
+    onCrossCampaignFailedRewardSourceChange: (value) => { changedSource = value; },
+    onSearchCrossCampaignFailedRewards: (search, sourceBot) => {
+      submitted = { search, sourceBot };
+    },
+    onRetryFailedReward: (id) => { retriedId = id; },
+    onLoadMoreCrossCampaignFailedRewards: () => { loadedMore = true; },
+  });
+  const html = renderToStaticMarkup(tree);
+  assert.match(html, /Failed reward messages across campaigns/);
+  assert.match(html, /Search username or Telegram account ID/);
+  assert.match(html, /Campaign 0c9c0802 · source Who&#x27;s Nearby · notification bot HKMO Date/);
+  assert.match(html, /Recipient: @member_test/);
+
+  const input = findElement(tree, (node) =>
+    node.type === 'input' && node.props['data-testid'] === 'input-cross-campaign-vip-reward-search'
+  );
+  const sourceSelect = findElement(tree, (node) =>
+    node.type === 'select' && node.props['data-testid'] === 'select-cross-campaign-vip-reward-source'
+  );
+  const form = findElement(tree, (node) =>
+    node.type === 'form' && node.props['data-testid'] === 'form-cross-campaign-vip-reward-search'
+  );
+  assert.ok(input);
+  assert.ok(sourceSelect);
+  assert.ok(form);
+  input.props.onChange({ target: { value: '@member_test' } });
+  sourceSelect.props.onChange({ target: { value: 'botA' } });
+  form.props.onSubmit({ preventDefault() {} });
+  assert.equal(changedSearch, '@member_test');
+  assert.equal(changedSource, 'botA');
+  assert.deepEqual(submitted, { search: 'member_test', sourceBot: 'botB' });
+
+  const retryButton = findElement(tree, (node) =>
+    node.type === 'button' &&
+      node.props['data-testid'] === `button-retry-cross-campaign-vip-failure-${crossCampaignClaim.id}`
+  );
+  retryButton.props.onClick();
+  assert.equal(retriedId, crossCampaignClaim.id);
+  const loadMoreButton = findElement(tree, (node) =>
+    node.type === 'button' &&
+      node.props['data-testid'] === 'button-load-more-cross-campaign-vip-failures'
+  );
+  loadMoreButton.props.onClick();
+  assert.equal(loadedMore, true);
 });
 
 test('admins can see the recipient and safely trigger a failed reward message retry', () => {
