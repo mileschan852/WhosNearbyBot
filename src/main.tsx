@@ -1,9 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import App from './App.tsx';
 import { loadAppRuntimeConfig } from './config/entries';
-import 'leaflet/dist/leaflet.css';
 import './index.css'; // Assuming you have a basic reset here
 
 const rootElement = document.getElementById('root');
@@ -18,24 +16,7 @@ async function startApp() {
     appRoot.dataset.appMounted = 'true';
     root.render(
       <React.StrictMode>
-        <TonConnectUIProvider
-          manifestUrl={config.tonConnectManifestUrl}
-          walletsListConfiguration={{
-            includeWallets: [
-              {
-                appName: 'telegram-wallet',
-                name: 'Wallet',
-                imageUrl: 'https://config.ton.org/assets/telegram_wallet.png',
-                aboutUrl: 'https://wallet.tg/',
-                universalLink: 'https://t.me/wallet?attach=wallet',
-                bridgeUrl: 'https://walletbot.me/tonconnect-bridge/bridge',
-                platforms: ['ios', 'android', 'macos', 'windows', 'linux'],
-              },
-            ],
-          }}
-        >
-          <App config={config} />
-        </TonConnectUIProvider>
+        <App config={config} />
       </React.StrictMode>,
     );
   } catch (error) {

@@ -3,22 +3,133 @@ import test, { after, before } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import React from 'react';
+import * as ts from 'typescript';
 import { renderToStaticMarkup } from 'react-dom/server';
 import react from '@vitejs/plugin-react';
 import { createServer } from 'vite';
 import {
   buildProfileHeightOptions,
   buildProfileWeightOptions,
+  PROFILE_HOW_MANY_CYCLE_OPTIONS,
+  PROFILE_PLAYSTYLE_CYCLE_OPTIONS,
+  PROFILE_ROLE_CYCLE_OPTIONS,
+  PROFILE_SAFETY_CYCLE_OPTIONS,
+  PROFILE_WHERE_CYCLE_OPTIONS,
 } from '../src/modules/profile-completion/profile-completion-options.js';
+
+function propertyNameText(name) {
+  if (
+    ts.isIdentifier(name)
+    || ts.isStringLiteral(name)
+    || ts.isNumericLiteral(name)
+  ) {
+    return name.text;
+  }
+  return null;
+}
+
+function readAppTranslations(source) {
+  const sourceFile = ts.createSourceFile(
+    'App.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const declaration = sourceFile.statements
+    .filter(ts.isVariableStatement)
+    .flatMap(({ declarationList }) => [...declarationList.declarations])
+    .find(({ name }) => ts.isIdentifier(name) && name.text === 'translations');
+  assert.ok(declaration, 'App.tsx should define the app translations');
+  assert.ok(
+    declaration.initializer && ts.isObjectLiteralExpression(declaration.initializer),
+    'App translations should remain an object literal that this check can inspect',
+  );
+
+  const languages = {};
+  for (const languageProperty of declaration.initializer.properties) {
+    if (!ts.isPropertyAssignment(languageProperty)) continue;
+    const language = propertyNameText(languageProperty.name);
+    const dictionary = languageProperty.initializer;
+    if (!language || !ts.isObjectLiteralExpression(dictionary)) continue;
+
+    const translations = {};
+    for (const entry of dictionary.properties) {
+      if (!ts.isPropertyAssignment(entry)) continue;
+      const key = propertyNameText(entry.name);
+      if (key && ts.isStringLiteralLike(entry.initializer)) {
+        translations[key] = entry.initializer.text;
+      }
+    }
+    languages[language] = translations;
+  }
+  return languages;
+}
+
+function readObjectLiteralValue(node, sourceName) {
+  assert.ok(ts.isObjectLiteralExpression(node), `${sourceName} should remain an object literal`);
+  const value = {};
+  for (const property of node.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const key = propertyNameText(property.name);
+    if (!key) continue;
+
+    if (ts.isStringLiteralLike(property.initializer)) {
+      value[key] = property.initializer.text;
+    } else if (ts.isObjectLiteralExpression(property.initializer)) {
+      value[key] = readObjectLiteralValue(property.initializer, sourceName);
+    }
+  }
+  return value;
+}
+
+function readObjectLiteralVariable(source, sourceName, variableName) {
+  const sourceFile = ts.createSourceFile(
+    sourceName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const declaration = sourceFile.statements
+    .filter(ts.isVariableStatement)
+    .flatMap(({ declarationList }) => [...declarationList.declarations])
+    .find(({ name }) => ts.isIdentifier(name) && name.text === variableName);
+  assert.ok(declaration?.initializer, `${sourceName} should define ${variableName}`);
+  return readObjectLiteralValue(declaration.initializer, `${sourceName} ${variableName}`);
+}
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
 const config = JSON.parse(await readFile(new URL('../public/config.json', import.meta.url), 'utf8'));
+const appSource = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const appTranslations = readAppTranslations(appSource);
+const profileCompletionSource = await readFile(
+  new URL('../src/modules/profile-completion/ProfileCompletionModule.tsx', import.meta.url),
+  'utf8',
+);
+const profileSetupPreviewSource = await readFile(
+  new URL('../src/modules/profile-completion/ProfileSetupPreviewModule.tsx', import.meta.url),
+  'utf8',
+);
+const completionStatusTranslations = readObjectLiteralVariable(
+  profileCompletionSource,
+  'ProfileCompletionModule.tsx',
+  'completionStatusCopy',
+);
+const profileSetupPreviewTranslations = readObjectLiteralVariable(
+  profileSetupPreviewSource,
+  'ProfileSetupPreviewModule.tsx',
+  'copy',
+);
 let vite;
 let ProfileCompletionModule;
 let ProfileSetupPreviewModule;
 let runProfilePreferenceCycleAnnouncement;
 let focusFirstIncompleteProfileField;
 let parseAppRuntimeConfig;
+let resolveInitialProfileIdentity;
+let profileGenderOptions;
+let profileSeekingOptions;
 
 before(async () => {
   vite = await createServer({
@@ -41,7 +152,12 @@ before(async () => {
   ({ focusFirstIncompleteProfileField } = await vite.ssrLoadModule(
     '/src/modules/profile-completion/profile-completion-focus.ts',
   ));
-  ({ parseAppRuntimeConfig } = await vite.ssrLoadModule('/src/config/entries.ts'));
+  ({
+    parseAppRuntimeConfig,
+    resolveInitialProfileIdentity,
+    PROFILE_GENDER_OPTIONS: profileGenderOptions,
+    PROFILE_SEEKING_OPTIONS: profileSeekingOptions,
+  } = await vite.ssrLoadModule('/src/config/entries.ts'));
 });
 
 after(async () => {
@@ -83,7 +199,8 @@ function renderCompletionForm(entry, overrides = {}) {
     onChange,
     onSubmit: noop,
     onClose: noop,
-    showCloseButton: false,
+    showCloseButton: overrides.showCloseButton ?? false,
+    previewOnly: overrides.previewOnly ?? false,
     errorMessage: overrides.errorMessage ?? '',
     heightOptions: buildProfileHeightOptions(values.height),
     weightOptions: values.weight ? [values.weight] : ['70kg'],
@@ -102,6 +219,35 @@ function getFormControls(markup) {
     selects: [...markup.matchAll(/<select\b[^>]*>/g)].map(([tag]) => tag),
     preferenceButtons: [...markup.matchAll(/<button type="button"[^>]*>/g)].map(([tag]) => tag),
   };
+}
+
+function getSelectOptionValues(markup, id) {
+  const selectPattern = new RegExp(
+    `<select\\b(?=[^>]*\\bid="${id}")[^>]*>([\\s\\S]*?)</select>`,
+  );
+  const selectMarkup = markup.match(selectPattern)?.[1] ?? '';
+  return [...selectMarkup.matchAll(/<option\b[^>]*\bvalue="([^"]*)"/g)]
+    .map(([, value]) => value);
+}
+
+function decodeHtmlEntities(value) {
+  return value
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#x27;', "'")
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>');
+}
+
+function getPreferenceCycleButtons(markup) {
+  return [
+    ...markup.matchAll(
+      /<button\b(?=[^>]*aria-describedby="profile-preference-cycle-hint")[^>]*aria-label="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g,
+    ),
+  ].map(([, accessibleName, contents]) => ({
+    accessibleName: decodeHtmlEntities(accessibleName),
+    visibleValue: decodeHtmlEntities(contents.replace(/<[^>]*>/g, '').trim()),
+  }));
 }
 
 test('completion locks saved core details, leaves preferences editable, and preserves both entry lock settings', () => {
@@ -138,6 +284,164 @@ test('runtime config accepts supported defaults for locked identity fields', () 
   const parsedAlternateConfig = parseAppRuntimeConfig(alternateValidDefaults);
   assert.equal(parsedAlternateConfig.entries['hkmo-date'].profileSetup.defaultGender, 'non-binary');
   assert.equal(parsedAlternateConfig.entries['hkmo-date'].profileSetup.defaultSeeking, 'everyone');
+});
+
+test('saved profile identity is preserved when entering through either app entry', () => {
+  const entries = parseAppRuntimeConfig(config).entries;
+  const savedProfiles = [
+    { gender: 'woman', seeking: 'men' },
+    { gender: 'man', seeking: 'women' },
+    { gender: 'non-binary', seeking: 'everyone' },
+  ];
+
+  for (const entry of Object.values(entries)) {
+    for (const savedProfile of savedProfiles) {
+      assert.deepEqual(
+        resolveInitialProfileIdentity(savedProfile, entry),
+        savedProfile,
+        `${entry.id} must keep the saved gender and seeking values`,
+      );
+    }
+  }
+
+  assert.match(
+    appSource,
+    /resolveInitialProfileIdentity\(existingProfile,\s*activeEntry\)/,
+    'app initialization must resolve saved identity before applying entry defaults',
+  );
+});
+
+test('new profiles receive only the selected entry identity defaults', () => {
+  const entries = parseAppRuntimeConfig(config).entries;
+  const nearbyIdentity = resolveInitialProfileIdentity(null, entries.nearby);
+  const hkmoIdentity = resolveInitialProfileIdentity(null, entries['hkmo-date']);
+
+  assert.deepEqual(nearbyIdentity, {
+    gender: entries.nearby.profileSetup.defaultGender,
+    seeking: entries.nearby.profileSetup.defaultSeeking,
+  });
+  assert.deepEqual(hkmoIdentity, {
+    gender: entries['hkmo-date'].profileSetup.defaultGender,
+    seeking: entries['hkmo-date'].profileSetup.defaultSeeking,
+  });
+  assert.notDeepEqual(
+    nearbyIdentity,
+    hkmoIdentity,
+    'the selected entry must determine the first-time seeking default',
+  );
+});
+
+test('reset profiles reopen completion with the selected entry defaults as valid options', () => {
+  const entries = parseAppRuntimeConfig(config).entries;
+
+  for (const entry of Object.values(entries)) {
+    const resetProfile = {
+      dob: null,
+      gender: null,
+      seeking: null,
+      height: null,
+      weight: null,
+    };
+    const identity = resolveInitialProfileIdentity(resetProfile, entry);
+    const markup = renderCompletionForm(entry, {
+      values: {
+        dob: '',
+        gender: identity.gender,
+        seeking: identity.seeking,
+        height: '',
+        weight: '',
+      },
+      missingFields: { dob: true, gender: true, height: true, weight: true },
+    });
+
+    assert.ok(
+      getSelectOptionValues(markup, 'profile-completion-gender').includes(identity.gender),
+      `${entry.id} reset gender default must be an available option`,
+    );
+    assert.ok(
+      getSelectOptionValues(markup, 'profile-completion-seeking').includes(identity.seeking),
+      `${entry.id} reset seeking default must be an available option`,
+    );
+    assert.ok(
+      markup.includes(`<option value="${identity.gender}" selected="">`),
+      `${entry.id} reset gender default must be selected in the reopened form`,
+    );
+    assert.ok(
+      markup.includes(`<option value="${identity.seeking}" selected="">`),
+      `${entry.id} reset seeking default must be selected in the reopened form`,
+    );
+  }
+
+  assert.match(
+    appSource,
+    /if\s*\(!isFullySetup\)\s*\{\s*setShowProfileSetup\(true\)/,
+    'an incomplete reset profile must reopen the profile-completion flow',
+  );
+});
+
+test('partially saved identity keeps existing values and defaults only missing values', () => {
+  const entries = parseAppRuntimeConfig(config).entries;
+
+  for (const entry of Object.values(entries)) {
+    assert.deepEqual(
+      resolveInitialProfileIdentity({ gender: 'woman' }, entry),
+      {
+        gender: 'woman',
+        seeking: entry.profileSetup.defaultSeeking,
+      },
+      `${entry.id} must not replace saved gender while filling missing seeking`,
+    );
+    assert.deepEqual(
+      resolveInitialProfileIdentity({ seeking: 'everyone' }, entry),
+      {
+        gender: entry.profileSetup.defaultGender,
+        seeking: 'everyone',
+      },
+      `${entry.id} must not replace saved seeking while filling missing gender`,
+    );
+  }
+});
+
+test('every supported locked identity default is selectable in the rendered profile form', () => {
+  const entryId = 'hkmo-date';
+  const formMarkup = renderCompletionForm(
+    parseAppRuntimeConfig(config).entries[entryId],
+  );
+
+  assert.deepEqual(
+    getSelectOptionValues(formMarkup, 'profile-completion-gender'),
+    profileGenderOptions.map(({ value }) => value),
+  );
+  assert.deepEqual(
+    getSelectOptionValues(formMarkup, 'profile-completion-seeking'),
+    profileSeekingOptions.map(({ value }) => value),
+  );
+
+  for (const { value } of profileGenderOptions) {
+    const configWithDefault = structuredClone(config);
+    configWithDefault.entries[entryId].profileSetup.defaultGender = value;
+    const parsedEntry = parseAppRuntimeConfig(configWithDefault).entries[entryId];
+    assert.ok(
+      getSelectOptionValues(
+        renderCompletionForm(parsedEntry),
+        'profile-completion-gender',
+      ).includes(parsedEntry.profileSetup.defaultGender),
+      `${entryId} must render accepted gender default "${value}" as an option`,
+    );
+  }
+
+  for (const { value } of profileSeekingOptions) {
+    const configWithDefault = structuredClone(config);
+    configWithDefault.entries[entryId].profileSetup.defaultSeeking = value;
+    const parsedEntry = parseAppRuntimeConfig(configWithDefault).entries[entryId];
+    assert.ok(
+      getSelectOptionValues(
+        renderCompletionForm(parsedEntry),
+        'profile-completion-seeking',
+      ).includes(parsedEntry.profileSetup.defaultSeeking),
+      `${entryId} must render accepted seeking default "${value}" as an option`,
+    );
+  }
 });
 
 test('profile setup previews identify each entry and keep all edits local', () => {
@@ -206,6 +510,30 @@ test('runtime config rejects empty or unsupported defaults when identity is lock
       () => parseAppRuntimeConfig(invalidConfig),
       new RegExp(`entry "hkmo-date".*${field}`),
       `${field}=${JSON.stringify(invalidValue)} should be rejected for a locked entry`,
+    );
+  }
+});
+
+test('invalid locked identity defaults identify the specific clone entry', () => {
+  const cloneId = 'test-clone';
+  const cloneConfig = structuredClone(config);
+  cloneConfig.entries[cloneId] = {
+    ...structuredClone(config.entries['hkmo-date']),
+    id: cloneId,
+    label: 'Test clone',
+  };
+
+  for (const [field, invalidValue] of [
+    ['defaultGender', 'alien'],
+    ['defaultSeeking', 'none'],
+  ]) {
+    const invalidCloneConfig = structuredClone(cloneConfig);
+    invalidCloneConfig.entries[cloneId].profileSetup[field] = invalidValue;
+
+    assert.throws(
+      () => parseAppRuntimeConfig(invalidCloneConfig),
+      new RegExp(`entry "${cloneId}".*${field}`),
+      `invalid ${field} should identify the clone entry that needs correction`,
     );
   }
 });
@@ -347,52 +675,439 @@ test('every profile control has an accessible name and its state is described', 
   assert.ok(renderCompletionForm(config.entries['hkmo-date']).includes('Saved · locked'));
 });
 
-test('each cycled preference announces only its new value through a polite status region', () => {
-  const translations = {
-    rolePreference: 'Role preference',
-    safetyPreference: 'Safety',
-    playstylePreference: 'Style',
-    groupSize: 'Group size',
-    group_setup: 'Groups',
-    Top: 'Top',
-    Raw: 'Raw',
-    Party: 'Party',
-    Anywhere: 'Anywhere',
+test('profile completion labels, instructions, and validation text are translated in all six languages', () => {
+  const languages = ['en', 'zh-CN', 'zh-TW', 'ja', 'ko', 'ru'];
+  const profileTranslationKeys = [...new Set([
+    config.entries.nearby.profileSetup.titleKey,
+    config.entries.nearby.profileSetup.warningKey,
+    'dob',
+    'imA',
+    'seeking',
+    'height',
+    'selectHeight',
+    'weight',
+    'selectWeight',
+    'tapToChange',
+    'mode',
+    'rolePreference',
+    'safetyPreference',
+    'playstylePreference',
+    'groupSize',
+    'Anywhere',
+    'saveProfile',
+    'close',
+    'fillAll',
+    'errorSaving',
+    ...profileGenderOptions.map(({ labelKey }) => labelKey),
+    ...profileSeekingOptions.map(({ labelKey }) => labelKey),
+    ...PROFILE_ROLE_CYCLE_OPTIONS,
+    ...PROFILE_SAFETY_CYCLE_OPTIONS,
+    ...PROFILE_PLAYSTYLE_CYCLE_OPTIONS,
+    ...PROFILE_HOW_MANY_CYCLE_OPTIONS.map((value) => `${value}_setup`),
+    ...PROFILE_WHERE_CYCLE_OPTIONS.filter((value) => value !== null),
+  ])];
+  const statusKeys = [
+    'heading',
+    'missingSummary',
+    'readySummary',
+    'previewReadySummary',
+    'missing',
+    'filled',
+    'saved',
+    'setByApp',
+    'identityLocked',
+    'warning',
+    'editWarning',
+  ];
+  const statusLabelKeys = ['dob', 'gender', 'height', 'weight', 'where'];
+  const modeKeys = ['browsingOnly', 'onlineOnly', 'meetUp'];
+  const modeMeaningPhrases = {
+    en: {
+      browsingOnly: ['send or receive private messages'],
+      onlineOnly: ['not on the map', 'map access is disabled'],
+      meetUp: ['grid and map'],
+    },
+    'zh-CN': {
+      browsingOnly: ['不能发送或接收私信'],
+      onlineOnly: ['不会显示在地图上', '无法使用地图'],
+      meetUp: ['网格和地图'],
+    },
+    'zh-TW': {
+      browsingOnly: ['無法傳送或接收私訊'],
+      onlineOnly: ['不會顯示在地圖上', '無法使用地圖'],
+      meetUp: ['網格和地圖'],
+    },
+    ja: {
+      browsingOnly: ['送信したり受信したりできません'],
+      onlineOnly: ['地図には表示されず', '地図も利用できません'],
+      meetUp: ['グリッドと地図'],
+    },
+    ko: {
+      browsingOnly: ['메시지를 보내거나 받을 수 없습니다'],
+      onlineOnly: ['지도에는 표시되지 않으며', '지도도 사용할 수 없습니다'],
+      meetUp: ['그리드와 지도'],
+    },
+    ru: {
+      browsingOnly: ['отправлять и получать личные сообщения'],
+      onlineOnly: ['но не на карте', 'карта недоступна'],
+      meetUp: ['и в сетке, и на карте'],
+    },
   };
-  const t = (key) => translations[key] ?? key;
+
+  assert.deepEqual(Object.keys(appTranslations).sort(), [...languages].sort());
+  assert.deepEqual(Object.keys(completionStatusTranslations).sort(), [...languages].sort());
+  assert.deepEqual(Object.keys(profileSetupPreviewTranslations).sort(), [...languages].sort());
+  assert.match(
+    appSource,
+    /translations\[lang\]\?\.\[key\]\s*\|\|\s*translations\['en'\]\[key\]\s*\|\|\s*key/,
+    'the app should retain its existing language-to-English-to-key fallback',
+  );
+  assert.match(appSource, /setErrorMessage\(t\('fillAll'\)\)/);
+  assert.match(appSource, /setErrorMessage\(`\$\{t\('errorSaving'\)\}/);
+
+  for (const language of languages) {
+    const dictionary = appTranslations[language];
+    const statusCopy = completionStatusTranslations[language];
+    const englishStatusCopy = completionStatusTranslations.en;
+
+    for (const key of profileTranslationKeys) {
+      const value = dictionary[key];
+      assert.equal(typeof value, 'string', `${language} should define profile translation ${key}`);
+      assert.ok(value.trim(), `${language} profile translation ${key} should not be empty`);
+      assert.ok(!value.includes('\uFFFD'), `${language} profile translation ${key} should be valid text`);
+      if (language !== 'en') {
+        assert.notEqual(value, key, `${language} should not show the untranslated key ${key}`);
+      }
+    }
+
+    assert.deepEqual(
+      Object.keys(statusCopy).sort(),
+      [...statusKeys, 'labels', 'modes'].sort(),
+      `${language} should provide every profile status message`,
+    );
+    assert.deepEqual(
+      Object.keys(statusCopy.labels).sort(),
+      [...statusLabelKeys].sort(),
+      `${language} should provide all status field labels`,
+    );
+    assert.deepEqual(
+      Object.keys(statusCopy.modes).sort(),
+      [...modeKeys].sort(),
+      `${language} should provide all profile mode descriptions`,
+    );
+
+    const statusValues = {
+      ...Object.fromEntries(statusKeys.map((key) => [key, statusCopy[key]])),
+      ...Object.fromEntries(
+        statusLabelKeys.map((key) => [`labels.${key}`, statusCopy.labels[key]]),
+      ),
+      ...Object.fromEntries(
+        modeKeys.map((key) => [`modes.${key}`, statusCopy.modes[key]]),
+      ),
+    };
+    const englishStatusValues = {
+      ...Object.fromEntries(statusKeys.map((key) => [key, englishStatusCopy[key]])),
+      ...Object.fromEntries(
+        statusLabelKeys.map((key) => [`labels.${key}`, englishStatusCopy.labels[key]]),
+      ),
+      ...Object.fromEntries(
+        modeKeys.map((key) => [`modes.${key}`, englishStatusCopy.modes[key]]),
+      ),
+    };
+    for (const [key, value] of Object.entries(statusValues)) {
+      assert.equal(typeof value, 'string', `${language} should define profile status copy ${key}`);
+      assert.ok(value.trim(), `${language} profile status copy ${key} should not be empty`);
+      assert.ok(!value.includes('\uFFFD'), `${language} profile status copy ${key} should be valid text`);
+      if (language !== 'en') {
+        assert.notEqual(
+          value,
+          englishStatusValues[key],
+          `${language} should translate profile status copy ${key}`,
+        );
+      }
+    }
+
+    const previewCopy = profileSetupPreviewTranslations[language];
+    const englishPreviewCopy = profileSetupPreviewTranslations.en;
+    const previewKeys = [
+      'eyebrow',
+      'title',
+      'intro',
+      'selected',
+      'identity',
+      'locked',
+      'editable',
+      'lockedDetail',
+      'editableDetail',
+      'localNotice',
+      'unavailable',
+    ];
+    assert.deepEqual(
+      Object.keys(previewCopy).sort(),
+      [...previewKeys].sort(),
+      `${language} should provide every profile-setup preview label`,
+    );
+    for (const key of previewKeys) {
+      const value = previewCopy[key];
+      assert.equal(typeof value, 'string', `${language} should define preview copy ${key}`);
+      assert.ok(value.trim(), `${language} preview copy ${key} should not be empty`);
+      assert.ok(!value.includes('\uFFFD'), `${language} preview copy ${key} should be valid text`);
+      if (language !== 'en') {
+        assert.notEqual(value, englishPreviewCopy[key], `${language} should translate preview copy ${key}`);
+      }
+    }
+
+    const t = (key) => dictionary[key] || appTranslations.en[key] || key;
+    const entry = config.entries['hkmo-date'];
+    const incompleteMarkup = renderCompletionForm(entry, {
+      language,
+      t,
+      showCloseButton: true,
+      errorMessage: t('fillAll'),
+      values: {
+        dob: '',
+        gender: entry.profileSetup.defaultGender,
+        seeking: entry.profileSetup.defaultSeeking,
+        height: '',
+        weight: '',
+      },
+      missingFields: { dob: true, gender: true, height: true, weight: true },
+    });
+    assert.ok(incompleteMarkup.includes(t(entry.profileSetup.titleKey)));
+    assert.ok(incompleteMarkup.includes(statusCopy.warning));
+    assert.ok(incompleteMarkup.includes(t('fillAll')));
+    assert.ok(incompleteMarkup.includes(t('close')));
+    assert.ok(incompleteMarkup.includes(statusCopy.heading));
+    assert.ok(incompleteMarkup.includes(statusCopy.missingSummary.split('{fields}')[0]));
+    assert.ok(incompleteMarkup.includes(statusCopy.missing));
+    assert.ok(incompleteMarkup.includes(statusCopy.setByApp));
+    assert.ok(incompleteMarkup.includes(statusCopy.identityLocked));
+    assert.ok(!incompleteMarkup.includes('\uFFFD'), `${language} form should not render replacement characters`);
+
+    const editMarkup = renderCompletionForm(entry, {
+      language,
+      t,
+      isCompletionFlow: false,
+    });
+    assert.ok(editMarkup.includes(statusCopy.editWarning));
+    assert.ok(!editMarkup.includes(statusCopy.warning));
+    assert.ok(!editMarkup.includes('\uFFFD'));
+
+    const modeMarkup = renderCompletionForm(config.entries.nearby, {
+      language,
+      t,
+      values: { gender: 'woman', seeking: 'men' },
+    });
+    for (const modeKey of modeKeys) {
+      assert.ok(modeMarkup.includes(statusCopy.modes[modeKey]));
+      for (const phrase of modeMeaningPhrases[language][modeKey]) {
+        assert.ok(
+          statusCopy.modes[modeKey].includes(phrase),
+          `${language} ${modeKey} should explain ${phrase}`,
+        );
+      }
+    }
+    assert.ok(!modeMarkup.includes('\uFFFD'), `${language} mode options should not render replacement characters`);
+
+    const savingErrorMarkup = renderCompletionForm(entry, {
+      language,
+      t,
+      errorMessage: `${t('errorSaving')} example`,
+    });
+    assert.ok(savingErrorMarkup.includes(t('errorSaving')));
+    assert.ok(!savingErrorMarkup.includes('\uFFFD'));
+
+    const customWarningEntry = structuredClone(entry);
+    customWarningEntry.profileSetup.warningKey = 'customProfileWarning';
+    const customWarningMarkup = renderCompletionForm(customWarningEntry, {
+      language,
+      t: (key) => (key === 'customProfileWarning' ? 'Custom profile warning' : t(key)),
+    });
+    assert.ok(customWarningMarkup.includes('Custom profile warning'));
+
+    const readyMarkup = renderCompletionForm(entry, {
+      language,
+      t,
+      values: { gender: entry.profileSetup.defaultGender, seeking: entry.profileSetup.defaultSeeking },
+      missingFields: { dob: true, gender: true, height: true, weight: true },
+    });
+    assert.ok(readyMarkup.includes(statusCopy.readySummary));
+    assert.ok(readyMarkup.includes(statusCopy.filled));
+
+    const savedMarkup = renderCompletionForm(entry, {
+      language,
+      t,
+      values: { gender: entry.profileSetup.defaultGender, seeking: entry.profileSetup.defaultSeeking },
+      missingFields: { dob: false, gender: false, height: false, weight: false },
+    });
+    assert.ok(savedMarkup.includes(statusCopy.saved));
+
+    const previewMarkup = renderCompletionForm(entry, {
+      language,
+      t,
+      previewOnly: true,
+      values: { gender: entry.profileSetup.defaultGender, seeking: entry.profileSetup.defaultSeeking },
+      missingFields: { dob: true, gender: true, height: true, weight: true },
+    });
+    assert.ok(previewMarkup.includes(statusCopy.previewReadySummary));
+    assert.ok(!previewMarkup.includes('\uFFFD'));
+
+    const ownerPreviewMarkup = renderToStaticMarkup(React.createElement(
+      ProfileSetupPreviewModule,
+      {
+        entries: [config.entries['hkmo-date']],
+        language,
+        onClose: () => {},
+        t,
+      },
+    ));
+    for (const key of [
+      'eyebrow',
+      'title',
+      'intro',
+      'selected',
+      'identity',
+      'locked',
+      'lockedDetail',
+      'localNotice',
+    ]) {
+      assert.ok(ownerPreviewMarkup.includes(previewCopy[key]));
+    }
+    assert.ok(!ownerPreviewMarkup.includes('\uFFFD'));
+
+    const unavailablePreviewMarkup = renderToStaticMarkup(React.createElement(
+      ProfileSetupPreviewModule,
+      { entries: [], language, onClose: () => {}, t },
+    ));
+    assert.ok(unavailablePreviewMarkup.includes(previewCopy.unavailable));
+    assert.ok(!unavailablePreviewMarkup.includes('\uFFFD'));
+  }
+});
+
+test('cycle announcements match visible preference labels in all supported languages', () => {
+  const languages = ['en', 'zh-CN', 'zh-TW', 'ja', 'ko', 'ru'];
+  assert.deepEqual(Object.keys(appTranslations).sort(), [...languages].sort());
+
   const cases = [
-    ['role', 'Top', 'Role preference: Top'],
-    ['safety', 'Raw', 'Safety: Raw'],
-    ['playstyle', 'Party', 'Style: Party'],
-    ['howMany', 'group', 'Group size: Groups'],
-    ['where', null, 'Where: Anywhere'],
+    {
+      preference: 'role',
+      field: 'rolePref',
+      options: PROFILE_ROLE_CYCLE_OPTIONS,
+      buttonIndex: 0,
+    },
+    {
+      preference: 'safety',
+      field: 'safetyPref',
+      options: PROFILE_SAFETY_CYCLE_OPTIONS,
+      buttonIndex: 1,
+    },
+    {
+      preference: 'playstyle',
+      field: 'playstylePref',
+      options: PROFILE_PLAYSTYLE_CYCLE_OPTIONS,
+      buttonIndex: 2,
+    },
+    {
+      preference: 'howMany',
+      field: 'howManyPref',
+      options: PROFILE_HOW_MANY_CYCLE_OPTIONS,
+      buttonIndex: 3,
+    },
+    {
+      preference: 'where',
+      field: 'wherePref',
+      options: PROFILE_WHERE_CYCLE_OPTIONS,
+      buttonIndex: 4,
+    },
+  ];
+  const requiredTranslationKeys = [
+    'rolePreference',
+    'safetyPreference',
+    'playstylePreference',
+    'groupSize',
+    'Anywhere',
+    ...PROFILE_ROLE_CYCLE_OPTIONS,
+    ...PROFILE_SAFETY_CYCLE_OPTIONS,
+    ...PROFILE_PLAYSTYLE_CYCLE_OPTIONS,
+    ...PROFILE_HOW_MANY_CYCLE_OPTIONS.map((value) => `${value}_setup`),
+    ...PROFILE_WHERE_CYCLE_OPTIONS.filter((value) => value !== null),
   ];
 
-  for (const [preference, nextValue, expected] of cases) {
-    let cycleCalls = 0;
-    const announcement = runProfilePreferenceCycleAnnouncement(
-      preference,
-      () => {
-        cycleCalls += 1;
-        return nextValue;
-      },
-      t,
-      'Where',
-    );
-    assert.equal(cycleCalls, 1, `${preference} should cycle exactly once`);
-    assert.equal(announcement, expected);
-    assert.equal(announcement.includes('Required details'), false);
-  }
+  for (const language of languages) {
+    const dictionary = appTranslations[language];
+    const t = (key) => dictionary[key] || appTranslations.en[key] || key;
 
-  const markup = renderCompletionForm(config.entries.nearby);
-  const announcementRegion = markup.match(
-    /<div\b[^>]*data-testid="profile-preference-cycle-announcement"[^>]*>[\s\S]*?<\/div>/,
-  )?.[0];
-  assert.ok(announcementRegion, 'the cycle announcement live region should render');
-  assert.match(announcementRegion, /role="status"/);
-  assert.match(announcementRegion, /aria-live="polite"/);
-  assert.match(announcementRegion, /aria-atomic="true"/);
-  assert.match(announcementRegion, />\s*<\/div>$/, 'the live region should start empty');
+    for (const key of requiredTranslationKeys) {
+      assert.ok(dictionary[key], `${language} should translate ${key}`);
+      assert.equal(
+        dictionary[key].includes('\uFFFD'),
+        false,
+        `${language} translation for ${key} should not contain replacement characters`,
+      );
+      if (language !== 'en') {
+        assert.notEqual(
+          dictionary[key],
+          key,
+          `${language} should not fall back to the untranslated ${key} label`,
+        );
+      }
+    }
+
+    const initialMarkup = renderCompletionForm(config.entries.nearby, {
+      language,
+      t,
+    });
+    const announcementRegion = initialMarkup.match(
+      /<div\b[^>]*data-testid="profile-preference-cycle-announcement"[^>]*>[\s\S]*?<\/div>/,
+    )?.[0];
+    assert.ok(announcementRegion, `${language} should render the cycle announcement region`);
+    assert.match(announcementRegion, /role="status"/);
+    assert.match(announcementRegion, /aria-live="polite"/);
+    assert.match(announcementRegion, /aria-atomic="true"/);
+    assert.match(announcementRegion, />\s*<\/div>$/, 'the live region should start empty');
+
+    for (const cycleCase of cases) {
+      for (const nextValue of cycleCase.options) {
+        const markup = renderCompletionForm(config.entries.nearby, {
+          language,
+          t,
+          values: { [cycleCase.field]: nextValue },
+        });
+        const buttons = getPreferenceCycleButtons(markup);
+        assert.equal(buttons.length, 5, `${language} should render all five cycle buttons`);
+
+        const button = buttons[cycleCase.buttonIndex];
+        const whereButton = buttons[4];
+        const whereLabel = whereButton.accessibleName.slice(
+          0,
+          whereButton.accessibleName.lastIndexOf(': '),
+        );
+        let cycleCalls = 0;
+        const announcement = runProfilePreferenceCycleAnnouncement(
+          cycleCase.preference,
+          () => {
+            cycleCalls += 1;
+            return nextValue;
+          },
+          t,
+          whereLabel,
+        );
+
+        assert.equal(cycleCalls, 1, `${language} ${cycleCase.preference} should cycle once`);
+        assert.equal(
+          announcement,
+          button.accessibleName,
+          `${language} announcement should match the visible button's accessible label`,
+        );
+        assert.ok(
+          announcement.endsWith(`: ${button.visibleValue}`),
+          `${language} announcement should use the same visible value as its button`,
+        );
+        assert.ok(announcement.length <= 120, `${language} announcement should remain concise`);
+        assert.doesNotMatch(announcement, /\b(?:undefined|null)\b/i);
+      }
+    }
+  }
 });
 
 test('save errors are announced and focus targets the first incomplete editable field', () => {

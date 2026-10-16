@@ -50,6 +50,18 @@ export const DEFAULT_PROFILE_SETUP_ORDER: ProfileSetupSection[] = [
   'mode',
 ];
 
+export const PROFILE_GENDER_OPTIONS = [
+  { value: 'man', labelKey: 'man' },
+  { value: 'woman', labelKey: 'woman' },
+  { value: 'non-binary', labelKey: 'nonBinary' },
+] as const;
+
+export const PROFILE_SEEKING_OPTIONS = [
+  { value: 'men', labelKey: 'men' },
+  { value: 'women', labelKey: 'women' },
+  { value: 'everyone', labelKey: 'everyone' },
+] as const;
+
 const allowedProfileSections = new Set<ProfileSetupSection>([
   'birthdate',
   'identity',
@@ -58,8 +70,12 @@ const allowedProfileSections = new Set<ProfileSetupSection>([
   'mode',
 ]);
 
-const supportedLockedGenders = new Set(['man', 'woman', 'non-binary']);
-const supportedLockedSeekingValues = new Set(['men', 'women', 'everyone']);
+const supportedLockedGenders = new Set<string>(
+  PROFILE_GENDER_OPTIONS.map(({ value }) => value),
+);
+const supportedLockedSeekingValues = new Set<string>(
+  PROFILE_SEEKING_OPTIONS.map(({ value }) => value),
+);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -100,7 +116,7 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
         || !supportedLockedGenders.has(profileSetup.defaultGender)
       ) {
         throw new Error(
-          `The app configuration entry "${id}" locks identity, so defaultGender must be one of: man, woman, non-binary.`,
+          `The app configuration entry "${id}" locks identity, so defaultGender must be one of: ${[...supportedLockedGenders].join(', ')}.`,
         );
       }
       if (
@@ -108,7 +124,7 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
         || !supportedLockedSeekingValues.has(profileSetup.defaultSeeking)
       ) {
         throw new Error(
-          `The app configuration entry "${id}" locks identity, so defaultSeeking must be one of: men, women, everyone.`,
+          `The app configuration entry "${id}" locks identity, so defaultSeeking must be one of: ${[...supportedLockedSeekingValues].join(', ')}.`,
         );
       }
     }
@@ -206,4 +222,14 @@ export function resolveAppEntry(
   search = '',
 ): AppEntryConfig {
   return resolveAppEntryImpl(config, startParam, search) as AppEntryConfig;
+}
+
+export function resolveInitialProfileIdentity(
+  savedProfile: { gender?: string | null; seeking?: string | null } | null | undefined,
+  entry: Pick<AppEntryConfig, 'profileSetup'>,
+): { gender: string; seeking: string } {
+  return {
+    gender: savedProfile?.gender || entry.profileSetup.defaultGender,
+    seeking: savedProfile?.seeking || entry.profileSetup.defaultSeeking,
+  };
 }

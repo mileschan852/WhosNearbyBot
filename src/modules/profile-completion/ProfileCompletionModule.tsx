@@ -6,6 +6,8 @@ import {
 } from './profile-completion-announcements';
 import {
   DEFAULT_PROFILE_SETUP_ORDER,
+  PROFILE_GENDER_OPTIONS,
+  PROFILE_SEEKING_OPTIONS,
   type AppEntryConfig,
   type ProfileSetupSection,
 } from '../../config/entries';
@@ -79,12 +81,19 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
   saved: string;
   setByApp: string;
   identityLocked: string;
+  warning: string;
+  editWarning: string;
   labels: {
     dob: string;
     gender: string;
     height: string;
     weight: string;
     where: string;
+  };
+  modes: {
+    browsingOnly: string;
+    onlineOnly: string;
+    meetUp: string;
   };
 }> = {
   en: {
@@ -97,7 +106,14 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: 'Saved · locked',
     setByApp: 'Set by this app',
     identityLocked: 'Gender and who you are looking for are set by this app and cannot be changed here.',
+    warning: 'After saving, these details are locked on this screen. They affect who you can see and interact with.',
+    editWarning: 'Edit your profile details and preferences here. Your choices affect who you can see and interact with.',
     labels: { dob: 'Date of birth', gender: 'Gender', height: 'Height', weight: 'Weight', where: 'Where' },
+    modes: {
+      browsingOnly: 'Browsing only — you cannot send or receive private messages.',
+      onlineOnly: 'Online only — visible on the grid, not on the map; map access is disabled.',
+      meetUp: 'Meet up — visible on the grid and map.',
+    },
   },
   'zh-CN': {
     heading: '必填资料',
@@ -109,7 +125,14 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '已保存（已锁定）',
     setByApp: '由此应用设置',
     identityLocked: '性别和寻找对象由此应用设置，无法在此更改。',
+    warning: '资料保存后将在此页面锁定。填写内容会影响你可以看到和互动的用户。',
+    editWarning: '在此编辑资料和偏好。你的选择会影响你可以看到和互动的用户。',
     labels: { dob: '出生日期', gender: '性别', height: '身高', weight: '体重', where: '地点' },
+    modes: {
+      browsingOnly: '仅浏览 — 不能发送或接收私信。',
+      onlineOnly: '仅在线 — 在网格中可见，但不会显示在地图上；无法使用地图。',
+      meetUp: '见面 — 在网格和地图上都可见。',
+    },
   },
   'zh-TW': {
     heading: '必填資料',
@@ -121,7 +144,14 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '已儲存（已鎖定）',
     setByApp: '由此應用設定',
     identityLocked: '性別和尋找對象由此應用設定，無法在此更改。',
+    warning: '資料儲存後會在此頁面鎖定。填寫內容會影響你可以看到和互動的使用者。',
+    editWarning: '在此編輯資料和偏好。你的選擇會影響你可以看到和互動的使用者。',
     labels: { dob: '出生日期', gender: '性別', height: '身高', weight: '體重', where: '地點' },
+    modes: {
+      browsingOnly: '僅瀏覽 — 無法傳送或接收私訊。',
+      onlineOnly: '僅在線 — 會顯示在網格上，但不會顯示在地圖上；無法使用地圖。',
+      meetUp: '見面 — 在網格和地圖上都會顯示。',
+    },
   },
   ja: {
     heading: '必須プロフィール項目',
@@ -133,7 +163,14 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '保存済み・変更不可',
     setByApp: 'アプリで設定',
     identityLocked: '性別と希望する相手はこのアプリで設定されており、ここでは変更できません。',
+    warning: '保存後、これらの情報はこの画面では変更できません。入力内容は、表示・交流できる相手に影響します。',
+    editWarning: 'ここでプロフィール情報と好みを編集できます。選択内容は、表示・交流できる相手に影響します。',
     labels: { dob: '生年月日', gender: '性別', height: '身長', weight: '体重', where: '場所' },
+    modes: {
+      browsingOnly: '閲覧のみ — 他のユーザーにプライベートメッセージを送信したり受信したりできません。',
+      onlineOnly: 'オンラインのみ — グリッドには表示されますが、地図には表示されず、地図も利用できません。',
+      meetUp: '会う — グリッドと地図の両方に表示されます。',
+    },
   },
   ko: {
     heading: '필수 프로필 정보',
@@ -145,7 +182,14 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '저장됨 · 변경 불가',
     setByApp: '앱에서 설정됨',
     identityLocked: '성별과 찾는 대상은 이 앱에서 설정되어 여기서 변경할 수 없습니다.',
+    warning: '저장 후에는 이 화면에서 정보를 변경할 수 없습니다. 입력한 내용은 볼 수 있고 교류할 수 있는 상대에 영향을 줍니다.',
+    editWarning: '여기서 프로필 정보와 선호도를 수정할 수 있습니다. 선택한 내용은 볼 수 있고 교류할 수 있는 상대에 영향을 줍니다.',
     labels: { dob: '생년월일', gender: '성별', height: '키', weight: '몸무게', where: '장소' },
+    modes: {
+      browsingOnly: '둘러보기 전용 — 다른 사용자에게 비공개 메시지를 보내거나 받을 수 없습니다.',
+      onlineOnly: '온라인 전용 — 그리드에는 표시되지만 지도에는 표시되지 않으며 지도도 사용할 수 없습니다.',
+      meetUp: '만남 — 그리드와 지도 모두에 표시됩니다.',
+    },
   },
   ru: {
     heading: 'Обязательные данные',
@@ -157,7 +201,14 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: 'Сохранено · заблокировано',
     setByApp: 'Задано приложением',
     identityLocked: 'Пол и предпочтение поиска заданы приложением и здесь не изменяются.',
+    warning: 'После сохранения эти данные нельзя изменить на этом экране. Ответы влияют на то, кого вы видите и с кем можете общаться.',
+    editWarning: 'Здесь можно изменить профиль и предпочтения. Выбор влияет на то, кого вы видите и с кем можете общаться.',
     labels: { dob: 'Дата рождения', gender: 'Пол', height: 'Рост', weight: 'Вес', where: 'Место' },
+    modes: {
+      browsingOnly: 'Только просмотр — нельзя отправлять и получать личные сообщения.',
+      onlineOnly: 'Только онлайн — профиль виден в сетке, но не на карте; карта недоступна.',
+      meetUp: 'Встреча — профиль виден и в сетке, и на карте.',
+    },
   },
 };
 
@@ -272,6 +323,9 @@ export default function ProfileCompletionModule({
       ...DEFAULT_PROFILE_SETUP_ORDER,
     ]),
   ];
+  const warningCopy = entry.profileSetup.warningKey === 'profileWarning'
+    ? isCompletionFlow ? statusCopy.warning : statusCopy.editWarning
+    : t(entry.profileSetup.warningKey);
 
   const renderSection = (section: ProfileSetupSection): ReactNode => {
     switch (section) {
@@ -323,9 +377,9 @@ export default function ProfileCompletionModule({
                 )}
                 required
               >
-                <option value="man">{t('man')}</option>
-                <option value="woman">{t('woman')}</option>
-                <option value="non-binary">{t('nonBinary')}</option>
+                {PROFILE_GENDER_OPTIONS.map(({ value, labelKey }) => (
+                  <option key={value} value={value}>{t(labelKey)}</option>
+                ))}
               </select>
               <label htmlFor="profile-completion-seeking" style={{ whiteSpace: 'nowrap' }}>{t('seeking')}</label>
               <select
@@ -342,9 +396,9 @@ export default function ProfileCompletionModule({
                 }
                 required
               >
-                <option value="men">{t('men')}</option>
-                <option value="women">{t('women')}</option>
-                <option value="everyone">{t('everyone')}</option>
+                {PROFILE_SEEKING_OPTIONS.map(({ value, labelKey }) => (
+                  <option key={value} value={value}>{t(labelKey)}</option>
+                ))}
               </select>
             </div>
             {entry.profileSetup.lockIdentity && (
@@ -476,9 +530,9 @@ export default function ProfileCompletionModule({
               data-profile-incomplete-editable={isCompletionFlow && !values.nonManMode.trim() ? 'true' : undefined}
               required
             >
-              <option value="Browsing only - You cannot send not receive private message from others">{t('browsingOnly')}</option>
-              <option value="Online only - You are visible on grid but not on map, map is inaccessible">{t('onlineOnly')}</option>
-              <option value="Meet up - You are visible on grid and map">{t('meetUp')}</option>
+              <option value="Browsing only - You cannot send not receive private message from others">{statusCopy.modes.browsingOnly}</option>
+              <option value="Online only - You are visible on grid but not on map, map is inaccessible">{statusCopy.modes.onlineOnly}</option>
+              <option value="Meet up - You are visible on grid and map">{statusCopy.modes.meetUp}</option>
             </select>
           </div>
         );
@@ -501,7 +555,7 @@ export default function ProfileCompletionModule({
           </button>
         )}
         <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{t(entry.profileSetup.titleKey)}</h2>
-        <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>{t(entry.profileSetup.warningKey)}</p>
+        <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>{warningCopy}</p>
         {isCompletionFlow && (
           <div
             data-testid="profile-completion-status"

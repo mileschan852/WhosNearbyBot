@@ -3,18 +3,14 @@
 // profile card, games menu, footer navigation.
 
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
-import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
-import {
-  parseVipFailureAlertAcknowledgement,
-  parseVipFailureAlertSummary,
-  parseVipFailedRewardPage,
-  parseVipCampaignPage,
-  parseVipRewardNotificationQueueHealth,
-  parseVipRewardRetryAuditPage,
-  startVipFailureAlertPolling,
-  VipCampaignPanel,
+import type {
+  VipCampaign,
+  VipFailedRewardClaim,
+  VipFailureAlertSummary,
+  VipRewardNotificationQueueHealth,
+  VipRewardRetryAudit,
 } from './components/vip-campaign-panel';
-import { PaymentReviewPanel } from './components/PaymentReviewPanel';
+import { VipGrantNoticeDialog } from './components/vip-grant-notice-dialog.js';
 import type {
   PassPaymentLookup,
   PassPaymentSearchBy,
@@ -25,13 +21,6 @@ import type {
   RafflePaymentReviewCopy,
   RafflePaymentReviewIntent,
 } from './components/RafflePaymentReviewPanel';
-import type {
-  VipCampaign,
-  VipFailedRewardClaim,
-  VipFailureAlertSummary,
-  VipRewardNotificationQueueHealth,
-  VipRewardRetryAudit,
-} from './components/vip-campaign-panel';
 import {
   DEFAULT_HOW_MANY_FILTER,
   matchesHowManyFilter,
@@ -70,9 +59,15 @@ import {
 } from './utils/access-entitlements';
 import { filterProfilesByMatchVisibility } from './utils/filter-visibility';
 import {
+  isLocationSaveConfirmed,
+  requestLocationAccess,
+} from './utils/request-location.js';
+import { hasUploadedMainProfileImage } from './utils/profile-image.js';
+import {
   FILTER_CYCLE_OPTIONS,
   getEffectiveGenderFilterValues,
   isHkmoDateMenOnlyFilterLocked,
+  matchesEntryGenderAccess,
   matchesGenderFilter,
   matchesPlaystyleFilter,
   nextFilterCycleValue,
@@ -102,6 +97,7 @@ import {
 import { getDefaultDiscoveryView } from './config/app-modules.js';
 import {
   resolveAppEntry,
+  resolveInitialProfileIdentity,
   type AppEntryId,
   type AppRuntimeConfig,
 } from './config/entries';
@@ -110,8 +106,6 @@ import {
   FlyingMessageModule,
   GridFilterModule,
   NearbyGridModule,
-  ProfileCompletionModule,
-  ProfileSetupPreviewModule,
   StarMenuRaffleModule,
 } from './modules';
 import {
@@ -126,7 +120,27 @@ import {
 
 const reportFilterRenewalConfirmed = createFilterRenewalConfirmationReporter();
 
+const loadVipCampaignPanelModule = () => import('./components/vip-campaign-panel.js');
 const MapView = lazy(() => import('./modules/map/NearbyMapModule'));
+const VipCampaignPanel = lazy(() =>
+  loadVipCampaignPanelModule().then(({ VipCampaignPanel: Panel }) => ({
+    default: Panel,
+  })),
+);
+const PaymentReviewPanel = lazy(() =>
+  import('./components/PaymentReviewPanel').then(({ PaymentReviewPanel: Panel }) => ({
+    default: Panel,
+  })),
+);
+const ProfileSetupPreviewModule = lazy(() =>
+  import('./modules/profile-completion/ProfileSetupPreviewModule'),
+);
+const ProfileCompletionModule = lazy(() =>
+  import('./modules/profile-completion/ProfileCompletionModule'),
+);
+const WalletConnectModule = lazy(() =>
+  import('./modules/wallet/WalletConnectModule'),
+);
 const HOW_MANY_GROUP_LABELS: Record<string, string> = {
   en: 'Groups',
   zh: '群组',
@@ -347,7 +361,81 @@ const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
 const WORKER_REQUEST_TIMEOUT_MS = 12_000;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
+const MAP_PROFILE_PHOTO_REQUIRED_COPY: Record<LangKey, string> = {
+  en: 'Add a profile photo to your Telegram account before using the map.',
+  'zh-CN': '请先为 Telegram 账号设置个人资料照片，再使用地图。',
+  'zh-TW': '請先為 Telegram 帳號設定個人資料照片，再使用地圖。',
+  ja: '地図を使う前に、Telegramアカウントにプロフィール写真を設定してください。',
+  ko: '지도를 사용하기 전에 Telegram 계정에 프로필 사진을 설정해 주세요.',
+  ru: 'Перед использованием карты добавьте фотографию профиля в аккаунт Telegram.',
+};
 type FilterRenewalLocation = 'filter_expiry_notice' | 'filter_access_prompt' | 'filter_option' | 'active_filter_subscription';
+type ProfileInterestCopy = {
+  send: string;
+  sending: string;
+  sent: string;
+  cooldown: string;
+  unavailable: string;
+  failed: string;
+  received: string;
+};
+
+const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
+  en: {
+    send: 'Send interest',
+    sending: 'Sending interest…',
+    sent: 'Interest sent. It will be visible for 24 hours.',
+    cooldown: 'You can send interest to this profile again after 24 hours.',
+    unavailable: 'Interest is temporarily unavailable. Refresh and try again.',
+    failed: 'Could not send interest. Try again.',
+    received: 'Interested in you',
+  },
+  'zh-CN': {
+    send: '表达兴趣',
+    sending: '正在发送…',
+    sent: '已发送兴趣，对方可在 24 小时内看到。',
+    cooldown: '24 小时后可以再次向此用户表达兴趣。',
+    unavailable: '兴趣功能暂不可用，请刷新后重试。',
+    failed: '发送失败，请重试。',
+    received: '对你感兴趣',
+  },
+  'zh-TW': {
+    send: '表達興趣',
+    sending: '正在傳送…',
+    sent: '已傳送興趣，對方可在 24 小時內看到。',
+    cooldown: '24 小時後可以再次向此用戶表達興趣。',
+    unavailable: '興趣功能暫時無法使用，請重新整理後再試。',
+    failed: '傳送失敗，請重試。',
+    received: '對你有興趣',
+  },
+  ja: {
+    send: '興味を伝える',
+    sending: '送信中…',
+    sent: '興味を送りました。24時間表示されます。',
+    cooldown: 'このプロフィールには24時間後に再度送信できます。',
+    unavailable: '現在利用できません。更新してもう一度お試しください。',
+    failed: '送信できませんでした。もう一度お試しください。',
+    received: 'あなたに興味があります',
+  },
+  ko: {
+    send: '관심 보내기',
+    sending: '보내는 중…',
+    sent: '관심을 보냈습니다. 24시간 동안 표시됩니다.',
+    cooldown: '24시간 후에 이 프로필에 다시 관심을 보낼 수 있습니다.',
+    unavailable: '현재 사용할 수 없습니다. 새로고침 후 다시 시도하세요.',
+    failed: '관심을 보내지 못했습니다. 다시 시도하세요.',
+    received: '회원님에게 관심이 있습니다',
+  },
+  ru: {
+    send: 'Выразить интерес',
+    sending: 'Отправляем…',
+    sent: 'Интерес отправлен и будет виден 24 часа.',
+    cooldown: 'Повторно выразить интерес этому профилю можно через 24 часа.',
+    unavailable: 'Функция временно недоступна. Обновите страницу и повторите попытку.',
+    failed: 'Не удалось отправить интерес. Попробуйте ещё раз.',
+    received: 'Интересуется вами',
+  },
+};
 
 type ScreenHelpSection = { title: string; description: string };
 type ScreenHelpCopy = {
@@ -1546,11 +1634,11 @@ const translations: Record<LangKey, Record<string, string>> = {
   'zh-CN': {
     period_1d: '1 天', period_3d: '3 天',
     loading: '正在加载应用...', locationRequired: '需要位置权限', locationMessage: '使用"附近"功能必须获得位置权限。请在浏览器或 Telegram 设置中启用位置访问并重新启动应用。', accessDenied: '拒绝访问', underageMessage: '本应用仅限成年人使用。由于年龄限制，该账户已被锁定。', completeProfile: '完善您的个人资料', profileWarning: '警告：此信息将来无法更改。此处填写的内容会影响您可以看到和互动的用户。', dob: '出生日期：', imA: '我是', seeking: '寻找', man: '男性', woman: '女性', nonBinary: '非二元性别', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '选择身高', weight: '体重：', selectWeight: '选择体重', tapToChange: '点击更改您的偏好：', mode: '模式：', browsingOnly: '仅浏览', onlineOnly: '仅在线', meetUp: '约会中', saveProfile: '保存资料并继续', whosNearby: '附近的人', filter: '筛选', refresh: '刷新', grid: '网格', chat: '聊天', map: '地图', wallet: '钱包', filterUsers: '筛选用户', ageRange: '年龄范围', preferenceMatcher: '偏好匹配器', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '游戏风格偏好', groupSize: '群组人数', applyFilters: '应用筛选', ageHidden: '年龄已隐藏', ageShown: '年龄已显示', expires: '到期时间：', sendMessage: '发送消息', unlockPreference: '更改资料与偏好', iGotStuff: '我有货', unlockPreferencePrompt: '更改个人资料与偏好需要支付 1000 Telegram Stars。是否继续支付？', invisiblePrompt: '隐身需要订阅 30 天，费用为 3000 Telegram Stars。是否继续支付？', hideAgePrompt: '隐藏年龄需要订阅 30 天，费用为 1000 Telegram Stars。是否继续支付？', filterSubPrompt: '自定义此筛选条件需要订阅。是否继续支付？', paymentCancelled: '支付已取消或失败。', errorSaving: '保存资料出错：', fillAll: '请填写所有必填问题以继续。',
-    'Versatile': '0.5 (��攻可受)', 'Top': '1 (攻)', 'Bottom': '0 (受)', 'Side': 'Side (边缘)', 'VT': '可攻可受 / 攻', 'VB': '可攻可受 / 受',
-    'Safe': 'Safe (戴套)', 'Raw': 'Raw (���套)',
-    'Clean': 'No Drugs', 'Party': 'Party (嗨药)', 'Party✓': 'Party✓',
+    'Versatile': '0.5 (可攻可受)', 'Top': '1 (攻)', 'Bottom': '0 (受)', 'Side': 'Side (边缘)', 'VT': '可攻可受 / 攻', 'VB': '可攻可受 / 受',
+    'Safe': 'Safe (戴套)', 'Raw': 'Raw (无套)',
+    'Clean': '不使用毒品', 'Party': 'Party (嗨药)', 'Party✓': 'Party✓',
     '1on1_setup': '单对单 (仅限1on1)', 'group_setup': '群组 (仅限群组)', 'DoesntMatter_setup': '无所谓',
-    '1on1': '单�����单', 'group': '群组', 'DoesntMatter': '无所谓',
+    '1on1': '一对一', 'group': '群组', 'DoesntMatter': '无所谓',
     'Host': '提供场地 (Host)', 'Travel': '上门 (Travel)', 'Off': '关闭', 'Anywhere': '任意', 'Role': '角色', 'Safety': '安全', 'Playstyle': '风格', 'How Many': '人数', 'Where': '地点',
     you: '你', away: '远', online: '在线', offline: '离线',
     mAgo: '{n}分钟前', hAgo: '{n}小时前', dAgo: '{n}天前',
@@ -1567,7 +1655,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     loading: '正在載入應用程式...', locationRequired: '需要位置權限', locationMessage: '使用「附近」功能必須獲得位置權限。請在瀏覽器或 Telegram 設定中啟用位置存取並重新啟動應用程式。', accessDenied: '存取被拒', underageMessage: '本應用程式僅限成年人使用。由於年齡限制，該帳戶已被鎖定。', completeProfile: '完善您的個人資料', profileWarning: '警告：此資訊未來無法更改。此處填寫的內容會影響您可以看到和互動的使用者。', dob: '出生日期：', imA: '我是', seeking: '尋找', man: '男性', woman: '女性', nonBinary: '非二元性別', men: '男性', women: '女性', everyone: '所有人', height: '身高：', selectHeight: '選擇身高', weight: '體重：', selectWeight: '選擇體重', tapToChange: '點擊更改您的偏好：', mode: '模式：', browsingOnly: '僅瀏覽', onlineOnly: '僅線上', meetUp: '見面中', saveProfile: '儲存資料並繼續', whosNearby: '附近的人', filter: '篩選', refresh: '重新整理', grid: '網格', chat: '聊天', map: '地圖', wallet: '錢包', filterUsers: '篩選使用者', ageRange: '年齡範圍', preferenceMatcher: '偏好匹配器', rolePreference: '角色偏好', safetyPreference: '安全偏好', playstylePreference: '風格偏好', groupSize: '群組人數', applyFilters: '套用篩選', ageHidden: '年齡已隱藏', ageShown: '年齡已顯示', expires: '到期時間：', sendMessage: '傳送訊息', unlockPreference: '更改資料與偏好', iGotStuff: '我有貨', unlockPreferencePrompt: '更改個人資料與偏好需要支付 1000 Telegram Stars。是否繼續支付？', invisiblePrompt: '隱身需要訂閱 30 天，費用為 3000 Telegram Stars。是否繼續支付？', hideAgePrompt: '隱藏年齡需要訂閱 30 天，費用為 1000 Telegram Stars。是否繼續支付？', filterSubPrompt: '自訂此篩選條件需要訂閱。是否繼續支付？', paymentCancelled: '付款已取消或失敗。', errorSaving: '儲存資料出錯：', fillAll: '請填寫所有必填問題以繼續。',
     'Versatile': '0.5 (不分)', 'Top': '1 (頂)', 'Bottom': '0 (底)', 'Side': 'Side (邊緣)', 'VT': '不分 / 頂', 'VB': '不分 / 底',
     'Safe': 'Safe (戴套)', 'Raw': 'Raw (無套)',
-    'Clean': 'No Drugs', 'Party': 'Party (嗨藥/煙)', 'Party✓': 'Party✓',
+    'Clean': '不使用毒品', 'Party': 'Party (嗨藥/煙)', 'Party✓': 'Party✓',
     '1on1_setup': '單對單 (僅限1on1)', 'group_setup': '群組 (僅限群組)', 'DoesntMatter_setup': '無所謂',
     '1on1': '單對單', 'group': '群組', 'DoesntMatter': '無所謂',
     'Host': '提供場地 (Host)', 'Travel': '上門 (Travel)', 'Off': '關閉', 'Anywhere': '任意', 'Role': '角色', 'Safety': '安全', 'Playstyle': '風格', 'How Many': '人數', 'Where': '地點',
@@ -1586,8 +1674,8 @@ const translations: Record<LangKey, Record<string, string>> = {
     loading: 'アプリを読み込んでいます...', locationRequired: '位置情報のアクセスが必要です', locationMessage: '位置情報の許可が必須です。ブラウザまたは Telegram の設定で位置情報を有効にし、アプリを再起動してください。', accessDenied: 'アクセスが拒否されました', underageMessage: 'このアプリは成人向けです。年齢制限により、このアカウントのアクセスはロックされました。', completeProfile: 'プロフィールを完成させる', profileWarning: '警告：これは後から変更できません。ここで入力した情報は、表示・交流できる相手に影響します。', dob: '生年月日：', imA: '私は', seeking: '探しています：', man: '男性', woman: '女性', nonBinary: 'ノンバイナリー', men: '男性', women: '女性', everyone: 'すべての人', height: '身長：', selectHeight: '身長を選択', weight: '体重：', selectWeight: '体重を選択', tapToChange: 'タップして好みを変更：', mode: 'モード：', browsingOnly: '閲覧のみ', onlineOnly: 'オンラインのみ', meetUp: 'ミートアップ', saveProfile: 'プロフィールを保存して続ける', whosNearby: '近くの人', filter: 'フィルター', refresh: '更新', grid: 'グリッド', chat: 'チャット', map: 'マップ', wallet: 'ウォレット', filterUsers: 'ユーザーをフィルター', ageRange: '年齢層', preferenceMatcher: '好みマッチング', rolePreference: 'ロールの好み', safetyPreference: '安全の好み', playstylePreference: 'プレイスタイルの好み', groupSize: 'グループサイズ', applyFilters: 'フィルターを適用', ageHidden: '年齢非表示', ageShown: '年齢表示', expires: '有効期限：', sendMessage: 'メッセージを送る', unlockPreference: 'プロフィールと好みを変更', iGotStuff: '持ってるよ', unlockPreferencePrompt: 'プロフィールの変更には1000 Starsが必要です。', invisiblePrompt: '透明化には3000 Starsが必要です。', hideAgePrompt: '年齢非表示には1000 Starsが必要です。', filterSubPrompt: 'フィルターのカスタマイズにはサブスクリプションが必要です。', paymentCancelled: '支払いがキャンセルされました。', errorSaving: 'エラー：', fillAll: 'すべての必須項目を入力してください。',
     'Versatile': 'リバ (Vers)', 'Top': 'タチ (Top)', 'Bottom': 'ネコ (Btm)', 'Side': 'サイド (Side)', 'VT': 'リバ/タチ (VT)', 'VB': 'リバ/ネコ (VB)',
     'Safe': 'ゴムあり (Safe)', 'Raw': '生/中出し (Raw)',
-    'Clean': 'No Drugs', 'Party': 'ケミ (Party)', 'Party✓': 'Party✓',
-    '1on1_setup': '1対1 (のみ)', 'group_setup': 'グル���プ (のみ)', 'DoesntMatter_setup': 'こだわらない',
+    'Clean': '薬物なし', 'Party': 'ケミ (Party)', 'Party✓': 'Party✓',
+    '1on1_setup': '1対1のみ', 'group_setup': 'グループのみ', 'DoesntMatter_setup': 'こだわらない',
     '1on1': '1対1', 'group': 'グループ', 'DoesntMatter': 'こだわらない',
     'Host': '部屋あり (Host)', 'Travel': '訪問 (Travel)', 'Off': 'オフ', 'Anywhere': 'どこでも', 'Role': '役割', 'Safety': '安全', 'Playstyle': 'スタイル', 'How Many': '人数', 'Where': '場所',
     you: 'あなた', away: '先', online: 'オンライン', offline: 'オフライン',
@@ -1605,7 +1693,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     loading: '앱 로딩 중...', locationRequired: '위치 접근 권한 필요', locationMessage: '위치 권한이 필수입니다. 브라우저 또는 Telegram 설정에서 위치 접근을 허용하고 앱을 다시 시작하세요.', accessDenied: '접근 거부됨', underageMessage: '이 앱은 성인 전용입니다. 연령 제한으로 이 계정은 잠겼습니다.', completeProfile: '프로필 완성하기', profileWarning: '경고: 이는 나중에 변경할 수 없습니다. 여기 입력한 정보는 볼 수 있고 상호작용할 수 있는 상대에게 영향을 줍니다.', dob: '생년월일:', imA: '나는', seeking: '찾는 대상:', man: '남성', woman: '여성', nonBinary: '논바이너리', men: '남성', women: '여성', everyone: '모두', height: '키:', selectHeight: '키 선택', weight: '체중:', selectWeight: '체중 선택', tapToChange: '탭하여 선호도 변경:', mode: '모드:', browsingOnly: '브라우징 전용', onlineOnly: '온라인 전용', meetUp: '만남', saveProfile: '프로필 저장 및 계속', whosNearby: '내 주변', filter: '필터', refresh: '새로고침', grid: '그리드', chat: '채팅', map: '지도', wallet: '지갑', filterUsers: '사용자 필터', ageRange: '연령대', preferenceMatcher: '취향 매칭', rolePreference: '포지션 선호', safetyPreference: '안전 선호', playstylePreference: '플레이스타일 선호', groupSize: '그룹 인원', applyFilters: '필터 적용', ageHidden: '나이 숨김', ageShown: '나이 표시', expires: '만료일:', sendMessage: '메시지 보내기', unlockPreference: '프로필 변경', iGotStuff: '나 있음', unlockPreferencePrompt: '프로필 변경 1000 Stars 결제?', invisiblePrompt: '숨김 모드 3000 Stars 결제?', hideAgePrompt: '나이 숨기기 1000 Stars 결제?', filterSubPrompt: '필터 변경 구독 필요.', paymentCancelled: '결제 취소됨.', errorSaving: '오류:', fillAll: '필수 항목을 입력해주세요.',
     'Versatile': '올 (Vers)', 'Top': '탑 (Top)', 'Bottom': '바텀 (Btm)', 'Side': '사이드 (Side)', 'VT': '버스/탑 (VT)', 'VB': '버스/바텀 (VB)',
     'Safe': '안전/콘돔 (Safe)', 'Raw': '노콘 (Raw)',
-    'Clean': 'No Drugs', 'Party': '파티/약 (Party)', 'Party✓': 'Party✓',
+    'Clean': '약물 사용 안 함', 'Party': '파티/약 (Party)', 'Party✓': 'Party✓',
     '1on1_setup': '1대1 (전용)', 'group_setup': '그룹 (전용)', 'DoesntMatter_setup': '상관없음',
     '1on1': '1대1', 'group': '그룹', 'DoesntMatter': '상관없음',
     'Host': '호스트 (방 있음)', 'Travel': '이동가능 (Travel)', 'Off': '꺼짐', 'Anywhere': '상관없음', 'Role': '포지션', 'Safety': '안전', 'Playstyle': '스타일', 'How Many': '인원', 'Where': '장소',
@@ -1624,7 +1712,7 @@ const translations: Record<LangKey, Record<string, string>> = {
     loading: 'Загрузка...', locationRequired: 'Требуется геолокация', locationMessage: 'Разрешение на геолокацию обязательно. Включите доступ к местоположению в браузере или настройках Telegram и перезапустите приложение.', accessDenied: 'Доступ запрещен', underageMessage: 'Приложение только для взрослых. Доступ к этому аккаунту заблокирован из-за возрастных ограничений.', completeProfile: 'Заполните профиль', profileWarning: 'Предупреждение: это нельзя изменить. Введённые здесь данные влияют на то, кого вы видите и с кем взаимодействуете.', dob: 'Дата рождения:', imA: 'Я', seeking: 'ищу', man: 'мужчину', woman: 'женщину', nonBinary: 'небинарную', men: 'мужчин', women: 'женщин', everyone: 'всех', height: 'Рост:', selectHeight: 'Выберите рост', weight: 'Вес:', selectWeight: 'Выберите вес', tapToChange: 'нажмите, чтобы изменить:', mode: 'Режим:', browsingOnly: 'Только просмотр', onlineOnly: 'Только онлайн', meetUp: 'Встреча', saveProfile: 'Сохранить', whosNearby: 'Рядом', filter: 'Фильтр', refresh: 'Обновить', grid: 'Сетка', chat: 'Чат', map: 'Карта', wallet: 'Кошелек', filterUsers: 'Фильтры', ageRange: 'Возраст', preferenceMatcher: 'Подбор по предпочтениям', rolePreference: 'Роль', safetyPreference: 'Безопасность', playstylePreference: 'Стиль', groupSize: 'Размер группы', applyFilters: 'Применить', ageHidden: 'Возраст скрыт', ageShown: 'Возраст виден', expires: 'Истекает:', sendMessage: 'Сообщение', unlockPreference: 'Изменить профиль', iGotStuff: 'У меня есть стафф', unlockPreferencePrompt: 'Изменить профиль за 1000 Stars?', invisiblePrompt: 'Невидимка за 3000 Stars?', hideAgePrompt: 'Скрыть возраст за 1000 Stars?', filterSubPrompt: 'Требуется подписка на фильтры.', paymentCancelled: 'Оплата отменена.', errorSaving: 'Ошибка:', fillAll: 'Заполните все поля.',
     'Versatile': 'Универсал (Vers)', 'Top': 'Актив (Top)', 'Bottom': 'Пассив (Btm)', 'Side': 'Без пенетрации (Side)', 'VT': 'Универсал/Актив (VT)', 'VB': 'Универсал/Пассив (VB)',
     'Safe': 'С резинкой (Safe)', 'Raw': 'Без резинки (Raw)',
-    'Clean': 'No Drugs', 'Party': 'Химсекс (Party)', 'Party✓': 'Party✓',
+    'Clean': 'Без наркотиков', 'Party': 'Химсекс (Party)', 'Party✓': 'Party✓',
     '1on1_setup': '1 на 1 (только)', 'group_setup': 'группа (только)', 'DoesntMatter_setup': 'Неважно',
     '1on1': '1 на 1', 'group': 'группа', 'DoesntMatter': 'Неважно',
     'Host': 'Принимаю (Host)', 'Travel': 'Приеду (Travel)', 'Off': 'Выкл', 'Anywhere': 'Везде', 'Role': 'Роль', 'Safety': 'Безопасность', 'Playstyle': 'Стиль', 'How Many': 'Сколько', 'Where': 'Где',
@@ -1656,6 +1744,9 @@ const vipGrantCopy: Record<LangKey, {
   popupTitle: string;
   popupBody: string;
   popupConfirm: string;
+  popupAckFailed: string;
+  popupRetry: string;
+  popupSaving: string;
   campaignsTitle: string;
   campaign: string;
   sourceApp: string;
@@ -1749,6 +1840,9 @@ const vipGrantCopy: Record<LangKey, {
     popupTitle: 'VIP reward received',
     popupBody: 'Your account received {days} VIP days.',
     popupConfirm: 'Confirm',
+    popupAckFailed: 'Could not save your confirmation. Please try again.',
+    popupRetry: 'Retry',
+    popupSaving: 'Saving…',
     campaignsTitle: 'VIP campaigns',
     campaign: 'Campaign',
     sourceApp: 'Campaign app: {app}',
@@ -1842,6 +1936,9 @@ const vipGrantCopy: Record<LangKey, {
     popupTitle: '已收到 VIP 奖励',
     popupBody: '你的账户已获得 {days} 天 VIP。',
     popupConfirm: '确认',
+    popupAckFailed: '确认未能保存，请重试。',
+    popupRetry: '重试',
+    popupSaving: '保存中…',
     campaignsTitle: 'VIP 活动',
     campaign: '活动',
     sourceApp: '活动所属应用：{app}',
@@ -1935,6 +2032,9 @@ const vipGrantCopy: Record<LangKey, {
     popupTitle: '已收到 VIP 獎勵',
     popupBody: '你的帳戶已獲得 {days} 天 VIP。',
     popupConfirm: '確認',
+    popupAckFailed: '確認未能儲存，請重試。',
+    popupRetry: '重試',
+    popupSaving: '儲存中…',
     campaignsTitle: 'VIP 活動',
     campaign: '活動',
     sourceApp: '活動所屬應用程式：{app}',
@@ -2028,6 +2128,9 @@ const vipGrantCopy: Record<LangKey, {
     popupTitle: 'VIP特典を受け取りました',
     popupBody: 'アカウントにVIPが{days}日分追加されました。',
     popupConfirm: '確認',
+    popupAckFailed: '確認を保存できませんでした。もう一度お試しください。',
+    popupRetry: '再試行',
+    popupSaving: '保存中…',
     campaignsTitle: 'VIPキャンペーン',
     campaign: 'キャンペーン',
     sourceApp: '対象アプリ：{app}',
@@ -2121,6 +2224,9 @@ const vipGrantCopy: Record<LangKey, {
     popupTitle: 'VIP 보상을 받았습니다',
     popupBody: '계정에 VIP {days}일이 추가되었습니다.',
     popupConfirm: '확인',
+    popupAckFailed: '확인을 저장하지 못했습니다. 다시 시도해 주세요.',
+    popupRetry: '다시 시도',
+    popupSaving: '저장 중…',
     campaignsTitle: 'VIP 캠페인',
     campaign: '캠페인',
     sourceApp: '캠페인 앱: {app}',
@@ -2214,6 +2320,9 @@ const vipGrantCopy: Record<LangKey, {
     popupTitle: 'VIP-награда получена',
     popupBody: 'Ваш аккаунт получил VIP на {days} дн.',
     popupConfirm: 'Подтвердить',
+    popupAckFailed: 'Не удалось сохранить подтверждение. Повторите попытку.',
+    popupRetry: 'Повторить',
+    popupSaving: 'Сохранение…',
     campaignsTitle: 'VIP-кампании',
     campaign: 'Кампания',
     sourceApp: 'Приложение кампании: {app}',
@@ -2326,6 +2435,9 @@ export interface UserProfile {
   invisible_expiry?: string | null;
   filter_sub_expiry?: string | null;
   vip_expiry?: string | null;
+  interest_received?: boolean;
+  interest_cooldown_until?: string | null;
+  interest_state_known?: boolean;
 }
 
 type ProfileCompletionMissingFields = {
@@ -2592,6 +2704,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [view, setView] = useState<'grid' | 'map'>(() => getDefaultDiscoveryView(initialEntry.modules) || 'grid');
   const [hasOpenedMap, setHasOpenedMap] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const hasMainProfileImage = hasUploadedMainProfileImage(currentUser?.avatar);
   const currentUserRef = useRef<UserProfile | null>(null);
   currentUserRef.current = currentUser;
   const currentUserId = currentUser?.id;
@@ -2678,6 +2791,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [savingVipGrant, setSavingVipGrant] = useState<boolean>(false);
   const vipGrantSaveLockRef = useRef<boolean>(false);
   const [vipGrantNotice, setVipGrantNotice] = useState<VipGrantNotice | null>(null);
+  const [vipGrantAcknowledging, setVipGrantAcknowledging] = useState(false);
+  const [vipGrantAcknowledgementError, setVipGrantAcknowledgementError] = useState('');
+  const vipGrantAcknowledgementLockRef = useRef(false);
   const [showVipCampaignsModal, setShowVipCampaignsModal] = useState(false);
   const [showPaymentReview, setShowPaymentReview] = useState(false);
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
@@ -2855,10 +2971,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     const requestSequence = ++vipFailureAlertAckRequestRef.current;
     void (async () => {
       try {
-        const result = await workerPostRef.current('/api/vip-campaigns', {
-          action: 'acknowledge_failure_alerts',
-          afterFailureEventId: eventId,
-        });
+        const [result, { parseVipFailureAlertAcknowledgement }] = await Promise.all([
+          workerPostRef.current('/api/vip-campaigns', {
+            action: 'acknowledge_failure_alerts',
+            afterFailureEventId: eventId,
+          }),
+          loadVipCampaignPanelModule(),
+        ]);
         const cursor = parseVipFailureAlertAcknowledgement(result, eventId);
         if (requestSequence !== vipFailureAlertAckRequestRef.current || currentUser?.id !== userId) return;
         vipFailureAlertAcknowledgedCursorRef.current = cursor.eventId;
@@ -2879,18 +2998,30 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
 
     vipFailureAlertPollingUserRef.current = userId;
-    const stopPolling = startVipFailureAlertPolling({
-      enabled: true,
-      userId,
-      timer: window,
-      onPoll: () => {
-        if (vipFailureAlertPollingUserRef.current === userId) {
-          void loadNewVipFailureAlertsRef.current();
-          void loadVipRewardQueueHealthRef.current();
-        }
-      },
-    });
+    let active = true;
+    let stopPolling = () => {};
+    void loadVipCampaignPanelModule()
+      .then(({ startVipFailureAlertPolling }) => {
+        if (!active || vipFailureAlertPollingUserRef.current !== userId) return;
+        stopPolling = startVipFailureAlertPolling({
+          enabled: true,
+          userId,
+          timer: window,
+          onPoll: () => {
+            if (vipFailureAlertPollingUserRef.current === userId) {
+              void loadNewVipFailureAlertsRef.current();
+              void loadVipRewardQueueHealthRef.current();
+            }
+          },
+        });
+      })
+      .catch((error) => {
+        if (!active || vipFailureAlertPollingUserRef.current !== userId) return;
+        console.error('Could not start VIP reward failure alert polling:', error);
+        setVipFailureAlertError(vipGrantCopy[lang].campaignNewFailureAlertLoadFailed);
+      });
     return () => {
+      active = false;
       vipFailureAlertRequestRef.current += 1;
       vipRewardQueueHealthRequestRef.current += 1;
       if (vipFailureAlertPollingUserRef.current === userId) {
@@ -2898,7 +3029,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       }
       stopPolling();
     };
-  }, [showVipCampaignsModal, isAdmin, currentUser?.id]);
+  }, [showVipCampaignsModal, isAdmin, currentUser?.id, lang]);
   useEffect(() => {
     paymentReviewRequestRef.current += 1;
     rafflePaymentReviewRequestRef.current += 1;
@@ -2968,17 +3099,19 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [newRoleUsername, setNewRoleUsername] = useState<string>('');
   const [newRole, setNewRole] = useState<'admin' | 'vip'>('vip');
   const [showStuffBubble, setShowStuffBubble] = useState<boolean>(false);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [walletModuleLoaded, setWalletModuleLoaded] = useState(false);
+  const [walletActionRequest, setWalletActionRequest] = useState(0);
   useEffect(() => { filterSubUntilRef.current = filterSubUntil; }, [filterSubUntil]);
-  const wallet = useTonWallet();
-  const [tonConnectUI] = useTonConnectUI();
-  const isWalletConnected = !!wallet;
+  useEffect(() => {
+    if (!isReady || walletModuleLoaded) return;
+    const timeout = window.setTimeout(() => setWalletModuleLoaded(true), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [isReady, walletModuleLoaded]);
 
-  const handleWalletClick = async () => {
-    if (isWalletConnected) {
-      try { await tonConnectUI.disconnect(); } catch (err) { console.error('Wallet disconnect error:', err); }
-      return;
-    }
-    try { await tonConnectUI.openSingleWalletModal('telegram-wallet'); } catch (err) { console.error('Wallet connect error:', err); }
+  const handleWalletClick = () => {
+    setWalletModuleLoaded(true);
+    setWalletActionRequest((request) => request + 1);
   };
 
   const [showFilterDropdown, setShowFilterDropdown] = useState<boolean>(false);
@@ -3003,6 +3136,11 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   );
   const [filterPrefMatcherOn, setFilterPrefMatcherOn] = useState<boolean>(true);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
+  const [interestSendingTo, setInterestSendingTo] = useState<string | null>(null);
+  const [interestFeedback, setInterestFeedback] = useState<{
+    profileId: string;
+    state: 'sent' | 'cooldown' | 'unavailable' | 'failed';
+  } | null>(null);
   const [noteDraft, setNoteDraft] = useState<string>('');
   const [showNoteBox, setShowNoteBox] = useState<boolean>(false);
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
@@ -3504,6 +3642,11 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         grid_visible: u.grid_visible ?? true,
         map_visible: u.map_visible ?? false,
         distance: typeof u.distance === 'number' ? u.distance : undefined,
+        interest_received: u.interest_received === true,
+        interest_cooldown_until: typeof u.interest_cooldown_until === 'string'
+          ? u.interest_cooldown_until
+          : null,
+        interest_state_known: u.interest_state_known === true,
       })).sort((a, b) => {
         if (a.id === currentUser?.id) return -1;
         if (b.id === currentUser?.id) return 1;
@@ -3515,6 +3658,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
   fetchUsersDataRef.current = fetchUsersData;
+
+  useEffect(() => {
+    if (!currentUser?.id || !isReady || showProfileSetup) return;
+    const refreshNearby = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchUsersDataRef.current?.();
+      }
+    };
+    const timer = window.setInterval(refreshNearby, 60_000);
+    document.addEventListener('visibilitychange', refreshNearby);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshNearby);
+    };
+  }, [currentUser?.id, isReady, showProfileSetup]);
 
   useEffect(() => {
     const initApp = async () => {
@@ -3556,56 +3714,50 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         const globalVipUntil = Number(authResponse.globalVipUntil);
         if (Number.isFinite(globalVipUntil)) setGlobalVipUntil(globalVipUntil);
         const pendingVipGrant = authResponse.vipGrantNotice;
+        const pendingClaimIds = Array.isArray(pendingVipGrant?.claimIds)
+          ? pendingVipGrant.claimIds
+              .filter((id: unknown): id is string => typeof id === 'string')
+              .slice(0, 50)
+          : [];
         if (pendingVipGrant && Array.isArray(pendingVipGrant.claimIds) &&
+            pendingClaimIds.length > 0 &&
             Number.isSafeInteger(Number(pendingVipGrant.days)) && Number(pendingVipGrant.days) > 0) {
           setVipGrantNotice({
-            claimIds: pendingVipGrant.claimIds
-              .filter((id: unknown): id is string => typeof id === 'string')
-              .slice(0, 50),
+            claimIds: pendingClaimIds,
             days: Number(pendingVipGrant.days),
             vipUntil: typeof pendingVipGrant.vipUntil === 'string' ? pendingVipGrant.vipUntil : null,
           });
+          setVipGrantAcknowledgementError('');
         }
         setIsAdmin(authResponse.role === 'admin');
         setIsVip(authResponse.role === 'vip');
         const userId = existingProfile.id;
-        localStorage.setItem('whos_nearby_user_id', userId);
         const userName = existingProfile.name || tgUser?.first_name || 'Anonymous';
         const userAvatar = existingProfile.avatar || '';
         if (existingProfile.is_underage) { setIsUnderageLocked(true); setIsReady(true); return; }
-        if (!navigator.geolocation) { setIsLocationDenied(true); setIsReady(true); return; }
-        // Don't keep Telegram on the loading screen while waiting on a slow GPS lock.
-        // Prefer a recent cached fix; otherwise continue with the saved profile location.
-        let fix: { lat: number; lng: number } | null = null;
-        const tryGeolocation = (opts: PositionOptions): Promise<boolean> =>
-          new Promise((resolve) => {
-            let settled = false;
-            const finish = (success: boolean) => {
-              if (settled) return;
-              settled = true;
-              window.clearTimeout(fallbackTimer);
-              resolve(success);
-            };
-            // Some Telegram WebViews do not start the browser's geolocation
-            // timeout until the user dismisses the permission prompt.
-            const fallbackTimer = window.setTimeout(() => finish(false), 4_500);
-            try {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  fix = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                  setLocation(fix);
-                  finish(true);
-                },
-                () => finish(false),
-                opts,
-              );
-            } catch {
-              finish(false);
-            }
+        const fix = await requestLocationAccess(navigator.geolocation);
+        if (!fix) {
+          setIsLocationDenied(true);
+          return;
+        }
+        try {
+          const locationSaveResult = await workerPost('/api/profile', {
+            profile: { lat: fix.lat, lng: fix.lng },
           });
-        await tryGeolocation({ enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 });
-        let initialGender = existingProfile?.gender || activeEntry.profileSetup.defaultGender;
-        let initialSeeking = existingProfile?.seeking || activeEntry.profileSetup.defaultSeeking;
+          if (!isLocationSaveConfirmed(locationSaveResult, fix)) {
+            setIsLocationDenied(true);
+            return;
+          }
+        } catch {
+          setIsLocationDenied(true);
+          return;
+        }
+        setLocation(fix);
+        localStorage.setItem('whos_nearby_user_id', userId);
+        const {
+          gender: initialGender,
+          seeking: initialSeeking,
+        } = resolveInitialProfileIdentity(existingProfile, activeEntry);
         setGender(initialGender); setSeeking(initialSeeking);
         setProfileCompletionMissingFields({
           dob: !existingProfile?.dob,
@@ -3668,29 +3820,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             );
           }
         }
-        // Use the real GPS fix (or, if geolocation failed entirely, fall back
-        // to the stored profile coords so we never overwrite them with the
-        // default HK centroid and force distances to ~0).
-        const currentLoc = fix ?? {
-          lat: typeof existingProfile?.lat === 'number' ? existingProfile.lat : 22.3193,
-          lng: typeof existingProfile?.lng === 'number' ? existingProfile.lng : 114.1694,
-        };
-        setLocation(currentLoc);
+        const currentLoc = fix;
         if (!isFullySetup) {
           setShowProfileSetup(true);
           setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null, vip_expiry: existingProfile?.vip_expiry || null });
         } else {
           const myProfile: UserProfile = { id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), gender: initialGender, seeking: initialSeeking, dob: existingProfile.dob, height: existingProfile.height, weight: existingProfile.weight, role_pref: isManSeekingMan ? existingProfile.role_pref : null, safety_pref: isManSeekingMan ? existingProfile.safety_pref : null, playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null, where_pref: isManSeekingMan ? existingProfile.where_pref : null, how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null, non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode, is_underage: false, hide_age: existingProfile.hide_age || false, grid_visible: initialGridVisible, map_visible: existingProfile.map_visible ?? false, hide_age_expiry: existingProfile.hide_age_expiry || null, invisible_expiry: invisibilityPassExpired ? null : existingProfile.invisible_expiry || null, vip_expiry: existingProfile.vip_expiry || null };
           setCurrentUser(myProfile);
-          void workerPost('/api/profile', { profile: { lat: currentLoc.lat, lng: currentLoc.lng } })
-            .then(({ profile: refreshedProfile }) => {
-              if (refreshedProfile && typeof refreshedProfile === 'object') {
-                setCurrentUser((previous) => previous?.id === userId
-                  ? { ...previous, ...refreshedProfile }
-                  : previous);
-              }
-            })
-            .catch((error) => console.warn('Could not refresh profile location:', error));
           // The existing profile is enough to show the app. Nearby results
           // and the saved location refresh can finish after the first render.
           void fetchUsersData();
@@ -4778,6 +4914,15 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const handleToggleMap = async () => {
     if (!mapModuleEnabled || !currentUser) return;
     const nextVal = !mapVisible;
+    if (nextVal && !hasMainProfileImage) {
+      const message = MAP_PROFILE_PHOTO_REQUIRED_COPY[lang];
+      if (window.Telegram?.WebApp?.showAlert) {
+        window.Telegram.WebApp.showAlert(message);
+      } else {
+        window.alert(message);
+      }
+      return;
+    }
     try {
       const result = await workerPost('/api/profile', { profile: { map_visible: nextVal } });
       applyOwnProfile(result.profile);
@@ -4919,7 +5064,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
-  const handleCardClick = (targetUser: UserProfile) => { setShowFilterDropdown(false); setSelectedProfile(targetUser); if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id); else { setNoteDraft(''); setShowNoteBox(false); } };
+  const handleCardClick = (targetUser: UserProfile) => {
+    setShowFilterDropdown(false);
+    setInterestFeedback(null);
+    setSelectedProfile(targetUser);
+    if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id);
+    else { setNoteDraft(''); setShowNoteBox(false); }
+  };
 
   const handleStartChat = (targetUser: UserProfile) => {
     if (!checkFilterPass(targetUser)) return;
@@ -4936,7 +5087,20 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setSelectedProfile(null);
   };
 
+  const passesMandatoryGenderAccess = (user: UserProfile) => {
+    if (currentUser && user.id === currentUser.id) return true;
+    const botKey = verifiedBotKeyRef.current || entry.botKey;
+    return matchesEntryGenderAccess(
+      botKey,
+      filterAccessActive,
+      vipEntitlementActive,
+      currentUser?.seeking ?? seeking,
+      user.gender,
+    );
+  };
+
   const checkFilterPass = (user: UserProfile) => {
+    if (!passesMandatoryGenderAccess(user)) return false;
     if (!gridFilterEnabled) return true;
     if (currentUser && user.id === currentUser.id) return true;
     if ((filterAccessActive || hkmoMenOnlyFilterLocked) &&
@@ -4959,6 +5123,52 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       if (filterWhereVal && filterWhereVal !== 'Off') { if (user.where_pref !== filterWhereVal) return false; }
     }
     return true;
+  };
+
+  const handleSendInterest = async (targetUser: UserProfile) => {
+    if (!currentUser || targetUser.id === currentUser.id || !checkFilterPass(targetUser)) return;
+    if (targetUser.interest_state_known !== true) {
+      setInterestFeedback({ profileId: targetUser.id, state: 'unavailable' });
+      return;
+    }
+    const existingCooldown = Date.parse(targetUser.interest_cooldown_until || '');
+    if (Number.isFinite(existingCooldown) && existingCooldown > raffleClock) {
+      setInterestFeedback({ profileId: targetUser.id, state: 'cooldown' });
+      return;
+    }
+    if (interestSendingTo) return;
+
+    setInterestSendingTo(targetUser.id);
+    setInterestFeedback(null);
+    try {
+      const result = await workerPostRef.current('/api/profile-interest/send', {
+        recipientId: targetUser.id,
+      });
+      const cooldownUntil = typeof result?.cooldownUntil === 'string' &&
+        Number.isFinite(Date.parse(result.cooldownUntil))
+        ? result.cooldownUntil
+        : null;
+      if (!cooldownUntil || (result.status !== 'sent' && result.status !== 'cooldown')) {
+        throw new Error('Interest response was invalid.');
+      }
+      setUsers((previous) => previous.map((user) =>
+        user.id === targetUser.id
+          ? { ...user, interest_cooldown_until: cooldownUntil, interest_state_known: true }
+          : user
+      ));
+      setSelectedProfile((previous) => previous?.id === targetUser.id
+        ? { ...previous, interest_cooldown_until: cooldownUntil, interest_state_known: true }
+        : previous
+      );
+      setInterestFeedback({
+        profileId: targetUser.id,
+        state: result.status === 'sent' ? 'sent' : 'cooldown',
+      });
+    } catch {
+      setInterestFeedback({ profileId: targetUser.id, state: 'failed' });
+    } finally {
+      setInterestSendingTo((previous) => previous === targetUser.id ? null : previous);
+    }
   };
 
   const handleOpenExternalApp = (url: string) => {
@@ -5009,7 +5219,29 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif' }}><p>{t('loading')}</p></div>;
   }
   if (isLocationDenied) {
-    return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '24px', marginBottom: '16px' }}>{t('locationRequired')}</h2><p style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>{t('locationMessage')}</p></div>;
+    return (
+      <main
+        role="main"
+        aria-labelledby="location-required-title"
+        data-testid="screen-location-required"
+        style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', width: '100%', backgroundColor: '#121212', color: '#ff4d4d', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}
+      >
+        <h1 id="location-required-title" data-testid="text-location-required" style={{ fontSize: '24px', marginBottom: '16px' }}>
+          {t('locationRequired')}
+        </h1>
+        <p data-testid="text-location-instructions" style={{ fontSize: '16px', color: '#ffffff', maxWidth: '360px', lineHeight: '1.5' }}>
+          {t('locationMessage')}
+        </p>
+        <button
+          type="button"
+          data-testid="button-location-retry"
+          onClick={() => window.location.reload()}
+          style={{ marginTop: '20px', minHeight: '44px', padding: '12px 22px', border: 0, borderRadius: '10px', background: '#3b82f6', color: '#fff', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}
+        >
+          {t('refresh')}
+        </button>
+      </main>
+    );
   }
   if (startupError) {
     return <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', padding: '20px', textAlign: 'center', boxSizing: 'border-box' }}><h2 style={{ fontSize: '22px', marginBottom: '12px' }}>{t('accessDenied')}</h2><p style={{ maxWidth: '360px', lineHeight: '1.5', color: '#ffb4b4' }}>{startupError}</p><button type="button" onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '12px 22px', border: 0, borderRadius: '10px', background: '#3b82f6', color: '#fff', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>{t('refresh')}</button></div>;
@@ -5422,7 +5654,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setVipCampaignsError('');
     if (!append) setVipCampaignsNotice('');
     try {
-      const result = await workerPost('/api/vip-campaigns', { action: 'list', offset });
+      const [result, { parseVipCampaignPage }] = await Promise.all([
+        workerPost('/api/vip-campaigns', { action: 'list', offset }),
+        loadVipCampaignPanelModule(),
+      ]);
       const page = parseVipCampaignPage(result);
       if (requestSequence !== vipCampaignListRequestRef.current) return;
       setVipCampaigns((current) => {
@@ -5449,9 +5684,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setVipFailureAlertLoading(true);
     setVipFailureAlertError('');
     try {
-      const result = await workerPost('/api/vip-campaigns', {
-        action: 'failure_alerts',
-      });
+      const [result, { parseVipFailureAlertSummary }] = await Promise.all([
+        workerPost('/api/vip-campaigns', {
+          action: 'failure_alerts',
+        }),
+        loadVipCampaignPanelModule(),
+      ]);
       const summary = parseVipFailureAlertSummary(result);
       if (requestSequence !== vipFailureAlertRequestRef.current || currentUser?.id !== userId) return;
       vipFailureAlertOwnerRef.current = summary.newFailureCount > 0 ? userId : null;
@@ -5474,9 +5712,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setVipRewardQueueHealthLoading(true);
     setVipRewardQueueHealthError('');
     try {
-      const result = await workerPost('/api/vip-campaigns', {
-        action: 'queue_health',
-      });
+      const [result, { parseVipRewardNotificationQueueHealth }] = await Promise.all([
+        workerPost('/api/vip-campaigns', {
+          action: 'queue_health',
+        }),
+        loadVipCampaignPanelModule(),
+      ]);
       const summary = parseVipRewardNotificationQueueHealth(result);
       if (requestSequence !== vipRewardQueueHealthRequestRef.current || currentUser?.id !== userId) return;
       setVipRewardQueueHealth(summary);
@@ -5503,11 +5744,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setFailedRewardClaimsLoading(true);
     setFailedRewardClaimsError('');
     try {
-      const result = await workerPost('/api/vip-campaigns', {
-        action: 'failed_rewards',
-        campaignId,
-        offset,
-      });
+      const [result, { parseVipFailedRewardPage }] = await Promise.all([
+        workerPost('/api/vip-campaigns', {
+          action: 'failed_rewards',
+          campaignId,
+          offset,
+        }),
+        loadVipCampaignPanelModule(),
+      ]);
       const page = parseVipFailedRewardPage(result);
       if (page.claims.some((claim) => claim.campaignId !== campaignId)) {
         throw new Error('Failed reward list does not match the selected campaign');
@@ -5553,12 +5797,15 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setCrossCampaignFailedRewardClaimsLoading(true);
     setCrossCampaignFailedRewardClaimsError('');
     try {
-      const result = await workerPost('/api/vip-campaigns', {
-        action: 'failed_rewards_search',
-        search: normalizedSearch,
-        sourceBotKey,
-        offset,
-      });
+      const [result, { parseVipFailedRewardPage }] = await Promise.all([
+        workerPost('/api/vip-campaigns', {
+          action: 'failed_rewards_search',
+          search: normalizedSearch,
+          sourceBotKey,
+          offset,
+        }),
+        loadVipCampaignPanelModule(),
+      ]);
       const page = parseVipFailedRewardPage(result);
       if (requestSequence !== crossCampaignFailedRewardRequestRef.current) return;
       setCrossCampaignFailedRewardClaims((current) => {
@@ -5615,11 +5862,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setRetryAuditLoading(true);
     setRetryAuditError('');
     try {
-      const result = await workerPost('/api/vip-campaigns', {
-        action: 'retry_audit',
-        campaignId,
-        offset,
-      });
+      const [result, { parseVipRewardRetryAuditPage }] = await Promise.all([
+        workerPost('/api/vip-campaigns', {
+          action: 'retry_audit',
+          campaignId,
+          offset,
+        }),
+        loadVipCampaignPanelModule(),
+      ]);
       const page = parseVipRewardRetryAuditPage(result);
       if (requestSequence !== vipRetryAuditRequestRef.current) return;
       setRetryAuditRecords((current) => {
@@ -5808,14 +6058,19 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const handleAcknowledgeVipGrant = async () => {
     const notice = vipGrantNotice;
-    setVipGrantNotice(null);
-    if (!notice?.claimIds.length) return;
+    if (!notice?.claimIds.length || vipGrantAcknowledgementLockRef.current) return;
+    vipGrantAcknowledgementLockRef.current = true;
+    setVipGrantAcknowledging(true);
+    setVipGrantAcknowledgementError('');
     try {
       await workerPost('/api/vip-grants/ack', { claimIds: notice.claimIds });
+      setVipGrantNotice(null);
     } catch (error) {
-      // The server will show the popup again at the next login if the
-      // acknowledgement could not be saved.
       console.error('VIP reward acknowledgement failed:', error);
+      setVipGrantAcknowledgementError(vipGrantCopy[lang].popupAckFailed);
+    } finally {
+      vipGrantAcknowledgementLockRef.current = false;
+      setVipGrantAcknowledging(false);
     }
   };
 
@@ -5876,14 +6131,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const isViewingSelf = selectedProfile ? (currentUser && selectedProfile.id === currentUser.id) : false;
   const activeProfile = selectedProfile;
+  const genderEligibleUsers = users.filter(passesMandatoryGenderAccess);
   const gridFilteredUsers = gridFilterEnabled
-    ? filterProfilesByMatchVisibility(users, hideNonMatchingUsers, checkFilterPass)
+    ? filterProfilesByMatchVisibility(genderEligibleUsers, hideNonMatchingUsers, checkFilterPass)
     : [];
   // Self is excluded from the shared list; your own pin is rendered separately
   // at your live GPS location and is visible ONLY to you (greyed out only when
   // actually invisible, i.e. grid toggle off - NOT when the map toggle is off).
   const mapCandidates = users.filter((user) =>
     user.id !== currentUser?.id &&
+    passesMandatoryGenderAccess(user) &&
     resolveMapVisibility(user.map_visible, user.grid_visible, user.invisible_expiry)
   );
   const mapFilteredUsers = gridFilterEnabled
@@ -5891,9 +6148,24 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     : mapCandidates;
   const hasDiscoveryModule = gridFilterEnabled || mapModuleEnabled;
   const discoveryUserCount = gridFilterEnabled ? gridFilteredUsers.length : mapFilteredUsers.length;
-  const isManSeekingManInput = gender === 'man' && seeking === 'men';
+  const currentUserIsM2M = currentUser?.gender === 'man' && currentUser?.seeking === 'men';
   const targetIsManSeekingMan = activeProfile?.gender === 'man' && activeProfile?.seeking === 'men';
   const passesFilterForActive = activeProfile ? checkFilterPass(activeProfile) : true;
+  const profileInterestCopy = PROFILE_INTEREST_COPY[lang];
+  const activeInterestCooldownUntil = activeProfile?.interest_cooldown_until
+    ? Date.parse(activeProfile.interest_cooldown_until)
+    : NaN;
+  const activeInterestCoolingDown = Number.isFinite(activeInterestCooldownUntil) &&
+    activeInterestCooldownUntil > raffleClock;
+  const activeInterestFeedbackMessage = activeProfile && interestFeedback?.profileId === activeProfile.id
+    ? profileInterestCopy[interestFeedback.state]
+    : '';
+  const activeInterestStatusMessage = activeInterestFeedbackMessage ||
+    (activeProfile?.interest_state_known !== true
+      ? profileInterestCopy.unavailable
+      : activeInterestCoolingDown
+        ? profileInterestCopy.cooldown
+        : '');
   const flyingMessageWaitSeconds = Math.max(0, Math.ceil((flyingCooldownUntil - cooldownClock) / 1000));
   const flyingCopy = flyingMessageCopy[lang];
   const raffleCopy = raffleUiCopy[lang];
@@ -5930,7 +6202,27 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
 
       {(showProfileSetup || showProfileEditModal) && (
-        <ProfileCompletionModule
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 10000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#121212',
+                color: '#fff',
+              }}
+            >
+              {t('loading')}
+            </div>
+          }
+        >
+          <ProfileCompletionModule
           entry={entry}
           isCompletionFlow={showProfileSetup && !showProfileEditModal}
           language={lang}
@@ -5993,7 +6285,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             setWherePref(nextValue);
             return nextValue;
           }}
-        />
+          />
+        </Suspense>
       )}
 
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
@@ -6107,7 +6400,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                   <input type="range" min={140} max={220} step={1} value={filterHeightMax} onChange={(e) => { const v = Number(e.target.value); if (v >= filterHeightMin) handleHeightRangeChange(filterHeightMin, v); }} style={{ width: '100%', accentColor: '#007bff', marginTop: '-8px' }} />
                 </div>)}
               </div>
-              {isManSeekingManInput && (<div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
+              {currentUserIsM2M && (<div data-testid="filter-m2m-preference-matcher" style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => handleToggleFilterItem('prefMatcher')}>
                   <input type="checkbox" checked={filterPrefMatcherOn} onChange={() => {}} style={{ width: '16px', height: '16px', accentColor: '#007bff', cursor: 'pointer' }} />
                   <span style={{ fontSize: '13px', color: '#fff', fontWeight: 'bold' }}>{t('preferenceMatcher')}</span>
@@ -6226,13 +6519,22 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               formatDistance={formatDistanceBigUnit}
               onSelectProfile={handleCardClick}
               t={t}
+              interestLabel={profileInterestCopy.received}
             />
           </div>
         )}
 
         {mapModuleEnabled && (
           <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
-            {(hasOpenedMap || !gridFilterEnabled) && (
+            {!hasMainProfileImage ? (
+              <div
+                role="status"
+                data-testid="map-photo-required"
+                style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', padding: '24px', color: '#fff', textAlign: 'center', lineHeight: 1.5, boxSizing: 'border-box' }}
+              >
+                <p style={{ maxWidth: '360px' }}>{MAP_PROFILE_PHOTO_REQUIRED_COPY[lang]}</p>
+              </div>
+            ) : (hasOpenedMap || !gridFilterEnabled) && (
             <Suspense fallback={<div role="status" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>{t('map')}</div>}>
               <MapView
                 location={location}
@@ -6477,7 +6779,70 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                   {isViewingSelf ? (<button type="button" onClick={async () => { const nextWhere = wherePref === 'Host' ? 'Travel' : (wherePref === 'Travel' ? null : 'Host'); setWherePref(nextWhere); const updated = { ...activeProfile, where_pref: nextWhere }; setSelectedProfile(updated); await handleUpdateSelfField({ where_pref: nextWhere }); }} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}>{formatTagText(wherePref === null ? t('Anywhere') : t(wherePref))}</button>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesWhere(filterWhereVal, activeProfile.where_pref || null) ? 1 : 0.3, filter: tagMatchesWhere(filterWhereVal, activeProfile.where_pref || null) ? 'none' : 'grayscale(100%)' }}>{formatTagText(activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere'))}</div>)}
                 </div>
               )}
-              {!isViewingSelf && passesFilterForActive && (<button type="button" onClick={() => handleStartChat(activeProfile)} style={{ marginTop: '20px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              {!isViewingSelf && passesFilterForActive && (
+                <div style={{ width: '100%', marginTop: '20px' }}>
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); void handleSendInterest(activeProfile); }}
+                    disabled={
+                      interestSendingTo === activeProfile.id ||
+                      interestSendingTo !== null ||
+                      activeInterestCoolingDown ||
+                      activeProfile.interest_state_known !== true
+                    }
+                    aria-busy={interestSendingTo === activeProfile.id}
+                    aria-label={
+                      activeProfile.interest_state_known !== true
+                        ? profileInterestCopy.unavailable
+                        : activeInterestCoolingDown
+                          ? profileInterestCopy.cooldown
+                          : interestSendingTo === activeProfile.id
+                            ? profileInterestCopy.sending
+                            : profileInterestCopy.send
+                    }
+                    title={
+                      activeProfile.interest_state_known !== true
+                        ? profileInterestCopy.unavailable
+                        : activeInterestCoolingDown
+                          ? profileInterestCopy.cooldown
+                          : profileInterestCopy.send
+                    }
+                    data-testid={`button-send-interest-${activeProfile.id}`}
+                    style={{
+                      width: '100%',
+                      minHeight: '46px',
+                      padding: '10px',
+                      backgroundColor: activeInterestCoolingDown || activeProfile.interest_state_known !== true
+                        ? '#374151'
+                        : '#be123c',
+                      color: activeInterestCoolingDown || activeProfile.interest_state_known !== true
+                        ? '#9ca3af'
+                        : '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '22px',
+                      cursor: interestSendingTo || activeInterestCoolingDown || activeProfile.interest_state_known !== true
+                        ? 'not-allowed'
+                        : 'pointer',
+                      opacity: interestSendingTo || activeInterestCoolingDown || activeProfile.interest_state_known !== true
+                        ? 0.65
+                        : 1,
+                    }}
+                  >
+                    ❤️
+                  </button>
+                  {activeInterestStatusMessage && (
+                    <div
+                      role="status"
+                      data-testid={`status-interest-${activeProfile.id}`}
+                      style={{ marginTop: '6px', color: '#d1d5db', fontSize: '12px', textAlign: 'center' }}
+                    >
+                      {activeInterestStatusMessage}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isViewingSelf && passesFilterForActive && (<button type="button" onClick={() => handleStartChat(activeProfile)} style={{ marginTop: '12px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 {t('sendMessage')}
               </button>)}
@@ -6604,6 +6969,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         </div>
       )}
 
+      {walletModuleLoaded && (
+        <Suspense fallback={null}>
+          <WalletConnectModule
+            manifestUrl={config.tonConnectManifestUrl}
+            actionRequest={walletActionRequest}
+            onConnectionChange={setIsWalletConnected}
+          />
+        </Suspense>
+      )}
+
       <BottomNavigationModule
         view={view}
         gridEnabled={gridFilterEnabled}
@@ -6669,12 +7044,30 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               outline: 'none',
             }}
           >
-            <ProfileSetupPreviewModule
-              entries={Object.values(config.entries)}
-              language={lang}
-              onClose={() => setShowProfileSetupPreview(false)}
-              t={t}
-            />
+            <Suspense
+              fallback={
+                <div
+                  role="status"
+                  aria-live="polite"
+                  style={{
+                    padding: '24px',
+                    borderRadius: '12px',
+                    backgroundColor: '#161616',
+                    color: '#ccc',
+                    textAlign: 'center',
+                  }}
+                >
+                  {t('loading')}
+                </div>
+              }
+            >
+              <ProfileSetupPreviewModule
+                entries={Object.values(config.entries)}
+                language={lang}
+                onClose={() => setShowProfileSetupPreview(false)}
+                t={t}
+              />
+            </Suspense>
           </div>
         </div>
       )}
@@ -6727,19 +7120,39 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       )}
 
       {showVipCampaignsModal && (
-        <VipCampaignPanel
-          campaigns={vipCampaigns}
-          hasMore={vipCampaignsHasMore}
-          loading={vipCampaignsLoading}
-          error={vipCampaignsError}
-          notice={vipCampaignsNotice}
-          stoppingCampaignId={stoppingVipCampaignId}
-          failedRewardCampaignId={failedRewardCampaignId}
-          failedRewardClaims={failedRewardClaims}
-          failedRewardClaimsHasMore={failedRewardClaimsHasMore}
-          failedRewardClaimsLoading={failedRewardClaimsLoading}
-          failedRewardClaimsError={failedRewardClaimsError}
-          retryingFailedRewardClaimId={retryingFailedRewardClaimId}
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 3200,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(0,0,0,0.75)',
+                color: '#fff',
+              }}
+            >
+              {vipGrantCopy[lang].campaignsLoading}
+            </div>
+          }
+        >
+          <VipCampaignPanel
+            campaigns={vipCampaigns}
+            hasMore={vipCampaignsHasMore}
+            loading={vipCampaignsLoading}
+            error={vipCampaignsError}
+            notice={vipCampaignsNotice}
+            stoppingCampaignId={stoppingVipCampaignId}
+            failedRewardCampaignId={failedRewardCampaignId}
+            failedRewardClaims={failedRewardClaims}
+            failedRewardClaimsHasMore={failedRewardClaimsHasMore}
+            failedRewardClaimsLoading={failedRewardClaimsLoading}
+            failedRewardClaimsError={failedRewardClaimsError}
+            retryingFailedRewardClaimId={retryingFailedRewardClaimId}
           crossCampaignFailedRewardSearchValue={crossCampaignFailedRewardSearch}
           crossCampaignFailedRewardSourceBotKey={crossCampaignFailedRewardSourceBot}
           crossCampaignFailedRewardSearched={crossCampaignFailedRewardSearched}
@@ -6868,12 +7281,33 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           onLoadMoreFailedRewards={loadMoreFailedRewardClaims}
           onRetryFailedReward={(claimId) => void retryFailedVipReward(claimId)}
           onToggleRetryAudit={toggleVipRewardRetryAudit}
-          onLoadMoreRetryAudit={loadMoreVipRewardRetryAudit}
-        />
+            onLoadMoreRetryAudit={loadMoreVipRewardRetryAudit}
+          />
+        </Suspense>
       )}
 
       {showPaymentReview && isAdmin && (
-        <PaymentReviewPanel
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 3100,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(0,0,0,0.75)',
+                color: '#fff',
+              }}
+            >
+              {paymentReviewCopy[lang].loading}
+            </div>
+          }
+        >
+          <PaymentReviewPanel
           payments={paymentRecords}
           hasMore={paymentsHasMore}
           loading={paymentsLoading}
@@ -6941,57 +7375,27 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               true,
             ),
             onRecover: (intentId, action) => void recoverRafflePayment(intentId, action),
-          }}
-        />
+            }}
+          />
+        </Suspense>
       )}
 
       {vipGrantNotice && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="vip-grant-notice-title"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              setVipGrantNotice(null);
-              return;
-            }
-            if (event.key !== 'Tab') return;
-            const focusable = event.currentTarget.querySelectorAll<HTMLElement>(
-              'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            );
-            if (!focusable.length) {
-              event.preventDefault();
-              return;
-            }
-            const first = focusable.item(0);
-            const last = focusable.item(focusable.length - 1);
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first.focus();
-            }
+        <VipGrantNoticeDialog
+          title={vipGrantCopy[lang].popupTitle}
+          body={vipGrantCopy[lang].popupBody.replace('{days}', String(vipGrantNotice.days))}
+          confirmLabel={vipGrantCopy[lang].popupConfirm}
+          retryLabel={vipGrantCopy[lang].popupRetry}
+          confirmingLabel={vipGrantCopy[lang].popupSaving}
+          confirming={vipGrantAcknowledging}
+          errorMessage={vipGrantAcknowledgementError}
+          onConfirm={handleAcknowledgeVipGrant}
+          onDismiss={() => {
+            if (vipGrantAcknowledgementLockRef.current) return;
+            setVipGrantNotice(null);
+            setVipGrantAcknowledgementError('');
           }}
-          style={{ position: 'fixed', inset: 0, zIndex: 3100, backgroundColor: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-        >
-          <div style={{ width: '100%', maxWidth: '360px', padding: '22px', backgroundColor: '#1e1e1e', border: '1px solid #665500', borderRadius: '14px', boxShadow: '0 14px 48px rgba(0,0,0,0.75)', textAlign: 'center' }}>
-            <div aria-hidden="true" style={{ fontSize: '36px', marginBottom: '8px' }}>⭐</div>
-            <h2 id="vip-grant-notice-title" style={{ margin: '0 0 10px', color: '#f5c518', fontSize: '19px' }}>{vipGrantCopy[lang].popupTitle}</h2>
-            <p style={{ margin: '0 0 20px', color: '#eee', fontSize: '14px', lineHeight: 1.5 }}>
-              {vipGrantCopy[lang].popupBody.replace('{days}', String(vipGrantNotice.days))}
-            </p>
-            <button
-              type="button"
-              autoFocus
-              onClick={() => void handleAcknowledgeVipGrant()}
-              style={{ width: '100%', padding: '11px 14px', border: 0, borderRadius: '8px', backgroundColor: '#d4a900', color: '#171717', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              {vipGrantCopy[lang].popupConfirm}
-            </button>
-          </div>
-        </div>
+        />
       )}
     </div>
   );

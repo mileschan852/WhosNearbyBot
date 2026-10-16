@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profile preference interaction test</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <pre id="test-results">pending</pre>
+    <script type="module">
+      import React, { act } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import ProfileCompletionModule from '/src/modules/profile-completion/ProfileCompletionModule.tsx';
+      import {
+        PROFILE_HOW_MANY_CYCLE_OPTIONS,
+        PROFILE_PLAYSTYLE_CYCLE_OPTIONS,
+        PROFILE_ROLE_CYCLE_OPTIONS,
+        PROFILE_SAFETY_CYCLE_OPTIONS,
+        PROFILE_WHERE_CYCLE_OPTIONS,
+        buildProfileHeightOptions,
+        buildProfileWeightOptions,
+      } from '/src/modules/profile-completion/profile-completion-options.js';
+
+      globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+      const cycleCases = [
+        { field: 'rolePref', options: PROFILE_ROLE_CYCLE_OPTIONS },
+        { field: 'safetyPref', options: PROFILE_SAFETY_CYCLE_OPTIONS },
+        { field: 'playstylePref', options: PROFILE_PLAYSTYLE_CYCLE_OPTIONS },
+        { field: 'howManyPref', options: PROFILE_HOW_MANY_CYCLE_OPTIONS },
+        { field: 'wherePref', options: PROFILE_WHERE_CYCLE_OPTIONS },
+      ];
+      const valuesAtStart = {
+        dob: '1990-01-01',
+        gender: 'man',
+        seeking: 'men',
+        height: '170cm',
+        weight: '70kg',
+        rolePref: PROFILE_ROLE_CYCLE_OPTIONS[0],
+        safetyPref: PROFILE_SAFETY_CYCLE_OPTIONS[0],
+        playstylePref: PROFILE_PLAYSTYLE_CYCLE_OPTIONS[0],
+        howManyPref: PROFILE_HOW_MANY_CYCLE_OPTIONS[0],
+        wherePref: null,
+        nonManMode: 'Meet up',
+      };
+      const callbackCounts = Object.fromEntries(
+        cycleCases.map(({ field }) => [field, 0]),
+      );
+      const testResults = [];
+      const ensure = (condition, message) => {
+        if (!condition) throw new Error(message);
+      };
+
+      function ProfileFormHarness({ entry }) {
+        const [values, setValues] = React.useState(valuesAtStart);
+        const cycle = (field, options) => () => {
+          callbackCounts[field] += 1;
+          const currentIndex = options.indexOf(values[field]);
+          const nextValue = options[(currentIndex + 1) % options.length];
+          setValues((current) => ({ ...current, [field]: nextValue }));
+          return nextValue;
+        };
+        const noop = () => {};
+
+        return React.createElement(ProfileCompletionModule, {
+          entry,
+          values,
+          isCompletionFlow: true,
+          presentation: 'inline',
+          language: 'en',
+          missingFields: { dob: false, gender: false, height: false, weight: false },
+          onChange: {
+            dob: noop,
+            gender: noop,
+            seeking: noop,
+            height: noop,
+            weight: noop,
+            rolePref: noop,
+            safetyPref: noop,
+            playstylePref: noop,
+            howManyPref: noop,
+            wherePref: noop,
+            nonManMode: noop,
+          },
+          onSubmit: noop,
+          onClose: noop,
+          showCloseButton: false,
+          heightOptions: buildProfileHeightOptions(values.height),
+          weightOptions: buildProfileWeightOptions(),
+          t: (key) => key,
+          onCycleRole: cycle('rolePref', PROFILE_ROLE_CYCLE_OPTIONS),
+          onCycleSafety: cycle('safetyPref', PROFILE_SAFETY_CYCLE_OPTIONS),
+          onCyclePlaystyle: cycle('playstylePref', PROFILE_PLAYSTYLE_CYCLE_OPTIONS),
+          onCycleHowMany: cycle('howManyPref', PROFILE_HOW_MANY_CYCLE_OPTIONS),
+          onCycleWhere: cycle('wherePref', PROFILE_WHERE_CYCLE_OPTIONS),
+        });
+      }
+
+      try {
+        const configResponse = await fetch('/config.json');
+        ensure(configResponse.ok, `App config returned HTTP ${configResponse.status}`);
+        const config = await configResponse.json();
+        const root = createRoot(document.querySelector('#app'));
+        await act(async () => {
+          root.render(React.createElement(ProfileFormHarness, {
+            entry: config.entries.nearby,
+          }));
+        });
+
+        const liveRegion = document.querySelector(
+          '[data-testid="profile-preference-cycle-announcement"]',
+        );
+        ensure(liveRegion, 'The preference announcement live region was not rendered.');
+        ensure(liveRegion.getAttribute('role') === 'status', 'The announcement must use status semantics.');
+        ensure(liveRegion.getAttribute('aria-live') === 'polite', 'The announcement must be polite.');
+        ensure(liveRegion.getAttribute('aria-atomic') === 'true', 'The full announcement should be read atomically.');
+        ensure(liveRegion.textContent === '', 'The live region should be empty before a preference is clicked.');
+
+        const buttons = [...document.querySelectorAll(
+          'button[aria-describedby="profile-preference-cycle-hint"]',
+        )];
+        ensure(buttons.length === cycleCases.length, 'The form should render all five preference buttons.');
+
+        for (const [index, { field }] of cycleCases.entries()) {
+          const button = document.querySelectorAll(
+            'button[aria-describedby="profile-preference-cycle-hint"]',
+          )[index];
+          const previousValue = button.textContent.trim();
+          const previousAnnouncement = liveRegion.textContent.trim();
+          const previousCalls = callbackCounts[field];
+          const mutations = [];
+          const observer = new MutationObserver((records) => mutations.push(...records));
+          observer.observe(liveRegion, {
+            childList: true,
+            characterData: true,
+            subtree: true,
+          });
+
+          await act(async () => {
+            button.click();
+          });
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          observer.disconnect();
+
+          const displayedValue = button.textContent.trim();
+          const announcement = liveRegion.textContent.trim();
+          const accessibleName = button.getAttribute('aria-label');
+          ensure(
+            callbackCounts[field] === previousCalls + 1,
+            `${field} click should call its cycle callback exactly once.`,
+          );
+          ensure(displayedValue !== previousValue, `${field} click should change the visible value.`);
+          ensure(
+            announcement === accessibleName,
+            `${field} announcement should match its updated accessible label.`,
+          );
+          ensure(
+            announcement.endsWith(`: ${displayedValue}`),
+            `${field} announcement should contain its new visible value exactly once.`,
+          );
+          ensure(
+            announcement !== previousAnnouncement,
+            `${field} click should replace the previous live-region message.`,
+          );
+          ensure(
+            mutations.length === 1,
+            `${field} click should create one live-region update, not ${mutations.length}.`,
+          );
+
+          testResults.push({
+            field,
+            previousValue,
+            displayedValue,
+            announcement,
+            accessibleName,
+            callbackCount: callbackCounts[field],
+            announcementMutationCount: mutations.length,
+          });
+        }
+
+        await act(async () => root.unmount());
+        document.body.dataset.testStatus = 'passed';
+        document.querySelector('#test-results').textContent = JSON.stringify(testResults);
+      } catch (error) {
+        document.body.dataset.testStatus = 'failed';
+        document.querySelector('#test-results').textContent = error?.stack || String(error);
+      }
+    </script>
+  </body>
+</html>

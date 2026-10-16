@@ -7,10 +7,4 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
-  build: {
-    // The 844.72 kB entry bundle compresses to about 249 kB. Keep this
-    // threshold close to the measured output; manual vendor splitting caused
-    // a startup/import interop failure in the Telegram app.
-    chunkSizeWarningLimit: 860,
-  },
 })

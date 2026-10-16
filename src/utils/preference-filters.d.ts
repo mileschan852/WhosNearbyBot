@@ -25,6 +25,19 @@ export function matchesGenderFilter(
   profileGender: string | null | undefined,
 ): boolean;
 
+export function matchesDefaultSeekingGender(
+  seeking: string | null | undefined,
+  profileGender: string | null | undefined,
+): boolean;
+
+export function matchesEntryGenderAccess(
+  botKey: string | null | undefined,
+  filterAccessActive: boolean,
+  vipAccessActive: boolean,
+  seeking: string | null | undefined,
+  profileGender: string | null | undefined,
+): boolean;
+
 export function nextFilterCycleValue(
   current: string | null,
   options: readonly string[],

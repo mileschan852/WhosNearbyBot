@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#111111" />
+    <title>HKMO Date</title>
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <link rel="preconnect" href="https://mileschan852.github.io" crossorigin />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      window.setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.dataset.appMounted !== 'true') {
+          root.innerHTML = '<main role="alert" style="padding:24px;color:#fff;background:#111;min-height:100vh;font-family:system-ui,sans-serif"><h1>HKMO Date did not load</h1><p>Check your connection and reload this page.</p><button type="button" onclick="window.location.reload()">Reload</button></main>';
+        }
+      }, 12000);
+    </script>
+  </head>
+  <body>
+    <div id="root" data-app-mounted="false"><main style="padding:24px;color:#fff;background:#111;min-height:100vh;font-family:system-ui,sans-serif">Loading HKMO Date…</main></div>
+    <script>
+      (() => {
+        const sharedGuiBase = 'https://mileschan852.github.io/WhosNearbyBot';
+        const fallbackVersion = "53ee30aee483e3e1cd6072944ee4f1f08f3ca112";
+        let started = false;
+        const startGui = (version) => {
+          if (started) return;
+          started = true;
+          const cacheKey = encodeURIComponent(version);
+          const stylesheet = document.createElement('link');
+          stylesheet.rel = 'stylesheet';
+          stylesheet.crossOrigin = 'anonymous';
+          stylesheet.href = sharedGuiBase + '/assets/shared-gui.css?v=' + cacheKey;
+          document.head.appendChild(stylesheet);
+          const app = document.createElement('script');
+          app.type = 'module';
+          app.crossOrigin = 'anonymous';
+          app.src = sharedGuiBase + '/assets/shared-gui.js?v=' + cacheKey;
+          document.body.appendChild(app);
+        };
+        const buildMarker = document.createElement('script');
+        buildMarker.src = sharedGuiBase + '/shared-gui-build.js?refresh=' + Date.now();
+        buildMarker.onload = () => {
+          const version = window.__WHOSNEARBY_SHARED_GUI_BUILD__?.version;
+          startGui(typeof version === 'string' && version.length > 0 ? version : fallbackVersion);
+        };
+        buildMarker.onerror = () => startGui(fallbackVersion);
+        document.head.appendChild(buildMarker);
+      })();
+    </script>
+  </body>
+</html>

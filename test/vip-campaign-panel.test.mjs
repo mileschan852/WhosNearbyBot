@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { renderToStaticMarkup } from 'react-dom/server';
+import ts from 'typescript';
 import {
   getVipCampaignStatus,
   parseVipCampaignPage,
@@ -13,7 +16,9 @@ import {
   VIP_FAILURE_ALERT_POLL_INTERVAL_MS,
   VipCampaignPanel,
 } from '../src/components/vip-campaign-panel.js';
+import { VipGrantNoticeDialog } from '../src/components/vip-grant-notice-dialog.js';
 
+const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const campaignId = '0c9c0802-6dd2-4453-a93b-8fef06d1a3d2';
 const campaign = {
   id: campaignId,
@@ -193,6 +198,351 @@ function findElement(node, predicate) {
   if (predicate(node)) return node;
   return findElement(node.props?.children, predicate);
 }
+
+function compileAcknowledgeVipGrantHandler(environment) {
+  environment.vipGrantAcknowledgementLockRef ??= { current: false };
+  environment.setVipGrantAcknowledging ??= () => {};
+  environment.setVipGrantAcknowledgementError ??= () => {};
+  environment.vipGrantCopy ??= {
+    en: {
+      popupAckFailed: 'Could not save your confirmation. Please try again.',
+      popupRetry: 'Retry',
+      popupSaving: 'Saving…',
+    },
+  };
+  environment.lang ??= 'en';
+  const startMarker = 'const handleAcknowledgeVipGrant = async () => {';
+  const endMarker = '\n  const handleSaveFlyingPrice = async () => {';
+  const start = appSource.indexOf(startMarker);
+  assert.notEqual(start, -1, `expected App.tsx to contain ${startMarker}`);
+  const end = appSource.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `expected App.tsx to contain ${endMarker}`);
+
+  const source = [
+    appSource.slice(start, end),
+    'this.__handleAcknowledgeVipGrant = handleAcknowledgeVipGrant;',
+  ].join('\n');
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.None,
+    },
+  }).outputText;
+  runInNewContext(transpiled, environment);
+  return environment.__handleAcknowledgeVipGrant;
+}
+
+function compileVipGrantNoticeMapping(environment) {
+  const startMarker = 'const pendingVipGrant = authResponse.vipGrantNotice;';
+  const endMarker = "\n        setIsAdmin(authResponse.role === 'admin');";
+  const start = appSource.indexOf(startMarker);
+  assert.notEqual(start, -1, `expected App.tsx to contain ${startMarker}`);
+  const end = appSource.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `expected App.tsx to contain ${endMarker}`);
+
+  const source = [
+    'this.__applyVipGrantNotice = () => {',
+    appSource.slice(start, end),
+    '};',
+  ].join('\n');
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.None,
+    },
+  }).outputText;
+  runInNewContext(transpiled, environment);
+  return environment.__applyVipGrantNotice;
+}
+
+test('VIP reward dialog focuses Confirm and traps Tab in both directions', () => {
+  const dialog = VipGrantNoticeDialog({
+    title: 'VIP reward',
+    body: 'Your account received 3 VIP days.',
+    confirmLabel: 'Confirm',
+    onConfirm() {},
+    onDismiss() {},
+  });
+  const html = renderToStaticMarkup(dialog);
+  const confirmButton = findElement(dialog, (node) => node.type === 'button');
+  assert.ok(confirmButton);
+  assert.equal(confirmButton.props.autoFocus, true);
+  assert.match(html, /autofocus=""/);
+  assert.match(html, /role="dialog"/);
+  assert.match(html, /aria-modal="true"/);
+
+  let activeElement;
+  let confirmFocusCount = 0;
+  const focusTarget = {
+    focus() {
+      activeElement = focusTarget;
+      confirmFocusCount += 1;
+    },
+  };
+  activeElement = focusTarget;
+  const focusableElements = [focusTarget];
+  focusableElements.item = (index) => focusableElements[index] ?? null;
+  const currentTarget = {
+    ownerDocument: {
+      get activeElement() {
+        return activeElement;
+      },
+    },
+    querySelectorAll() {
+      return focusableElements;
+    },
+    contains(element) {
+      return element === focusTarget;
+    },
+  };
+
+  for (const shiftKey of [false, true]) {
+    let prevented = false;
+    dialog.props.onKeyDown({
+      key: 'Tab',
+      shiftKey,
+      currentTarget,
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    assert.equal(prevented, true, `${shiftKey ? 'Shift+Tab' : 'Tab'} stays in the dialog`);
+    assert.equal(activeElement, focusTarget);
+  }
+  assert.equal(confirmFocusCount, 2);
+});
+
+test('Escape dismisses the VIP reward dialog without acknowledging the reward', () => {
+  const calls = [];
+  const environment = {
+    vipGrantNotice: { claimIds: ['claim-escape'], days: 3 },
+    setVipGrantNotice(value) {
+      calls.push(['close', value]);
+    },
+    workerPost: async (...args) => calls.push(['post', ...args]),
+    console: { error() {} },
+  };
+  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+  let dismissed = false;
+  const dialog = VipGrantNoticeDialog({
+    title: 'VIP reward',
+    body: 'Your account received 3 VIP days.',
+    confirmLabel: 'Confirm',
+    onConfirm,
+    onDismiss() {
+      dismissed = true;
+    },
+  });
+  let prevented = false;
+
+  dialog.props.onKeyDown({
+    key: 'Escape',
+    shiftKey: false,
+    currentTarget: {
+      ownerDocument: { activeElement: null },
+      querySelectorAll() {
+        return [];
+      },
+      contains() {
+        return false;
+      },
+    },
+    preventDefault() {
+      prevented = true;
+    },
+  });
+
+  assert.equal(prevented, true);
+  assert.equal(dismissed, true);
+  assert.deepEqual(calls, []);
+  assert.match(appSource, /onDismiss=\{\(\) => \{/);
+  assert.match(appSource, /if \(vipGrantAcknowledgementLockRef\.current\) return;/);
+});
+
+test('Confirm acknowledges the pending VIP reward claim IDs', async () => {
+  const calls = [];
+  const environment = {
+    vipGrantNotice: { claimIds: ['claim-confirm-1', 'claim-confirm-2'], days: 3 },
+    setVipGrantNotice(value) {
+      calls.push(['close', value]);
+    },
+    workerPost: async (...args) => {
+      calls.push(['post', ...args]);
+      return { acknowledged: true };
+    },
+    console: { error() {} },
+  };
+  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+  const dialog = VipGrantNoticeDialog({
+    title: 'VIP reward',
+    body: 'Your account received 3 VIP days.',
+    confirmLabel: 'Confirm',
+    onConfirm,
+    onDismiss() {},
+  });
+  const confirmButton = findElement(dialog, (node) => node.type === 'button');
+
+  assert.ok(confirmButton);
+  await confirmButton.props.onClick();
+  assert.equal(JSON.stringify(calls), JSON.stringify([
+    ['post', '/api/vip-grants/ack', { claimIds: ['claim-confirm-1', 'claim-confirm-2'] }],
+    ['close', null],
+  ]));
+  assert.match(appSource, /onConfirm=\{handleAcknowledgeVipGrant\}/);
+});
+
+test('a combined login reward displays its total VIP days and confirms both claim IDs', async () => {
+  const state = { notice: null, acknowledgementError: '' };
+  const postCalls = [];
+  const copy = {
+    en: {
+      popupTitle: 'VIP reward received',
+      popupBody: 'Your account received {days} VIP days.',
+      popupConfirm: 'Confirm',
+      popupRetry: 'Retry',
+      popupSaving: 'Saving…',
+      popupAckFailed: 'Could not save your confirmation. Please try again.',
+    },
+  };
+  const environment = {
+    authResponse: {
+      vipGrantNotice: {
+        claimIds: ['claim-combined-1', 'claim-combined-2'],
+        days: 18,
+        vipUntil: '2027-01-01T00:00:00.000Z',
+      },
+    },
+    setVipGrantNotice(value) {
+      state.notice = value;
+      environment.vipGrantNotice = value;
+    },
+    setVipGrantAcknowledgementError(value) {
+      state.acknowledgementError = value;
+    },
+    vipGrantCopy: copy,
+    lang: 'en',
+    workerPost: async (...args) => {
+      postCalls.push(args);
+      return { ok: true };
+    },
+    console: { error() {} },
+  };
+  compileVipGrantNoticeMapping(environment)();
+  assert.equal(JSON.stringify(state.notice), JSON.stringify({
+    claimIds: ['claim-combined-1', 'claim-combined-2'],
+    days: 18,
+    vipUntil: '2027-01-01T00:00:00.000Z',
+  }));
+  assert.match(
+    appSource,
+    /body=\{vipGrantCopy\[lang\]\.popupBody\.replace\('\{days\}', String\(vipGrantNotice\.days\)\)\}/,
+    'the dialog body uses the combined days from the login response',
+  );
+
+  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+  const dialog = VipGrantNoticeDialog({
+    title: copy.en.popupTitle,
+    body: copy.en.popupBody.replace('{days}', String(state.notice.days)),
+    confirmLabel: copy.en.popupConfirm,
+    onConfirm,
+    onDismiss() {},
+  });
+  const html = renderToStaticMarkup(dialog);
+  const confirmButton = findElement(dialog, (node) => node.type === 'button');
+  assert.match(html, /Your account received 18 VIP days\./);
+  await confirmButton.props.onClick();
+  assert.equal(JSON.stringify(postCalls), JSON.stringify([
+    ['/api/vip-grants/ack', { claimIds: ['claim-combined-1', 'claim-combined-2'] }],
+  ]));
+  assert.equal(state.notice, null);
+});
+
+test('failed VIP reward acknowledgement stays visible and can be retried', async () => {
+  const notice = { claimIds: ['claim-retry'], days: 3 };
+  const state = { notice, error: '', acknowledging: false, attempts: 0 };
+  const postCalls = [];
+  let rejectFirstAttempt;
+  const environment = {
+    vipGrantNotice: notice,
+    vipGrantAcknowledgementLockRef: { current: false },
+    setVipGrantNotice(value) {
+      state.notice = value;
+      environment.vipGrantNotice = value;
+    },
+    setVipGrantAcknowledging(value) {
+      state.acknowledging = value;
+    },
+    setVipGrantAcknowledgementError(value) {
+      state.error = value;
+    },
+    vipGrantCopy: {
+      en: {
+        popupAckFailed: 'Could not save your confirmation. Please try again.',
+        popupRetry: 'Retry',
+        popupSaving: 'Saving…',
+      },
+    },
+    lang: 'en',
+    workerPost: async (...args) => {
+      state.attempts += 1;
+      postCalls.push(args);
+      if (state.attempts === 1) {
+        return new Promise((_, reject) => {
+          rejectFirstAttempt = reject;
+        });
+      }
+      return { ok: true };
+    },
+    console: { error() {} },
+  };
+  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+  const renderDialog = () => VipGrantNoticeDialog({
+    title: 'VIP reward',
+    body: 'Your account received 3 VIP days.',
+    confirmLabel: 'Confirm',
+    retryLabel: environment.vipGrantCopy.en.popupRetry,
+    confirmingLabel: environment.vipGrantCopy.en.popupSaving,
+    confirming: state.acknowledging,
+    errorMessage: state.error,
+    onConfirm,
+    onDismiss() {},
+  });
+
+  const firstDialog = renderDialog();
+  const firstConfirm = findElement(firstDialog, (node) => node.type === 'button');
+  const firstAttempt = firstConfirm.props.onClick();
+  assert.equal(state.acknowledging, true);
+  const busyConfirm = findElement(renderDialog(), (node) => node.type === 'button');
+  assert.equal(busyConfirm.props.disabled, true);
+  assert.equal(busyConfirm.props.children, 'Saving…');
+  await busyConfirm.props.onClick();
+  assert.equal(state.attempts, 1, 'a second click cannot issue a duplicate request');
+
+  rejectFirstAttempt(new Error('temporary connection failure'));
+  await firstAttempt;
+  assert.equal(state.notice, notice, 'the reward remains pending after a failed acknowledgement');
+  assert.equal(state.acknowledging, false);
+  assert.equal(
+    state.error,
+    'Could not save your confirmation. Please try again.',
+  );
+  const failedDialog = renderDialog();
+  const failedHtml = renderToStaticMarkup(failedDialog);
+  const retryButton = findElement(failedDialog, (node) => node.type === 'button');
+  assert.match(failedHtml, /role="alert"/);
+  assert.match(failedHtml, /Could not save your confirmation\. Please try again\./);
+  assert.equal(retryButton.props.children, 'Retry');
+  assert.equal(retryButton.props.disabled, false);
+
+  await retryButton.props.onClick();
+  assert.equal(state.attempts, 2);
+  assert.equal(state.notice, null, 'the popup closes only after the Worker acknowledgement succeeds');
+  assert.equal(state.error, '');
+  assert.equal(JSON.stringify(postCalls), JSON.stringify([
+    ['/api/vip-grants/ack', { claimIds: ['claim-retry'] }],
+    ['/api/vip-grants/ack', { claimIds: ['claim-retry'] }],
+  ]));
+});
 
 test('campaign panel shows duration, eligibility cutoff, claim count and active status', () => {
   const html = renderToStaticMarkup(VipCampaignPanel(props));

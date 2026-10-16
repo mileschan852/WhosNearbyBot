@@ -5,6 +5,8 @@ import {
   FILTER_CYCLE_OPTIONS,
   getEffectiveGenderFilterValues,
   isHkmoDateMenOnlyFilterLocked,
+  matchesDefaultSeekingGender,
+  matchesEntryGenderAccess,
   matchesGenderFilter,
   matchesPlaystyleFilter,
   nextFilterCycleValue,
@@ -40,6 +42,27 @@ test('VIP users and users entering through Who’s Nearby keep their saved gende
   assert.equal(isHkmoDateMenOnlyFilterLocked('botB', false), false);
   assert.deepEqual(getEffectiveGenderFilterValues(savedPreference, 'botA', true), ['woman']);
   assert.deepEqual(getEffectiveGenderFilterValues(savedPreference, 'botB', false), ['woman']);
+});
+
+test('unpaid Who’s Nearby users only see the sex in their seeking preference', () => {
+  assert.equal(matchesDefaultSeekingGender('women', 'woman'), true);
+  assert.equal(matchesDefaultSeekingGender('women', 'man'), false);
+  assert.equal(matchesDefaultSeekingGender('men', 'man'), true);
+  assert.equal(matchesDefaultSeekingGender('men', 'woman'), false);
+  assert.equal(matchesDefaultSeekingGender('everyone', 'man'), true);
+  assert.equal(matchesDefaultSeekingGender('everyone', 'woman'), true);
+
+  assert.equal(matchesEntryGenderAccess('botB', false, false, 'women', 'woman'), true);
+  assert.equal(matchesEntryGenderAccess('botB', false, false, 'women', 'man'), false);
+  assert.equal(matchesEntryGenderAccess('botB', false, false, 'men', 'man'), true);
+  assert.equal(matchesEntryGenderAccess('botB', false, false, 'everyone', 'woman'), true);
+});
+
+test('paid Who’s Nearby filters can override seeking defaults while HKMO Date keeps its men-only lock', () => {
+  assert.equal(matchesEntryGenderAccess('botB', true, false, 'women', 'man'), true);
+  assert.equal(matchesEntryGenderAccess('botA', false, false, 'women', 'man'), true);
+  assert.equal(matchesEntryGenderAccess('botA', false, false, 'women', 'woman'), false);
+  assert.equal(matchesEntryGenderAccess('botA', true, true, 'men', 'woman'), true);
 });
 
 test('persisted gender filters discard invalid values and duplicates', () => {

@@ -171,7 +171,11 @@ function createAppPassFlowHarness(entitlement, clock) {
   const localStorage = createStorage();
   const calls = [];
   const alerts = [];
-  const invoiceStatuses = ['paid', 'cancelled'];
+  let invoiceStatuses = ['paid', 'cancelled'];
+  let nextInvoiceError = null;
+  let deferNextInvoice = false;
+  let deferredInvoiceCallback = null;
+  const invoiceOpenWaiters = [];
   let backendConfirmsEntitlement = false;
   let workerProfileOverride;
   let invoiceCount = 0;
@@ -281,6 +285,12 @@ function createAppPassFlowHarness(entitlement, clock) {
         WebApp: {
           openInvoice(link, callback) {
             calls.push({ path: 'telegram.openInvoice', link });
+            invoiceOpenWaiters.splice(0).forEach((resolve) => resolve());
+            if (deferNextInvoice) {
+              deferNextInvoice = false;
+              deferredInvoiceCallback = callback;
+              return;
+            }
             callback(invoiceStatuses.shift() ?? 'failed');
           },
         },
@@ -314,6 +324,11 @@ function createAppPassFlowHarness(entitlement, clock) {
   environment.workerPost = async (path, body) => {
     calls.push({ path, body });
     if (path === '/create-invoice') {
+      if (nextInvoiceError) {
+        const error = nextInvoiceError;
+        nextInvoiceError = null;
+        throw error;
+      }
       invoiceCount += 1;
       return {
         invoiceLink: `https://t.me/$pass-invoice-${invoiceCount}`,
@@ -352,6 +367,24 @@ function createAppPassFlowHarness(entitlement, clock) {
     localStorage,
     getInvoiceCount: () => invoiceCount,
     getProfileCheckCount: () => profileCheckCount,
+    waitForNextInvoiceOpen() {
+      return new Promise((resolve) => invoiceOpenWaiters.push(resolve));
+    },
+    setInvoiceStatuses(statuses) {
+      invoiceStatuses = [...statuses];
+    },
+    deferNextInvoice() {
+      deferNextInvoice = true;
+    },
+    completeDeferredInvoice(status) {
+      if (!deferredInvoiceCallback) throw new Error('No deferred Telegram invoice is open.');
+      const callback = deferredInvoiceCallback;
+      deferredInvoiceCallback = null;
+      callback(status);
+    },
+    setNextInvoiceError(error) {
+      nextInvoiceError = error;
+    },
     setBackendConfirmsEntitlement(value) {
       backendConfirmsEntitlement = value;
     },
@@ -1031,6 +1064,271 @@ test('App Filter checkout stays pending for stale and mismatched Worker profiles
       harness.calls.filter((call) => call.path === '/create-invoice').map((call) => call.body.type),
       ['change_filter', 'change_filter'],
     );
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('overlapping active Filter renewal taps open one invoice and keep the paid marker intact', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    const harness = createAppPassFlowHarness('filter', clock);
+    const activeExpiry = now + 60 * 24 * 60 * 60 * 1000;
+    const activeProfile = {
+      id: harness.accountId,
+      filter_sub_expiry: new Date(activeExpiry).toISOString(),
+    };
+    harness.environment.applyOwnProfileRef.current(activeProfile);
+    harness.setWorkerProfileOverride(activeProfile);
+    harness.deferNextInvoice();
+
+    const invoiceOpened = harness.waitForNextInvoiceOpen();
+    const firstRenewal = harness.handlers.handleRenewFilterAccess(
+      'active_filter_subscription',
+      true,
+    );
+    await invoiceOpened;
+    assert.equal(
+      harness.calls.filter((call) => call.path === 'telegram.openInvoice').length,
+      1,
+      'the first tap opens one Telegram invoice and leaves it pending',
+    );
+    assert.equal(harness.environment.filterAccessPurchaseInProgressRef.current, true);
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 1, 'a second tap during checkout cannot create an invoice');
+    assert.equal(
+      harness.calls.filter((call) => call.path === '/create-invoice').length,
+      1,
+    );
+
+    harness.completeDeferredInvoice('paid');
+    await firstRenewal;
+
+    const marker = loadPendingAccessRecheck(
+      harness.localStorage,
+      harness.accountId,
+      clock.now,
+    );
+    assert.ok(marker, 'the paid early renewal remains pending while the Worker shows the old expiry');
+    assert.equal(marker.accountId, harness.accountId);
+    assert.equal(marker.allowActiveRenewal, true);
+    assert.equal(marker.minimumExpiry, activeExpiry + 29 * 24 * 60 * 60 * 1000);
+    assert.equal(harness.environment.filterAccessPurchaseInProgressRef.current, false);
+
+    const storedMarker = harness.localStorage.getItem(PENDING_ACCESS_RECHECK_STORAGE_KEY);
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 1, 'an unresolved paid renewal blocks a replacement');
+    assert.equal(
+      harness.localStorage.getItem(PENDING_ACCESS_RECHECK_STORAGE_KEY),
+      storedMarker,
+      'the second tap cannot replace the first renewal marker for this account',
+    );
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('a cancelled active Filter renewal releases the guard for a later attempt', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    const harness = createAppPassFlowHarness('filter', clock);
+    const activeProfile = {
+      id: harness.accountId,
+      filter_sub_expiry: new Date(now + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    harness.environment.applyOwnProfileRef.current(activeProfile);
+    harness.setWorkerProfileOverride(activeProfile);
+    harness.setInvoiceStatuses(['cancelled', 'paid']);
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 1);
+    assert.equal(harness.environment.filterAccessPurchaseInProgressRef.current, false);
+    assert.equal(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      null,
+      'a cancelled invoice does not leave a paid recovery marker',
+    );
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 2, 'the user can start a later renewal after cancellation');
+    assert.equal(
+      harness.calls.filter((call) => call.path === 'telegram.openInvoice').length,
+      2,
+    );
+    assert.ok(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      'a later paid attempt creates its own account-scoped recovery marker',
+    );
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('a recoverable active Filter renewal error releases the guard for a later attempt', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    const harness = createAppPassFlowHarness('filter', clock);
+    const activeProfile = {
+      id: harness.accountId,
+      filter_sub_expiry: new Date(now + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    harness.environment.applyOwnProfileRef.current(activeProfile);
+    harness.setWorkerProfileOverride(activeProfile);
+    harness.setNextInvoiceError(new Error('temporary invoice service error'));
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 0);
+    assert.equal(harness.environment.filterAccessPurchaseInProgressRef.current, false);
+    assert.deepEqual(harness.alerts, ['paymentCancelled']);
+    assert.equal(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      null,
+      'a failed invoice request does not create a paid recovery marker',
+    );
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 1, 'a later attempt can open a new invoice after an error');
+    assert.equal(
+      harness.calls.filter((call) => call.path === 'telegram.openInvoice').length,
+      1,
+    );
+    assert.ok(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      'the later paid attempt creates the pending account marker',
+    );
+  } finally {
+    Date.now = originalDateNow;
+  }
+});
+
+test('App keeps Filter access only through the original expiry while an early renewal awaits Worker confirmation', async () => {
+  const originalDateNow = Date.now;
+  const clock = { now };
+  Date.now = () => clock.now;
+
+  try {
+    const harness = createAppPassFlowHarness('filter', clock);
+    const activeExpiry = now + 60 * 24 * 60 * 60 * 1000;
+    const activeProfile = {
+      id: harness.accountId,
+      filter_sub_expiry: new Date(activeExpiry).toISOString(),
+    };
+    harness.environment.applyOwnProfileRef.current(activeProfile);
+    harness.setWorkerProfileOverride(activeProfile);
+
+    assert.equal(harness.environment.filterAccessActive, true);
+    assert.equal(harness.environment.filterSubscriptionActive, true);
+    assert.equal(harness.environment.filterSubUntil, activeExpiry);
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+
+    assert.equal(harness.getInvoiceCount(), 1, 'an active subscription can be renewed early');
+    assert.equal(
+      harness.calls.filter((call) => call.path === 'telegram.openInvoice').length,
+      1,
+      'Telegram reports the early renewal as paid',
+    );
+    let marker = loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now);
+    assert.ok(marker, 'the paid renewal remains pending until the Worker extends the subscription');
+    assert.equal(marker.minimumExpiry, activeExpiry + 29 * 24 * 60 * 60 * 1000);
+    assert.equal(harness.getProfileCheckCount(), 6, 'the Worker still returns the old expiry');
+    assert.equal(harness.environment.filterSubUntil, activeExpiry);
+    assert.equal(harness.environment.filterSubscriptionActive, true);
+    assert.equal(harness.environment.filterAccessActive, true);
+
+    clock.now = activeExpiry - 1;
+    harness.environment.raffleClock = clock.now;
+    harness.environment.setFilterSubUntil(activeExpiry);
+    assert.equal(
+      harness.environment.filterAccessActive,
+      true,
+      'Filter access remains active through the final instant before the original cutoff',
+    );
+
+    clock.now = activeExpiry;
+    harness.environment.raffleClock = clock.now;
+    harness.environment.setFilterSubUntil(activeExpiry);
+    assert.equal(harness.environment.filterSubscriptionActive, false);
+    assert.equal(
+      harness.environment.filterAccessActive,
+      false,
+      'the pending early renewal does not extend access at the original cutoff',
+    );
+    harness.setWorkerProfileOverride(activeProfile);
+    await harness.handlers.retryPendingPaymentCheck();
+
+    marker = loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now);
+    assert.ok(marker, 'stale Worker expiry leaves the paid renewal pending');
+    assert.equal(
+      harness.environment.filterSubUntil,
+      activeExpiry,
+      'the stale profile does not extend the original subscription expiry',
+    );
+    assert.equal(harness.environment.filterSubscriptionActive, false);
+    assert.equal(
+      harness.environment.filterAccessActive,
+      false,
+      'a stale Worker response for the original expiry cannot restore access',
+    );
+    assert.equal(harness.handlers.hasPendingPaymentVerification(), true);
+
+    clock.now = marker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+    harness.environment.raffleClock = clock.now;
+    harness.environment.setFilterSubUntil(activeExpiry);
+    harness.setWorkerProfileOverride({
+      id: 'tg_202',
+      filter_sub_expiry: new Date(marker.minimumExpiry + 60_000).toISOString(),
+    });
+    await harness.handlers.retryPendingPaymentCheck();
+
+    marker = loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now);
+    assert.ok(marker, 'another account cannot confirm or replace the paid renewal');
+    assert.equal(harness.getInvoiceCount(), 1, 'a pending renewal cannot open a replacement invoice');
+    assert.equal(harness.environment.currentUser.id, harness.accountId);
+    assert.equal(harness.environment.filterSubUntil, activeExpiry);
+    assert.equal(harness.environment.filterSubscriptionActive, false);
+    assert.equal(
+      harness.environment.filterAccessActive,
+      false,
+      'a mismatched Worker profile cannot restore expired access',
+    );
+
+    clock.now = marker.startedAt + ACCESS_RECHECK_TIMEOUT_MS + 1;
+    harness.environment.raffleClock = clock.now;
+    harness.environment.setFilterSubUntil(activeExpiry);
+    harness.setWorkerProfileOverride(undefined);
+    harness.setBackendConfirmsEntitlement(true);
+    await harness.handlers.retryPendingPaymentCheck();
+
+    assert.equal(
+      loadPendingAccessRecheck(harness.localStorage, harness.accountId, clock.now),
+      null,
+      'the matching extended Worker expiry clears the pending renewal',
+    );
+    assert.equal(harness.handlers.hasPendingPaymentVerification(), false);
+    assert.equal(harness.environment.currentUser.id, harness.accountId);
+    assert.equal(harness.environment.filterAccessActive, true);
+    assert.equal(harness.environment.filterSubscriptionActive, true);
+    assert.ok(harness.environment.filterSubUntil > activeExpiry);
+    const confirmedExpiry = harness.environment.filterSubUntil;
+
+    await harness.handlers.handleRenewFilterAccess('active_filter_subscription', true);
+    assert.equal(harness.getInvoiceCount(), 2, 'a later renewal is allowed after the extension is confirmed');
+    assert.deepEqual(
+      harness.calls.filter((call) => call.path === '/create-invoice').map((call) => call.body.type),
+      ['change_filter', 'change_filter'],
+    );
+    assert.equal(harness.environment.filterSubUntil, confirmedExpiry);
   } finally {
     Date.now = originalDateNow;
   }

@@ -25,6 +25,28 @@ export function matchesGenderFilter(filterValues, profileGender) {
   return selectedGenders.length === 0 || selectedGenders.includes(profileGender);
 }
 
+export function matchesDefaultSeekingGender(seeking, profileGender) {
+  if (seeking === 'men') return profileGender === 'man';
+  if (seeking === 'women') return profileGender === 'woman';
+  return true;
+}
+
+export function matchesEntryGenderAccess(
+  botKey,
+  filterAccessActive,
+  vipAccessActive,
+  seeking,
+  profileGender,
+) {
+  if (isHkmoDateMenOnlyFilterLocked(botKey, vipAccessActive)) {
+    return profileGender === 'man';
+  }
+  if (botKey === 'botB' && filterAccessActive !== true) {
+    return matchesDefaultSeekingGender(seeking, profileGender);
+  }
+  return true;
+}
+
 export function nextFilterCycleValue(current, options) {
   if (!current) return options[0] ?? null;
   const index = options.indexOf(current);

@@ -5,6 +5,7 @@ export interface NearbyGridUser {
   distance?: number;
   last_seen?: string | null;
   grid_visible?: boolean;
+  interest_received?: boolean;
 }
 
 export interface NearbyGridModuleProps<User extends NearbyGridUser> {
@@ -15,6 +16,7 @@ export interface NearbyGridModuleProps<User extends NearbyGridUser> {
   formatDistance: (distance?: number) => string;
   onSelectProfile: (user: User) => void;
   t: (key: string) => string;
+  interestLabel: string;
 }
 
 export default function NearbyGridModule<User extends NearbyGridUser>({
@@ -25,6 +27,7 @@ export default function NearbyGridModule<User extends NearbyGridUser>({
   formatDistance,
   onSelectProfile,
   t,
+  interestLabel,
 }: NearbyGridModuleProps<User>) {
   return (
     <div style={{ height: '100%', overflowY: 'auto', flex: 1 }}>
@@ -53,6 +56,17 @@ export default function NearbyGridModule<User extends NearbyGridUser>({
                   onError={(event) => { event.currentTarget.style.display = 'none'; }}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                 />
+              )}
+              {user.interest_received === true && (
+                <div
+                  role="img"
+                  aria-label={interestLabel}
+                  title={interestLabel}
+                  data-testid={`interest-badge-${user.id}`}
+                  style={{ position: 'absolute', top: '4px', left: '4px', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(190, 24, 93, 0.94)', border: '1px solid #fff', borderRadius: '50%', fontSize: '16px', lineHeight: 1, zIndex: 3 }}
+                >
+                  ❤️
+                </div>
               )}
               {online && (
                 <div aria-label="Online" style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />
