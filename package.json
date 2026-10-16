@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/create-shared-gui.mjs",
     "lint": "oxlint",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "preview": "vite preview"
   },
   "dependencies": {
