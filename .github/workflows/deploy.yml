@@ -26,17 +26,21 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Build
+        run: npm run build
+
       - name: Run tests
         run: npm test
 
-      - name: Build
-        run: npm run build
+      - name: Check current HKMO Date loader contract
+        if: github.repository == 'mileschan852/WhosNearbyBot' && github.ref == 'refs/heads/main'
+        run: node scripts/check-hkmodate-loader.mjs
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
