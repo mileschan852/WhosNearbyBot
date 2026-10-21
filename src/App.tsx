@@ -62,7 +62,6 @@ import {
   isLocationSaveConfirmed,
   requestLocationAccess,
 } from './utils/request-location.js';
-import { hasUploadedMainProfileImage } from './utils/profile-image.js';
 import {
   FILTER_CYCLE_OPTIONS,
   getEffectiveGenderFilterValues,
@@ -361,14 +360,6 @@ const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
 const WORKER_REQUEST_TIMEOUT_MS = 12_000;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
-const MAP_PROFILE_PHOTO_REQUIRED_COPY: Record<LangKey, string> = {
-  en: 'Add a profile photo to your Telegram account before using the map.',
-  'zh-CN': '请先为 Telegram 账号设置个人资料照片，再使用地图。',
-  'zh-TW': '請先為 Telegram 帳號設定個人資料照片，再使用地圖。',
-  ja: '地図を使う前に、Telegramアカウントにプロフィール写真を設定してください。',
-  ko: '지도를 사용하기 전에 Telegram 계정에 프로필 사진을 설정해 주세요.',
-  ru: 'Перед использованием карты добавьте фотографию профиля в аккаунт Telegram.',
-};
 type FilterRenewalLocation = 'filter_expiry_notice' | 'filter_access_prompt' | 'filter_option' | 'active_filter_subscription';
 type ProfileInterestCopy = {
   send: string;
@@ -2720,8 +2711,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [view, setView] = useState<'grid' | 'map'>(() => getDefaultDiscoveryView(initialEntry.modules) || 'grid');
   const [hasOpenedMap, setHasOpenedMap] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const hasMainProfileImage = hasUploadedMainProfileImage(currentUser?.avatar);
-  const currentUserRef = useRef<UserProfile | null>(null);
+    const currentUserRef = useRef<UserProfile | null>(null);
   currentUserRef.current = currentUser;
   const currentUserId = currentUser?.id;
   const raffleUserId = currentUserId;
@@ -4930,15 +4920,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const handleToggleMap = async () => {
     if (!mapModuleEnabled || !currentUser) return;
     const nextVal = !mapVisible;
-    if (nextVal && !hasMainProfileImage) {
-      const message = MAP_PROFILE_PHOTO_REQUIRED_COPY[lang];
-      if (window.Telegram?.WebApp?.showAlert) {
-        window.Telegram.WebApp.showAlert(message);
-      } else {
-        window.alert(message);
-      }
-      return;
-    }
     try {
       const result = await workerPost('/api/profile', { profile: { map_visible: nextVal } });
       applyOwnProfile(result.profile);
@@ -6542,15 +6523,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
         {mapModuleEnabled && (
           <div style={{ display: view === 'map' ? 'block' : 'none', height: '100%', width: '100%', position: 'relative', flex: 1, zIndex: 1 }}>
-            {!hasMainProfileImage ? (
-              <div
-                role="status"
-                data-testid="map-photo-required"
-                style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', padding: '24px', color: '#fff', textAlign: 'center', lineHeight: 1.5, boxSizing: 'border-box' }}
-              >
-                <p style={{ maxWidth: '360px' }}>{MAP_PROFILE_PHOTO_REQUIRED_COPY[lang]}</p>
-              </div>
-            ) : (hasOpenedMap || !gridFilterEnabled) && (
+            {(hasOpenedMap || !gridFilterEnabled) && (
             <Suspense fallback={<div role="status" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>{t('map')}</div>}>
               <MapView
                 location={location}
