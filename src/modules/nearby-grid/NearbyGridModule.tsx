@@ -52,7 +52,7 @@ export default function NearbyGridModule<User extends NearbyGridUser>({
               {user.avatar && (
                 <img
                   src={user.avatar}
-                  alt={user.name || ''}
+                  alt={user.name || t('profileImage')}
                   onError={(event) => { event.currentTarget.style.display = 'none'; }}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                 />
@@ -69,7 +69,7 @@ export default function NearbyGridModule<User extends NearbyGridUser>({
                 </div>
               )}
               {online && (
-                <div aria-label="Online" style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />
+                <div role="img" aria-label={t('online')} style={{ position: 'absolute', top: '4px', right: '4px', width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '50%', border: '2px solid #121212', zIndex: 2 }} />
               )}
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px', fontSize: '10px', textAlign: 'center' }}>
                 {isSelf ? t('you') : distanceText}

@@ -12,6 +12,7 @@ interface MapViewProps {
   users: UserProfile[];
   gridVisible: boolean;
   isOnline: (lastSeen?: string | null) => boolean;
+  profileImageLabel: string;
   onSelectProfile: (user: UserProfile) => void;
 }
 
@@ -45,7 +46,13 @@ function safeAvatarUrl(avatar: string): string | null {
   }
 }
 
-function createProfileIcon(user: UserProfile, isEnabled: boolean, isSelf: boolean, isOnline: boolean) {
+function createProfileIcon(
+  user: UserProfile,
+  isEnabled: boolean,
+  isSelf: boolean,
+  isOnline: boolean,
+  profileImageLabel: string,
+) {
   const borderColor = isSelf ? '#00ffff' : (isEnabled ? '#007bff' : '#555');
   const root = document.createElement('div');
   Object.assign(root.style, {
@@ -79,7 +86,7 @@ function createProfileIcon(user: UserProfile, isEnabled: boolean, isSelf: boolea
   if (avatarUrl) {
     const image = document.createElement('img');
     image.src = avatarUrl;
-    image.alt = user.name || 'Profile image';
+    image.alt = user.name || profileImageLabel;
     image.loading = 'lazy';
     Object.assign(image.style, { width: '100%', height: '100%', objectFit: 'cover' });
     avatar.appendChild(image);
@@ -132,6 +139,7 @@ export default function MapView({
   users,
   gridVisible,
   isOnline,
+  profileImageLabel,
   onSelectProfile,
 }: MapViewProps) {
   return (
@@ -157,7 +165,7 @@ export default function MapView({
           <Marker
             key="self-pin"
             position={[location.lat, location.lng]}
-            icon={createProfileIcon(currentUser, gridVisible, true, isOnline(currentUser.last_seen))}
+            icon={createProfileIcon(currentUser, gridVisible, true, isOnline(currentUser.last_seen), profileImageLabel)}
             eventHandlers={{ click: () => onSelectProfile(currentUser) }}
           />
         )}
@@ -167,7 +175,7 @@ export default function MapView({
             <Marker
               key={user.id}
               position={[user.lat, user.lng]}
-              icon={createProfileIcon(user, user.grid_visible !== false, false, isOnline(user.last_seen))}
+              icon={createProfileIcon(user, user.grid_visible !== false, false, isOnline(user.last_seen), profileImageLabel)}
               eventHandlers={{ click: () => onSelectProfile(user) }}
             />
           );
