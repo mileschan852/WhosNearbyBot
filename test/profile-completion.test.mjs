@@ -374,8 +374,18 @@ test('reset profiles reopen completion with the selected entry defaults as valid
 
   assert.match(
     appSource,
-    /else if\s*\(!isFullySetup && !profileSetupWasForfeited\)\s*\{\s*setShowProfileSetup\(true\)/,
-    'an incomplete profile must still require setup unless the user forfeited the reset offer',
+    /else if\s*\(!isFullySetup\)\s*\{\s*setShowProfileSetup\(true\)/,
+    'every incomplete profile must require setup before the app is available',
+  );
+  assert.doesNotMatch(
+    appSource,
+    /profileSetupWasForfeited/,
+    'forfeiting an optional reset offer must not bypass mandatory profile completion',
+  );
+  assert.match(
+    appSource,
+    /if \(decision === 'use_now'\) \{[\s\S]*?setShowProfileSetup\(true\);[\s\S]*?\} else \{[\s\S]*?setShowProfileSetup\(true\);/,
+    'choosing either reset-offer response must keep incomplete users in profile completion',
   );
 });
 
