@@ -142,14 +142,71 @@ const WalletConnectModule = lazy(() =>
   import('./modules/wallet/WalletConnectModule'),
 );
 const HOW_MANY_GROUP_LABELS: Record<string, string> = {
-  en: 'Groups',
-  zh: '群组',
-  'zh-CN': '群组',
-  zhTW: '群組',
-  'zh-TW': '群組',
-  ja: 'グループ',
-  ko: '그룹',
-  ru: 'Группы',
+  en: 'Groups Only',
+  zh: '仅限群组',
+  'zh-CN': '仅限群组',
+  zhTW: '僅限群組',
+  'zh-TW': '僅限群組',
+  ja: 'グループのみ',
+  ko: '그룹 전용',
+  ru: 'Только группы',
+};
+const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
+  title: string;
+  body: string;
+  useNow: string;
+  forfeit: string;
+  failed: string;
+  resetAllConfirm: string;
+}> = {
+  en: {
+    title: 'Free profile update',
+    body: 'You have received one free opportunity to update your profile. Use it now or forfeit it.',
+    useNow: 'Use now',
+    forfeit: 'Forfeit',
+    failed: 'We could not save your choice. Please refresh the app and try again.',
+    resetAllConfirm: 'Reset ALL users? Everyone will receive one free profile update offer on their next login and can use it or forfeit it.',
+  },
+  'zh-CN': {
+    title: '免费更新资料',
+    body: '您获得了一次免费的资料更新机会。请现在使用或放弃。',
+    useNow: '现在使用',
+    forfeit: '放弃',
+    failed: '无法保存您的选择。请刷新应用后重试。',
+    resetAllConfirm: '重置所有用户？所有人下次登录时都会收到一次免费的资料更新机会，可选择使用或放弃。',
+  },
+  'zh-TW': {
+    title: '免費更新資料',
+    body: '您獲得了一次免費的資料更新機會。請現在使用或放棄。',
+    useNow: '現在使用',
+    forfeit: '放棄',
+    failed: '無法儲存您的選擇。請重新整理應用程式後重試。',
+    resetAllConfirm: '重設所有使用者？所有人下次登入時都會收到一次免費的資料更新機會，可選擇使用或放棄。',
+  },
+  ja: {
+    title: 'プロフィール無料更新',
+    body: 'プロフィールを無料で更新できる機会を1回受け取りました。今すぐ利用するか、放棄してください。',
+    useNow: '今すぐ利用',
+    forfeit: '放棄する',
+    failed: '選択を保存できませんでした。アプリを更新して、もう一度お試しください。',
+    resetAllConfirm: '全ユーザーをリセットしますか？次回ログイン時にプロフィールを無料で更新できる機会が1回表示され、利用するか放棄できます。',
+  },
+  ko: {
+    title: '무료 프로필 업데이트',
+    body: '프로필을 한 번 무료로 업데이트할 수 있습니다. 지금 사용하거나 포기하세요.',
+    useNow: '지금 사용',
+    forfeit: '포기',
+    failed: '선택을 저장하지 못했습니다. 앱을 새로고침한 후 다시 시도해 주세요.',
+    resetAllConfirm: '모든 사용자를 초기화할까요? 다음 로그인 시 무료 프로필 업데이트 기회가 한 번 제공되며, 사용하거나 포기할 수 있습니다.',
+  },
+  ru: {
+    title: 'Бесплатное обновление профиля',
+    body: 'Вам доступно одно бесплатное обновление профиля. Используйте его сейчас или откажитесь.',
+    useNow: 'Использовать',
+    forfeit: 'Отказаться',
+    failed: 'Не удалось сохранить выбор. Обновите приложение и попробуйте снова.',
+    resetAllConfirm: 'Сбросить всех пользователей? При следующем входе каждому будет предложено одно бесплатное обновление профиля, которое можно использовать или отклонить.',
+  },
 };
 const FILTER_UI_COPY: Record<LangKey, {
   hideNonMatching: string;
@@ -2425,6 +2482,8 @@ const vipGrantCopy: Record<LangKey, {
 
 export interface UserProfile {
   id: string;
+  profile_update_offer_at?: string | null;
+  profile_completion_skipped_after_reset?: boolean;
   name: string;
   username?: string;
   avatar: string;
@@ -2719,6 +2778,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const verifiedBotKeyRef = useRef<'botA' | 'botB' | null>(null);
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
+  const howManyLabel = (value?: string | null) =>
+    value === 'group' ? (HOW_MANY_GROUP_LABELS[lang] ?? 'Groups Only') : t(value || 'DoesntMatter');
   const [view, setView] = useState<'grid' | 'map'>(() => getDefaultDiscoveryView(initialEntry.modules) || 'grid');
   const [hasOpenedMap, setHasOpenedMap] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -2731,6 +2792,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [isReady, setIsReady] = useState<boolean>(false);
   const [startupError, setStartupError] = useState<string>('');
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
+  const [profileUpdateOfferAt, setProfileUpdateOfferAt] = useState<string | null>(null);
+  const [profileUpdateOfferBusy, setProfileUpdateOfferBusy] = useState(false);
+  const [profileUpdateOfferError, setProfileUpdateOfferError] = useState('');
   const [profileCompletionMissingFields, setProfileCompletionMissingFields] =
     useState<ProfileCompletionMissingFields>({
       dob: true,
@@ -3677,7 +3741,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   fetchUsersDataRef.current = fetchUsersData;
 
   useEffect(() => {
-    if (!currentUser?.id || !isReady || showProfileSetup) return;
+    if (!currentUser?.id || !isReady || showProfileSetup || profileUpdateOfferAt) return;
     const refreshNearby = () => {
       if (document.visibilityState === 'visible') {
         void fetchUsersDataRef.current?.();
@@ -3689,7 +3753,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', refreshNearby);
     };
-  }, [currentUser?.id, isReady, showProfileSetup]);
+  }, [currentUser?.id, isReady, showProfileSetup, profileUpdateOfferAt]);
 
   useEffect(() => {
     const initApp = async () => {
@@ -3751,6 +3815,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         const userId = existingProfile.id;
         const userName = existingProfile.name || tgUser?.first_name || 'Anonymous';
         const userAvatar = existingProfile.avatar || '';
+        const pendingProfileUpdateOfferAt =
+          typeof existingProfile.profile_update_offer_at === 'string' &&
+          Number.isFinite(Date.parse(existingProfile.profile_update_offer_at))
+            ? existingProfile.profile_update_offer_at
+            : null;
+        const profileSetupWasForfeited =
+          existingProfile.profile_completion_skipped_after_reset === true;
         if (existingProfile.is_underage) { setIsUnderageLocked(true); setIsReady(true); return; }
         const fix = await requestLocationAccess(navigator.geolocation);
         if (!fix) {
@@ -3838,11 +3909,40 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           }
         }
         const currentLoc = fix;
-        if (!isFullySetup) {
+        const myProfile: UserProfile = {
+          id: userId,
+          name: userName,
+          username: userUsername,
+          avatar: userAvatar,
+          lat: currentLoc.lat,
+          lng: currentLoc.lng,
+          last_seen: new Date().toISOString(),
+          gender: initialGender,
+          seeking: initialSeeking,
+          dob: existingProfile.dob,
+          height: existingProfile.height,
+          weight: existingProfile.weight,
+          role_pref: isManSeekingMan ? existingProfile.role_pref : null,
+          safety_pref: isManSeekingMan ? existingProfile.safety_pref : null,
+          playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null,
+          where_pref: isManSeekingMan ? existingProfile.where_pref : null,
+          how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null,
+          non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode,
+          is_underage: false,
+          hide_age: existingProfile.hide_age || false,
+          grid_visible: initialGridVisible,
+          map_visible: existingProfile.map_visible ?? false,
+          hide_age_expiry: existingProfile.hide_age_expiry || null,
+          invisible_expiry: invisibilityPassExpired ? null : existingProfile.invisible_expiry || null,
+          vip_expiry: existingProfile.vip_expiry || null,
+        };
+        if (pendingProfileUpdateOfferAt) {
+          setProfileUpdateOfferAt(pendingProfileUpdateOfferAt);
+          setCurrentUser(myProfile);
+        } else if (!isFullySetup && !profileSetupWasForfeited) {
           setShowProfileSetup(true);
           setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null, vip_expiry: existingProfile?.vip_expiry || null });
         } else {
-          const myProfile: UserProfile = { id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: currentLoc.lat, lng: currentLoc.lng, last_seen: new Date().toISOString(), gender: initialGender, seeking: initialSeeking, dob: existingProfile.dob, height: existingProfile.height, weight: existingProfile.weight, role_pref: isManSeekingMan ? existingProfile.role_pref : null, safety_pref: isManSeekingMan ? existingProfile.safety_pref : null, playstyle_pref: isManSeekingMan ? existingProfile.playstyle_pref : null, where_pref: isManSeekingMan ? existingProfile.where_pref : null, how_many_pref: isManSeekingMan ? existingProfile.how_many_pref : null, non_man_mode: isManSeekingMan ? null : existingProfile.non_man_mode, is_underage: false, hide_age: existingProfile.hide_age || false, grid_visible: initialGridVisible, map_visible: existingProfile.map_visible ?? false, hide_age_expiry: existingProfile.hide_age_expiry || null, invisible_expiry: invisibilityPassExpired ? null : existingProfile.invisible_expiry || null, vip_expiry: existingProfile.vip_expiry || null };
           setCurrentUser(myProfile);
           // The existing profile is enough to show the app. Nearby results
           // and the saved location refresh can finish after the first render.
@@ -4000,6 +4100,30 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       await fetchUsersData();
     } catch (error) {
       setErrorMessage(`${t('errorSaving')} ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleProfileUpdateOfferDecision = async (decision: 'use_now' | 'forfeit') => {
+    if (!profileUpdateOfferAt || profileUpdateOfferBusy) return;
+    setProfileUpdateOfferBusy(true);
+    setProfileUpdateOfferError('');
+    try {
+      await workerPost('/api/profile-update-offer/resolve', {
+        decision,
+        offer_at: profileUpdateOfferAt,
+      });
+      setProfileUpdateOfferAt(null);
+      if (decision === 'use_now') {
+        setErrorMessage('');
+        setShowProfileSetup(true);
+      } else {
+        setShowProfileSetup(false);
+        void fetchUsersData();
+      }
+    } catch {
+      setProfileUpdateOfferError(PROFILE_UPDATE_OFFER_COPY[lang].failed);
+    } finally {
+      setProfileUpdateOfferBusy(false);
     }
   };
 
@@ -6114,7 +6238,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const handleResetAll = async () => {
     const copy = adminProfileActionCopy[lang];
-    if (!window.confirm(copy.resetAllConfirm)) return;
+    if (!window.confirm(PROFILE_UPDATE_OFFER_COPY[lang].resetAllConfirm)) return;
     try {
       await workerPost('/api/reset-all');
       setShowAdminMenu(false);
@@ -6321,6 +6445,63 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         </Suspense>
       )}
 
+      {isReady && profileUpdateOfferAt && !showProfileSetup && !showProfileEditModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-update-offer-title"
+          aria-describedby="profile-update-offer-description"
+          data-testid="profile-update-offer-dialog"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 11000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            backgroundColor: 'rgba(0, 0, 0, 0.82)',
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: '420px', padding: '24px', boxSizing: 'border-box', border: '1px solid #444', borderRadius: '14px', backgroundColor: '#1e1e1e', textAlign: 'center', boxShadow: '0 16px 48px rgba(0,0,0,0.55)' }}>
+            <h2 id="profile-update-offer-title" style={{ margin: '0 0 12px', color: '#fff', fontSize: '20px' }}>
+              {PROFILE_UPDATE_OFFER_COPY[lang].title}
+            </h2>
+            <p id="profile-update-offer-description" style={{ margin: '0 0 22px', color: '#d1d5db', fontSize: '15px', lineHeight: 1.5 }}>
+              {PROFILE_UPDATE_OFFER_COPY[lang].body}
+            </p>
+            {profileUpdateOfferError && (
+              <div role="alert" style={{ marginBottom: '14px', color: '#fca5a5', fontSize: '13px' }}>
+                {profileUpdateOfferError}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                autoFocus
+                data-testid="profile-update-offer-use-now"
+                onClick={() => { void handleProfileUpdateOfferDecision('use_now'); }}
+                disabled={profileUpdateOfferBusy}
+                aria-busy={profileUpdateOfferBusy}
+                style={{ minHeight: '44px', padding: '10px 16px', border: '1px solid #60a5fa', borderRadius: '8px', backgroundColor: profileUpdateOfferBusy ? '#374151' : '#2563eb', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: profileUpdateOfferBusy ? 'wait' : 'pointer' }}
+              >
+                {PROFILE_UPDATE_OFFER_COPY[lang].useNow}
+              </button>
+              <button
+                type="button"
+                data-testid="profile-update-offer-forfeit"
+                onClick={() => { void handleProfileUpdateOfferDecision('forfeit'); }}
+                disabled={profileUpdateOfferBusy}
+                aria-busy={profileUpdateOfferBusy}
+                style={{ minHeight: '44px', padding: '10px 16px', border: '1px solid #4b5563', borderRadius: '8px', backgroundColor: '#2a2a2a', color: '#fff', fontSize: '15px', fontWeight: 600, cursor: profileUpdateOfferBusy ? 'wait' : 'pointer' }}
+              >
+                {PROFILE_UPDATE_OFFER_COPY[lang].forfeit}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
@@ -6449,7 +6630,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                       filterHowManyVal === '1on1'
                         ? t('1on1')
                         : filterHowManyVal === 'group'
-                          ? (HOW_MANY_GROUP_LABELS[lang] ?? 'Groups')
+                          ? (HOW_MANY_GROUP_LABELS[lang] ?? 'Groups Only')
                           : t('DoesntMatter')
                     }`}
                     aria-pressed={filterHowManyVal !== DEFAULT_HOW_MANY_FILTER}
@@ -6472,7 +6653,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     {filterHowManyVal === '1on1'
                       ? formatTagText(t('1on1'))
                       : filterHowManyVal === 'group'
-                        ? (HOW_MANY_GROUP_LABELS[lang] ?? 'Groups')
+                        ? (HOW_MANY_GROUP_LABELS[lang] ?? 'Groups Only')
                         : t('DoesntMatter')}
                   </button>
                   <button type="button" onClick={() => handleToggleFilterValue('where')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterWhereVal && filterWhereVal !== 'Off' ? '#d97706' : '#2a2a2a', color: '#fff', border: filterWhereVal && filterWhereVal !== 'Off' ? '1px solid #d97706' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterWhereVal && filterWhereVal !== 'Off' ? 1 : 0.45, filter: filterWhereVal && filterWhereVal !== 'Off' ? 'none' : 'grayscale(100%)' }}>{filterWhereVal && filterWhereVal !== 'Off' ? formatTagText(t(filterWhereVal)) : t('Anywhere')}</button>
@@ -6592,7 +6773,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           <div style={{ position: 'relative', backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             {!isViewingSelf && (
               <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} data-testid="button-private-note" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('privateNote')} aria-label={t('privateNote')}>📝</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} data-testid="button-private-note" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('privateNote')} aria-label={t('privateNote')}><span style={{ fontSize: '8px', lineHeight: 1 }}>📝</span></button>
               </div>
             )}
             {!isViewingSelf && isAdmin && (
@@ -6600,7 +6781,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 data-testid="admin-profile-actions"
                 style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 5, display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '6px', maxWidth: 'calc(100% - 64px)' }}
               >
-                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} data-testid="admin-force-reset-profile" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('forceReset')} aria-label={t('forceReset')}>🔁</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} data-testid="admin-force-reset-profile" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('forceReset')} aria-label={t('forceReset')}><span style={{ fontSize: '8px', lineHeight: 1 }}>🔁</span></button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); void handleForceSwapSex(); }}
@@ -6610,7 +6791,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                   title={activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? adminProfileActionCopy[lang].swapSexButton : adminProfileActionCopy[lang].swapSexUnavailable}
                   aria-label={adminProfileActionCopy[lang].swapSexButton}
                 >
-                  ♂️🔄♀️
+                  <span style={{ fontSize: '9px', lineHeight: 1 }}>♂️🔄♀️</span>
                 </button>
               </div>
             )}
@@ -6621,7 +6802,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             )}
             {isViewingSelf && isAdmin && (
               <div style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 6 }}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setShowAdminMenu((v) => !v); }} style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#4b5563', border: '1px solid #6b7280', borderRadius: '6px', fontSize: '16px', color: '#fff', cursor: 'pointer', lineHeight: 1 }} title={t('adminMenu')} aria-label={t('adminMenu')}>⚙</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setShowAdminMenu((v) => !v); }} style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#4b5563', border: '1px solid #6b7280', borderRadius: '6px', fontSize: '16px', color: '#fff', cursor: 'pointer', lineHeight: 1 }} title={t('adminMenu')} aria-label={t('adminMenu')}><span style={{ fontSize: '8px', lineHeight: 1 }}>⚙</span></button>
                 {showAdminMenu && (
                   <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: '34px', left: 0, backgroundColor: '#1e1e1e', border: '1px solid #444', borderRadius: '8px', padding: '6px', minWidth: '210px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <button type="button" onClick={() => { setShowAdminMenu(false); setShowVipPeriods(false); setShowRolesModal(true); loadRoles(); }} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('adminVipList')}</button>
@@ -6752,7 +6933,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               <h2 style={{ fontSize: '20px', marginBottom: '6px', color: '#ffffff', fontWeight: 'bold' }}>{activeProfile.name}</h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {!activeProfile.hide_age && (typeof activeProfile.age === 'number' ? activeProfile.age : calculateAge(activeProfile.dob)) && <span>{typeof activeProfile.age === 'number' ? activeProfile.age : calculateAge(activeProfile.dob)}</span>}
-                {activeProfile.zodiac || getZodiacSignEmoji(activeProfile.dob)}<span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span>
+                <span style={{ fontSize: '6.5px', lineHeight: 1 }}>{activeProfile.zodiac || getZodiacSignEmoji(activeProfile.dob)}</span><span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {isViewingSelf ? <span>&nbsp;</span> : <><span>{formatDistanceBigUnit(activeProfile.distance)} {t('away')}</span><span>&bull;</span></>}<span style={{ color: '#4ade80' }}>{renderLastSeenBigUnit(formatLastSeenBigUnit(activeProfile.last_seen), t)}</span>
@@ -6803,7 +6984,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     <button type="button" onClick={async () => { if (currentUser?.playstyle_pref !== 'Party' && currentUser?.playstyle_pref !== 'Party✓') return; const nextPlaystyle = playstylePref === 'Party✓' ? 'Party' : 'Party✓'; setPlaystylePref(nextPlaystyle); setFilterPlaystyleVal(nextPlaystyle); const updated = { ...activeProfile, playstyle_pref: nextPlaystyle }; setSelectedProfile(updated); await handleUpdateSelfField({ playstyle_pref: nextPlaystyle }); if (nextPlaystyle === 'Party✓') { setShowStuffBubble(true); setTimeout(() => setShowStuffBubble(false), 3000); } }} style={{ width: '100%', padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: (currentUser?.playstyle_pref === 'Party' || currentUser?.playstyle_pref === 'Party✓') ? 1 : 0.4 }}>{formatTagText(t(playstylePref))}</button>
                     {showStuffBubble && (<div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#ffffff', color: '#000000', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 20 }}>{t('iGotStuff')}<div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', borderWidth: '4px', borderStyle: 'solid', borderColor: '#ffffff transparent transparent transparent' }} /></div>)}
                   </div>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesPlaystyle(filterPlaystyleVal, activeProfile.playstyle_pref || 'Clean') ? 1 : 0.3, filter: tagMatchesPlaystyle(filterPlaystyleVal, activeProfile.playstyle_pref || 'Clean') ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.playstyle_pref || 'Clean'))}</div>)}
-                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: (isViewingSelf ? false : tagMatchesHowMany(filterHowManyVal, activeProfile.how_many_pref || 'DoesntMatter')) ? 1 : 0.3, filter: (isViewingSelf ? false : tagMatchesHowMany(filterHowManyVal, activeProfile.how_many_pref || 'DoesntMatter')) ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.how_many_pref || 'DoesntMatter'))}</div>
+                  <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#9333ea', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: (isViewingSelf ? false : tagMatchesHowMany(filterHowManyVal, activeProfile.how_many_pref || 'DoesntMatter')) ? 1 : 0.3, filter: (isViewingSelf ? false : tagMatchesHowMany(filterHowManyVal, activeProfile.how_many_pref || 'DoesntMatter')) ? 'none' : 'grayscale(100%)' }}>{formatTagText(howManyLabel(activeProfile.how_many_pref))}</div>
                   {isViewingSelf ? (<button type="button" onClick={async () => { const nextWhere = wherePref === 'Host' ? 'Travel' : (wherePref === 'Travel' ? null : 'Host'); setWherePref(nextWhere); const updated = { ...activeProfile, where_pref: nextWhere }; setSelectedProfile(updated); await handleUpdateSelfField({ where_pref: nextWhere }); }} style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: 1 }}>{formatTagText(wherePref === null ? t('Anywhere') : t(wherePref))}</button>) : (<div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#d97706', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: tagMatchesWhere(filterWhereVal, activeProfile.where_pref || null) ? 1 : 0.3, filter: tagMatchesWhere(filterWhereVal, activeProfile.where_pref || null) ? 'none' : 'grayscale(100%)' }}>{formatTagText(activeProfile.where_pref ? t(activeProfile.where_pref) : t('Anywhere'))}</div>)}
                 </div>
               )}
@@ -6852,7 +7033,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                       gap: '6px',
                     }}
                   >
-                    <span aria-hidden="true" style={{ flexShrink: 0 }}>❤️</span>
+                    <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '6.5px', lineHeight: 1 }}>❤️</span>
                     <span style={{ minWidth: 0, textAlign: 'center', lineHeight: 1.15 }}>
                       {activeInterestButtonText}
                     </span>
