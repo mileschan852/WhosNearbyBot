@@ -30,6 +30,14 @@ export function matchesDefaultSeekingGender(
   profileGender: string | null | undefined,
 ): boolean;
 
+export function matchesMutualSeekingVisibility(
+  viewerGender: string | null | undefined,
+  viewerSeeking: string | null | undefined,
+  profileGender: string | null | undefined,
+  profileSeeking: string | null | undefined,
+  viewerGenderFilterValues?: readonly string[] | null,
+): boolean;
+
 export function matchesEntryGenderAccess(
   botKey: string | null | undefined,
   filterAccessActive: boolean,
