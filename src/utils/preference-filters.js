@@ -31,6 +31,31 @@ export function matchesDefaultSeekingGender(seeking, profileGender) {
   return true;
 }
 
+export function matchesMutualSeekingVisibility(
+  viewerGender,
+  viewerSeeking,
+  profileGender,
+  profileSeeking,
+  viewerGenderFilterValues = null,
+) {
+  const validGenders = new Set(['man', 'woman', 'non-binary']);
+  const validSeekingValues = new Set(['men', 'women', 'everyone']);
+  const normalizedViewerGender = typeof viewerGender === 'string' ? viewerGender.trim().toLowerCase() : '';
+  const normalizedProfileGender = typeof profileGender === 'string' ? profileGender.trim().toLowerCase() : '';
+  const normalizedViewerSeeking = typeof viewerSeeking === 'string' ? viewerSeeking.trim().toLowerCase() : '';
+  const normalizedProfileSeeking = typeof profileSeeking === 'string' ? profileSeeking.trim().toLowerCase() : '';
+
+  if (!validGenders.has(normalizedViewerGender) || !validGenders.has(normalizedProfileGender)) return false;
+  if (!validSeekingValues.has(normalizedProfileSeeking)) return false;
+  if (!Array.isArray(viewerGenderFilterValues) && !validSeekingValues.has(normalizedViewerSeeking)) return false;
+
+  const viewerCanSeeProfile = Array.isArray(viewerGenderFilterValues)
+    ? matchesGenderFilter(viewerGenderFilterValues, normalizedProfileGender)
+    : matchesDefaultSeekingGender(normalizedViewerSeeking, normalizedProfileGender);
+  const profileCanSeeViewer = matchesDefaultSeekingGender(normalizedProfileSeeking, normalizedViewerGender);
+  return viewerCanSeeProfile && profileCanSeeViewer;
+}
+
 export function matchesEntryGenderAccess(
   botKey,
   filterAccessActive,

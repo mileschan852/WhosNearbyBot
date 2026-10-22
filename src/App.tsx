@@ -67,6 +67,7 @@ import {
   getEffectiveGenderFilterValues,
   isHkmoDateMenOnlyFilterLocked,
   matchesEntryGenderAccess,
+  matchesMutualSeekingVisibility,
   matchesGenderFilter,
   matchesPlaystyleFilter,
   nextFilterCycleValue,
@@ -5097,6 +5098,15 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const passesMandatoryGenderAccess = (user: UserProfile) => {
     if (currentUser && user.id === currentUser.id) return true;
     const botKey = verifiedBotKeyRef.current || entry.botKey;
+    if (botKey === 'botB') {
+      return matchesMutualSeekingVisibility(
+        currentUser?.gender,
+        currentUser?.seeking ?? seeking,
+        user.gender,
+        user.seeking,
+        filterAccessActive || vipEntitlementActive ? effectiveFilterGenderVals : null,
+      );
+    }
     return matchesEntryGenderAccess(
       botKey,
       filterAccessActive,
