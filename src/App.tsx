@@ -373,7 +373,7 @@ type ProfileInterestCopy = {
 
 const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
   en: {
-    send: 'Send interest',
+    send: 'Interested',
     sending: 'Sending interest…',
     sent: 'Interest sent. It will be visible for 24 hours.',
     cooldown: 'You can send interest to this profile again after 24 hours.',
@@ -382,7 +382,7 @@ const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
     received: 'Interested in you',
   },
   'zh-CN': {
-    send: '表达兴趣',
+    send: '感兴趣',
     sending: '正在发送…',
     sent: '已发送兴趣，对方可在 24 小时内看到。',
     cooldown: '24 小时后可以再次向此用户表达兴趣。',
@@ -391,7 +391,7 @@ const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
     received: '对你感兴趣',
   },
   'zh-TW': {
-    send: '表達興趣',
+    send: '摟屌',
     sending: '正在傳送…',
     sent: '已傳送興趣，對方可在 24 小時內看到。',
     cooldown: '24 小時後可以再次向此用戶表達興趣。',
@@ -400,7 +400,7 @@ const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
     received: '對你有興趣',
   },
   ja: {
-    send: '興味を伝える',
+    send: '興味あり',
     sending: '送信中…',
     sent: '興味を送りました。24時間表示されます。',
     cooldown: 'このプロフィールには24時間後に再度送信できます。',
@@ -409,7 +409,7 @@ const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
     received: 'あなたに興味があります',
   },
   ko: {
-    send: '관심 보내기',
+    send: '관심 있음',
     sending: '보내는 중…',
     sent: '관심을 보냈습니다. 24시간 동안 표시됩니다.',
     cooldown: '24시간 후에 이 프로필에 다시 관심을 보낼 수 있습니다.',
@@ -418,7 +418,7 @@ const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
     received: '회원님에게 관심이 있습니다',
   },
   ru: {
-    send: 'Выразить интерес',
+    send: 'Интересно',
     sending: 'Отправляем…',
     sent: 'Интерес отправлен и будет виден 24 часа.',
     cooldown: 'Повторно выразить интерес этому профилю можно через 24 часа.',
@@ -427,6 +427,16 @@ const PROFILE_INTEREST_COPY: Record<LangKey, ProfileInterestCopy> = {
     received: 'Интересуется вами',
   },
 };
+
+function formatProfileInterestCountdown(remainingMs: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
+}
 
 type ScreenHelpSection = { title: string; description: string };
 type ScreenHelpCopy = {
@@ -6154,6 +6164,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     : NaN;
   const activeInterestCoolingDown = Number.isFinite(activeInterestCooldownUntil) &&
     activeInterestCooldownUntil > raffleClock;
+  const activeInterestCountdown = activeInterestCoolingDown
+    ? formatProfileInterestCountdown(activeInterestCooldownUntil - raffleClock)
+    : '';
+  const activeInterestButtonText = interestSendingTo === activeProfile?.id
+    ? profileInterestCopy.sending
+    : activeInterestCoolingDown
+      ? `${profileInterestCopy.send} · ${activeInterestCountdown}`
+      : profileInterestCopy.send;
+  const activeInterestAccessibleLabel = activeProfile?.interest_state_known !== true
+    ? profileInterestCopy.unavailable
+    : activeInterestCoolingDown
+      ? `${profileInterestCopy.cooldown} ${activeInterestCountdown}`
+      : interestSendingTo === activeProfile?.id
+        ? profileInterestCopy.sending
+        : profileInterestCopy.send;
   const activeInterestFeedbackMessage = activeProfile && interestFeedback?.profileId === activeProfile.id
     ? profileInterestCopy[interestFeedback.state]
     : '';
@@ -6770,7 +6795,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 </div>
               )}
               {!isViewingSelf && passesFilterForActive && (
-                <div style={{ width: '100%', marginTop: '20px' }}>
+                <div
+                  data-testid={`profile-actions-${activeProfile.id}`}
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', width: '100%', marginTop: '20px' }}
+                >
                   <button
                     type="button"
                     onClick={(event) => { event.stopPropagation(); void handleSendInterest(activeProfile); }}
@@ -6781,27 +6809,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                       activeProfile.interest_state_known !== true
                     }
                     aria-busy={interestSendingTo === activeProfile.id}
-                    aria-label={
-                      activeProfile.interest_state_known !== true
-                        ? profileInterestCopy.unavailable
-                        : activeInterestCoolingDown
-                          ? profileInterestCopy.cooldown
-                          : interestSendingTo === activeProfile.id
-                            ? profileInterestCopy.sending
-                            : profileInterestCopy.send
-                    }
-                    title={
-                      activeProfile.interest_state_known !== true
-                        ? profileInterestCopy.unavailable
-                        : activeInterestCoolingDown
-                          ? profileInterestCopy.cooldown
-                          : profileInterestCopy.send
-                    }
+                    aria-label={activeInterestAccessibleLabel}
+                    title={activeInterestAccessibleLabel}
                     data-testid={`button-send-interest-${activeProfile.id}`}
                     style={{
-                      width: '100%',
-                      minHeight: '46px',
-                      padding: '10px',
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      minHeight: '48px',
+                      padding: '10px 8px',
                       backgroundColor: activeInterestCoolingDown || activeProfile.interest_state_known !== true
                         ? '#374151'
                         : '#be123c',
@@ -6810,32 +6825,66 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                         : '#fff',
                       border: 'none',
                       borderRadius: '6px',
-                      fontSize: '22px',
+                      fontSize: '13px',
+                      fontWeight: 700,
                       cursor: interestSendingTo || activeInterestCoolingDown || activeProfile.interest_state_known !== true
                         ? 'not-allowed'
                         : 'pointer',
                       opacity: interestSendingTo || activeInterestCoolingDown || activeProfile.interest_state_known !== true
                         ? 0.65
                         : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
                     }}
                   >
-                    ❤️
+                    <span aria-hidden="true" style={{ flexShrink: 0 }}>❤️</span>
+                    <span style={{ minWidth: 0, textAlign: 'center', lineHeight: 1.15 }}>
+                      {activeInterestButtonText}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStartChat(activeProfile)}
+                    data-testid={`button-message-profile-${activeProfile.id}`}
+                    style={{
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      minHeight: '48px',
+                      padding: '10px 8px',
+                      backgroundColor: '#0088cc',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      lineHeight: 1.15,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <path d="m3 7 9 6 9-6" />
+                    </svg>
+                    <span>{t('sendMessage')}</span>
                   </button>
                   {activeInterestStatusMessage && (
                     <div
                       role="status"
                       data-testid={`status-interest-${activeProfile.id}`}
-                      style={{ marginTop: '6px', color: '#d1d5db', fontSize: '12px', textAlign: 'center' }}
+                      style={{ flexBasis: '100%', marginTop: '0', color: '#d1d5db', fontSize: '12px', textAlign: 'center' }}
                     >
                       {activeInterestStatusMessage}
                     </div>
                   )}
                 </div>
               )}
-              {!isViewingSelf && passesFilterForActive && (<button type="button" onClick={() => handleStartChat(activeProfile)} style={{ marginTop: '12px', width: '100%', padding: '14px', backgroundColor: '#0088cc', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                {t('sendMessage')}
-              </button>)}
             </div>
           </div>
         </div>

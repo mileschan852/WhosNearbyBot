@@ -14,6 +14,25 @@ test("the profile-card heart sends the signed-in user's interest and consumes th
   assert.match(appSource, /interest_cooldown_until:\s*cooldownUntil/);
   assert.match(appSource, /data-testid=\{`button-send-interest-\$\{activeProfile\.id\}`\}/);
   assert.match(appSource, /activeInterestCoolingDown/);
+  assert.match(appSource, /formatProfileInterestCountdown/);
+  assert.match(appSource, /activeInterestButtonText/);
+  assert.match(appSource, /profileInterestCopy\.send.*activeInterestCountdown/);
+});
+
+test("the profile-card heart and mail actions share one responsive row", () => {
+  const actionsStart = appSource.indexOf('data-testid={`profile-actions-${activeProfile.id}`}');
+  const actionsEnd = appSource.indexOf('data-testid={`status-interest-${activeProfile.id}`}', actionsStart);
+  assert.notEqual(actionsStart, -1);
+  assert.notEqual(actionsEnd, -1);
+  const actions = appSource.slice(actionsStart, actionsEnd);
+  assert.match(actions, /button-send-interest-/);
+  assert.match(actions, /button-message-profile-/);
+  assert.match(actions, /<rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\" />/);
+  assert.match(actions, /flex: '1 1 0'/);
+});
+
+test("Traditional Chinese uses the requested heart-button wording", () => {
+  assert.match(appSource, /'zh-TW': \{\s*send: '摟屌'/);
 });
 
 test("incoming interest appears as an accessible heart badge at the top-left of the grid photo", () => {
