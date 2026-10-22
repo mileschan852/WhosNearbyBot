@@ -112,6 +112,8 @@ function readAppConstant(name) {
 }
 
 const appTranslations = readAppConstant('translations');
+const howManyGroupLabels = readAppConstant('HOW_MANY_GROUP_LABELS');
+const profileUpdateOfferCopy = readAppConstant('PROFILE_UPDATE_OFFER_COPY');
 const screenCopies = Object.fromEntries(
   SCREEN_COPY_CONSTANTS.map((name) => [name, readAppConstant(name)]),
 );
@@ -171,6 +173,33 @@ test('all app labels cover six languages without missing, garbled, or raw-key co
       );
     }
   }
+});
+
+test('group-only profile/filter labels and reset-offer copy are complete in every language', () => {
+  const groupLabels = {
+    en: 'Groups Only',
+    'zh-CN': '仅限群组',
+    'zh-TW': '僅限群組',
+    ja: 'グループのみ',
+    ko: '그룹 전용',
+    ru: 'Только группы',
+  };
+  const offerFields = ['title', 'body', 'useNow', 'forfeit', 'failed', 'resetAllConfirm'];
+  assert.deepEqual(Object.keys(profileUpdateOfferCopy).sort(), [...LANGUAGES].sort());
+
+  for (const language of LANGUAGES) {
+    assert.equal(howManyGroupLabels[language], groupLabels[language]);
+    assert.deepEqual(Object.keys(profileUpdateOfferCopy[language]).sort(), [...offerFields].sort());
+    for (const value of Object.values(profileUpdateOfferCopy[language])) {
+      assert.ok(value.trim(), `${language} reset-offer copy should not be empty`);
+    }
+  }
+
+  assert.match(appSource, /howManyLabel\(activeProfile\.how_many_pref\)/);
+  assert.match(appSource, /data-testid="profile-update-offer-dialog"/);
+  assert.match(appSource, /api\/profile-update-offer\/resolve/);
+  assert.match(appSource, /if \(pendingProfileUpdateOfferAt\)/);
+  assert.match(appSource, /profileSetupWasForfeited/);
 });
 
 test('screen-specific copy is complete and valid in every supported language', () => {
