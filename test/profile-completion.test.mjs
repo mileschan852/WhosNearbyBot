@@ -374,8 +374,8 @@ test('reset profiles reopen completion with the selected entry defaults as valid
 
   assert.match(
     appSource,
-    /if\s*\(!isFullySetup\)\s*\{\s*setShowProfileSetup\(true\)/,
-    'an incomplete reset profile must reopen the profile-completion flow',
+    /else if\s*\(!isFullySetup && !profileSetupWasForfeited\)\s*\{\s*setShowProfileSetup\(true\)/,
+    'an incomplete profile must still require setup unless the user forfeited the reset offer',
   );
 });
 
