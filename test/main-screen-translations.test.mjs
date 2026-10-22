@@ -199,7 +199,8 @@ test('group-only profile/filter labels and reset-offer copy are complete in ever
   assert.match(appSource, /data-testid="profile-update-offer-dialog"/);
   assert.match(appSource, /api\/profile-update-offer\/resolve/);
   assert.match(appSource, /if \(pendingProfileUpdateOfferAt\)/);
-  assert.match(appSource, /profileSetupWasForfeited/);
+  assert.match(appSource, /else if\s*\(!isFullySetup\)\s*\{\s*setShowProfileSetup\(true\)/);
+  assert.doesNotMatch(appSource, /profileSetupWasForfeited/);
 });
 
 test('screen-specific copy is complete and valid in every supported language', () => {
