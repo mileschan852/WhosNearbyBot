@@ -6581,24 +6581,27 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         >
           <div style={{ position: 'relative', backgroundColor: '#1e1e1e', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', padding: '24px 20px 40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             {!isViewingSelf && (
-              <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} style={{ padding: '2px 8px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title={t('privateNote')}>📝</button>
-                {isAdmin && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} style={{ padding: '2px 8px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }} title={t('forceReset')} aria-label={t('forceReset')}>🔁</button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); void handleForceSwapSex(); }}
-                      disabled={activeProfile.gender !== 'man' && activeProfile.gender !== 'woman'}
-                      data-testid="admin-force-swap-sex"
-                      style={{ padding: '4px 6px', backgroundColor: '#7c2d12', border: '1px solid #9a3412', borderRadius: '6px', color: '#fff', fontSize: '10px', whiteSpace: 'nowrap', cursor: activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? 'pointer' : 'not-allowed', opacity: activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? 1 : 0.55 }}
-                      title={activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? adminProfileActionCopy[lang].swapSexButton : adminProfileActionCopy[lang].swapSexUnavailable}
-                      aria-label={adminProfileActionCopy[lang].swapSexButton}
-                    >
-                      {adminProfileActionCopy[lang].swapSexButton}
-                    </button>
-                  </div>
-                )}
+              <div style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setShowNoteBox((v) => !v); }} data-testid="button-private-note" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: noteDraft ? '#b45309' : '#2a2a2a', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('privateNote')} aria-label={t('privateNote')}>📝</button>
+              </div>
+            )}
+            {!isViewingSelf && isAdmin && (
+              <div
+                data-testid="admin-profile-actions"
+                style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 5, display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '6px', maxWidth: 'calc(100% - 64px)' }}
+              >
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} data-testid="admin-force-reset-profile" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('forceReset')} aria-label={t('forceReset')}>🔁</button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); void handleForceSwapSex(); }}
+                  disabled={activeProfile.gender !== 'man' && activeProfile.gender !== 'woman'}
+                  data-testid="admin-force-swap-sex"
+                  style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#7c2d12', border: '1px solid #9a3412', borderRadius: '8px', color: '#fff', fontSize: '18px', whiteSpace: 'nowrap', cursor: activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? 'pointer' : 'not-allowed', opacity: activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? 1 : 0.55 }}
+                  title={activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? adminProfileActionCopy[lang].swapSexButton : adminProfileActionCopy[lang].swapSexUnavailable}
+                  aria-label={adminProfileActionCopy[lang].swapSexButton}
+                >
+                  ♂️🔄♀️
+                </button>
               </div>
             )}
             {isViewingSelf && (

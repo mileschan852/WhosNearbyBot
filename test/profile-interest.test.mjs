@@ -27,8 +27,21 @@ test("the profile-card heart and mail actions share one responsive row", () => {
   const actions = appSource.slice(actionsStart, actionsEnd);
   assert.match(actions, /button-send-interest-/);
   assert.match(actions, /button-message-profile-/);
-  assert.match(actions, /<rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\" />/);
+  assert.ok(actions.includes('<rect x="3" y="5" width="18" height="14" rx="2" />'));
   assert.match(actions, /flex: '1 1 0'/);
+});
+
+test("admin-only profile controls sit in a top-left row", () => {
+  const start = appSource.indexOf('data-testid="admin-profile-actions"');
+  assert.notEqual(start, -1);
+  const end = appSource.indexOf('data-testid={`profile-actions-${activeProfile.id}`}', start);
+  assert.notEqual(end, -1);
+  const actions = appSource.slice(start, end);
+  assert.ok(actions.includes("left: '14px'"));
+  assert.ok(actions.includes("flexDirection: 'row'"));
+  assert.ok(actions.includes('data-testid="admin-force-reset-profile"'));
+  assert.ok(actions.includes('data-testid="admin-force-swap-sex"'));
+  assert.ok(actions.includes("♂️🔄♀️"));
 });
 
 test("Traditional Chinese uses the requested heart-button wording", () => {
