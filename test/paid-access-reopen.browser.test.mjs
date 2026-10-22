@@ -355,6 +355,8 @@ test('reopened paid access renders only after the correct account is confirmed i
     '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort',
   ], { cwd: appRoot, stdio: ['ignore', 'ignore', 'pipe'] });
   vite.stderr.on('data', (chunk) => viteLogs.push(String(chunk)));
+  const browserEnvironment = { ...process.env };
+  delete browserEnvironment.DBUS_SESSION_BUS_ADDRESS;
   const browser = spawn(chromiumBinary, [
     '--headless=new',
     '--no-sandbox',
@@ -368,7 +370,7 @@ test('reopened paid access renders only after the correct account is confirmed i
     `--remote-debugging-port=${cdpPort}`,
     `--user-data-dir=${path.join(tempDir, 'chromium-profile')}`,
     'about:blank',
-  ], { cwd: appRoot, stdio: ['ignore', 'ignore', 'pipe'] });
+  ], { cwd: appRoot, stdio: ['ignore', 'ignore', 'pipe'] , env: browserEnvironment });
   browser.stderr.on('data', (chunk) => browserLogs.push(String(chunk)));
 
   try {
