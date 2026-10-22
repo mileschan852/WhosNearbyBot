@@ -375,7 +375,7 @@ test('reopened paid access renders only after the correct account is confirmed i
     const viteBase = `http://127.0.0.1:${vitePort}`;
     const cdpBase = `http://127.0.0.1:${cdpPort}`;
     await waitForHttp(`${viteBase}/config.json`, vite, viteLogs, 'Vite');
-    await waitForHttp(`${cdpBase}/json/version`, browser, browserLogs, 'Chromium');
+    await waitForHttp(`${cdpBase}/json/version`, browser, browserLogs, 'Chromium', 30_000);
 
     const appEntries = [
       {
