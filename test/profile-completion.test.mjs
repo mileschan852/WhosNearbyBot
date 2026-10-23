@@ -195,6 +195,7 @@ function renderCompletionForm(entry, overrides = {}) {
     values,
     isCompletionFlow: overrides.isCompletionFlow ?? true,
     language: overrides.language ?? 'en',
+    lockedFields: overrides.lockedFields ?? [],
     missingFields,
     onChange,
     onSubmit: noop,
@@ -250,12 +251,14 @@ function getPreferenceCycleButtons(markup) {
   }));
 }
 
-test('completion locks saved core details, leaves preferences editable, and preserves both entry lock settings', () => {
+test('completion locks only fields explicitly listed and preserves both entry identity-lock settings', () => {
   assert.equal(config.entries.nearby.profileSetup.lockIdentity, false);
   assert.equal(config.entries['hkmo-date'].profileSetup.lockIdentity, true);
 
   for (const entry of Object.values(config.entries)) {
-    const controls = getFormControls(renderCompletionForm(entry));
+    const controls = getFormControls(renderCompletionForm(entry, {
+      lockedFields: ['dob', 'gender', 'height', 'weight'],
+    }));
     assert.match(controls.birthDate, /disabled=""/);
     assert.match(controls.selects[0], /disabled=""/, `${entry.id} saved gender should be locked`);
     assert.equal(
@@ -271,6 +274,35 @@ test('completion locks saved core details, leaves preferences editable, and pres
       `${entry.id} preference controls should remain editable`,
     );
   }
+});
+
+test('profile fields are editable by default and a caller can lock only selected fields', () => {
+  const entry = config.entries.nearby;
+  const editableControls = getFormControls(renderCompletionForm(entry, {
+    isCompletionFlow: true,
+    lockedFields: [],
+  }));
+  assert.ok(!editableControls.birthDate.includes('disabled=""'));
+  assert.ok(editableControls.selects.every((control) => !control.includes('disabled=""')));
+  assert.ok(editableControls.preferenceButtons.every((button) => !button.includes('disabled=""')));
+
+  const partialLocks = getFormControls(renderCompletionForm(entry, {
+    lockedFields: ['dob', 'height', 'rolePref'],
+  }));
+  assert.match(partialLocks.birthDate, /disabled=""/);
+  assert.match(partialLocks.selects[2], /disabled=""/, 'height should be locked');
+  assert.ok(!partialLocks.selects[3].includes('disabled=""'), 'weight should remain editable');
+  assert.match(partialLocks.preferenceButtons[0], /disabled=""/, 'role should be locked');
+  assert.ok(
+    partialLocks.preferenceButtons.slice(1).every((button) => !button.includes('disabled=""')),
+    'unlisted preferences should remain editable',
+  );
+
+  const modeMarkup = renderCompletionForm(entry, {
+    values: { gender: 'woman', seeking: 'men' },
+    lockedFields: ['nonManMode'],
+  });
+  assert.match(modeMarkup, /<select id="profile-completion-mode"[^>]*disabled=""/);
 });
 
 test('runtime config accepts supported defaults for locked identity fields', () => {
@@ -634,8 +666,8 @@ test('entry-locked identity defaults are labeled separately from editable fields
   assert.ok(hkmoMarkup.includes('data-testid="profile-identity-locked"'));
   assert.match(hkmoMarkup, /data-testid="profile-field-status-gender" data-state="entry-default"/);
   assert.ok(!nearbyMarkup.includes('data-testid="profile-identity-locked"'));
-  assert.match(nearbyMarkup, /data-testid="profile-field-status-gender" data-state="saved"/);
-  assert.match(nearbyMarkup, /data-testid="profile-field-status-dob" data-state="saved"/);
+  assert.match(nearbyMarkup, /data-testid="profile-field-status-gender" data-state="filled"/);
+  assert.match(nearbyMarkup, /data-testid="profile-field-status-dob" data-state="filled"/);
 });
 
 test('every profile control has an accessible name and its state is described', () => {
@@ -682,7 +714,7 @@ test('every profile control has an accessible name and its state is described', 
   assert.match(hkmoControls.selects[3], /aria-describedby="profile-field-status-weight"/);
   assert.match(hkmoControls.selects[0], /aria-describedby="profile-field-status-gender profile-identity-locked-help"/);
   assert.match(hkmoControls.selects[1], /aria-describedby="profile-identity-locked-help"/);
-  assert.ok(renderCompletionForm(config.entries['hkmo-date']).includes('Saved · locked'));
+  assert.ok(renderCompletionForm(config.entries['hkmo-date']).includes('Filled'));
 });
 
 test('profile completion labels, instructions, and validation text are translated in all six languages', () => {
@@ -1164,6 +1196,7 @@ test('a saved height below the new minimum stays selected and locked in partial 
         height: savedHeight,
         weight: '',
       },
+      lockedFields: ['height'],
       missingFields: { dob: true, gender: false, height: false, weight: true },
     });
     const controls = getFormControls(markup);
