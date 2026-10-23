@@ -20,6 +20,36 @@ const fixtureIndex = `<!doctype html>
   </body>
 </html>`;
 
+test('Pages workflow uses Node 24 actions while keeping the app on Node 22 and preserving release order', async () => {
+  const workflowPath = fileURLToPath(new URL('../.github/workflows/deploy.yml', import.meta.url));
+  const packagePath = fileURLToPath(new URL('../package.json', import.meta.url));
+  const workflow = await readFile(workflowPath, 'utf8');
+  const packageJson = JSON.parse(await readFile(packagePath, 'utf8'));
+
+  for (const action of [
+    'actions/checkout@v7.0.1',
+    'actions/setup-node@v7.1.0',
+    'actions/configure-pages@v6.0.0',
+    'actions/upload-pages-artifact@v5.0.0',
+    'actions/deploy-pages@v5.0.1',
+  ]) {
+    assert.ok(workflow.includes(action), `Pages workflow should use ${action}`);
+  }
+  assert.match(workflow, /node-version:\s*22\b/);
+  assert.match(packageJson.scripts.test, /--test-concurrency=1/);
+
+  const stepOrder = [
+    '      - name: Build',
+    '      - name: Run tests',
+    '      - name: Check current HKMO Date loader contract',
+    '      - name: Setup Pages',
+    '      - name: Upload artifact',
+    '      - name: Deploy to GitHub Pages',
+  ].map((step) => workflow.indexOf(step));
+  assert.ok(stepOrder.every((index) => index !== -1), 'all required release steps should exist');
+  assert.deepEqual(stepOrder, [...stepOrder].sort((left, right) => left - right));
+});
+
 async function createBuildDirectory(t, { omit = [] } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'shared-gui-contract-'));
   t.after(() => rm(root, { recursive: true, force: true }));
