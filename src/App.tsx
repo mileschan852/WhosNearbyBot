@@ -4184,10 +4184,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const handleAgeRangeChange = (min: number, max: number) => { setFilterAgeMin(min); setFilterAgeMax(max); persistFilterPrefs({ ageMin: min, ageMax: max }); };
   const handleHeightRangeChange = (min: number, max: number) => { setFilterHeightMin(min); setFilterHeightMax(max); persistFilterPrefs({ heightMin: min, heightMax: max }); };
 
-  const handleSaveInitialProfile = async (e: React.FormEvent) => {
+  const handleSaveInitialProfile = async (
+    e: React.FormEvent,
+    lockedFields: readonly (keyof ProfileCompletionValues)[] = [],
+  ) => {
     e.preventDefault();
     setErrorMessage('');
-    const isCompletionFlow = showProfileSetup && !showProfileEditModal;
+    const isProfileFieldEditable = (field: keyof ProfileCompletionValues) =>
+      !lockedFields.includes(field);
     const isManSeekingMan = gender === 'man' && seeking === 'men';
     if (!dob || !gender || !seeking || !height || !weight || (isManSeekingMan && (!rolePref || !safetyPref || !playstylePref || !howManyPref || wherePref === undefined)) || (!isManSeekingMan && !nonManMode)) { setErrorMessage(t('fillAll')); return; }
     const birthDate = new Date(dob);
@@ -4210,18 +4214,36 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       const profileUpdate: Record<string, unknown> = {
         lat: location.lat,
         lng: location.lng,
-        seeking,
-        role_pref: isManSeekingMan ? rolePref : null,
-        safety_pref: isManSeekingMan ? safetyPref : null,
-        playstyle_pref: isManSeekingMan ? playstylePref : null,
-        how_many_pref: isManSeekingMan ? howManyPref : null,
-        where_pref: isManSeekingMan ? wherePref : null,
-        non_man_mode: isManSeekingMan ? null : nonManMode,
       };
-      if (!isCompletionFlow || profileCompletionMissingFields.dob) profileUpdate.dob = dob;
-      if (!isCompletionFlow || profileCompletionMissingFields.gender) profileUpdate.gender = gender;
-      if (!isCompletionFlow || profileCompletionMissingFields.height) profileUpdate.height = height;
-      if (!isCompletionFlow || profileCompletionMissingFields.weight) profileUpdate.weight = weight;
+      const canSetConfiguredIdentity = !entry.profileSetup.lockIdentity
+        || profileCompletionMissingFields.gender;
+      if (isProfileFieldEditable('seeking') && canSetConfiguredIdentity) {
+        profileUpdate.seeking = seeking;
+      }
+      if (isProfileFieldEditable('rolePref')) {
+        profileUpdate.role_pref = isManSeekingMan ? rolePref : null;
+      }
+      if (isProfileFieldEditable('safetyPref')) {
+        profileUpdate.safety_pref = isManSeekingMan ? safetyPref : null;
+      }
+      if (isProfileFieldEditable('playstylePref')) {
+        profileUpdate.playstyle_pref = isManSeekingMan ? playstylePref : null;
+      }
+      if (isProfileFieldEditable('howManyPref')) {
+        profileUpdate.how_many_pref = isManSeekingMan ? howManyPref : null;
+      }
+      if (isProfileFieldEditable('wherePref')) {
+        profileUpdate.where_pref = isManSeekingMan ? wherePref : null;
+      }
+      if (isProfileFieldEditable('nonManMode')) {
+        profileUpdate.non_man_mode = isManSeekingMan ? null : nonManMode;
+      }
+      if (isProfileFieldEditable('dob')) profileUpdate.dob = dob;
+      if (isProfileFieldEditable('gender') && canSetConfiguredIdentity) {
+        profileUpdate.gender = gender;
+      }
+      if (isProfileFieldEditable('height')) profileUpdate.height = height;
+      if (isProfileFieldEditable('weight')) profileUpdate.weight = weight;
       const result = await workerPost('/api/profile', {
         profile: profileUpdate,
       });

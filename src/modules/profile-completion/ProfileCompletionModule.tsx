@@ -46,6 +46,7 @@ export interface ProfileCompletionModuleProps {
   submitLabel?: string;
   submitDisabled?: boolean;
   lockIdentityFields?: boolean;
+  lockedFields?: readonly (keyof ProfileCompletionValues)[];
   language?: ProfileCompletionLanguage;
   missingFields: {
     dob: boolean;
@@ -54,7 +55,10 @@ export interface ProfileCompletionModuleProps {
     weight: boolean;
   };
   onChange: ProfileCompletionChangeHandlers;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (
+    event: FormEvent<HTMLFormElement>,
+    lockedFields: readonly (keyof ProfileCompletionValues)[],
+  ) => void;
   onClose: () => void;
   showCloseButton: boolean;
   errorMessage: string;
@@ -112,7 +116,7 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: 'Saved · locked',
     setByApp: 'Set by this app',
     identityLocked: 'Gender and who you are looking for are set by this app and cannot be changed here.',
-    warning: 'After saving, these details are locked on this screen. They affect who you can see and interact with.',
+    warning: 'Complete all required details to continue. Existing details remain editable here unless this app locks them.',
     editWarning: 'Edit your profile details and preferences here. Your choices affect who you can see and interact with.',
     labels: { dob: 'Date of birth', gender: 'Gender', height: 'Height', weight: 'Weight', where: 'Where' },
     modes: {
@@ -131,7 +135,7 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '已保存（已锁定）',
     setByApp: '由此应用设置',
     identityLocked: '性别和寻找对象由此应用设置，无法在此更改。',
-    warning: '资料保存后将在此页面锁定。填写内容会影响你可以看到和互动的用户。',
+    warning: '请填写所有必填资料以继续。除非此应用锁定，否则已填写的资料仍可在此编辑。',
     editWarning: '在此编辑资料和偏好。你的选择会影响你可以看到和互动的用户。',
     labels: { dob: '出生日期', gender: '性别', height: '身高', weight: '体重', where: '地点' },
     modes: {
@@ -150,7 +154,7 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '已儲存（已鎖定）',
     setByApp: '由此應用設定',
     identityLocked: '性別和尋找對象由此應用設定，無法在此更改。',
-    warning: '資料儲存後會在此頁面鎖定。填寫內容會影響你可以看到和互動的使用者。',
+    warning: '請填寫所有必填資料以繼續。除非此應用鎖定，否則已填寫的資料仍可在此編輯。',
     editWarning: '在此編輯資料和偏好。你的選擇會影響你可以看到和互動的使用者。',
     labels: { dob: '出生日期', gender: '性別', height: '身高', weight: '體重', where: '地點' },
     modes: {
@@ -169,7 +173,7 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '保存済み・変更不可',
     setByApp: 'アプリで設定',
     identityLocked: '性別と希望する相手はこのアプリで設定されており、ここでは変更できません。',
-    warning: '保存後、これらの情報はこの画面では変更できません。入力内容は、表示・交流できる相手に影響します。',
+    warning: '続行するには必須項目をすべて入力してください。このアプリでロックされていない既存情報はここで編集できます。',
     editWarning: 'ここでプロフィール情報と好みを編集できます。選択内容は、表示・交流できる相手に影響します。',
     labels: { dob: '生年月日', gender: '性別', height: '身長', weight: '体重', where: '場所' },
     modes: {
@@ -188,7 +192,7 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: '저장됨 · 변경 불가',
     setByApp: '앱에서 설정됨',
     identityLocked: '성별과 찾는 대상은 이 앱에서 설정되어 여기서 변경할 수 없습니다.',
-    warning: '저장 후에는 이 화면에서 정보를 변경할 수 없습니다. 입력한 내용은 볼 수 있고 교류할 수 있는 상대에 영향을 줍니다.',
+    warning: '계속하려면 필수 정보를 모두 입력하세요. 이 앱에서 잠그지 않은 기존 정보도 여기서 수정할 수 있습니다.',
     editWarning: '여기서 프로필 정보와 선호도를 수정할 수 있습니다. 선택한 내용은 볼 수 있고 교류할 수 있는 상대에 영향을 줍니다.',
     labels: { dob: '생년월일', gender: '성별', height: '키', weight: '몸무게', where: '장소' },
     modes: {
@@ -207,7 +211,7 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     saved: 'Сохранено · заблокировано',
     setByApp: 'Задано приложением',
     identityLocked: 'Пол и предпочтение поиска заданы приложением и здесь не изменяются.',
-    warning: 'После сохранения эти данные нельзя изменить на этом экране. Ответы влияют на то, кого вы видите и с кем можете общаться.',
+    warning: 'Чтобы продолжить, заполните все обязательные поля. Здесь можно изменить уже сохранённые данные, если приложение не заблокировало их.',
     editWarning: 'Здесь можно изменить профиль и предпочтения. Выбор влияет на то, кого вы видите и с кем можете общаться.',
     labels: { dob: 'Дата рождения', gender: 'Пол', height: 'Рост', weight: 'Вес', where: 'Место' },
     modes: {
@@ -230,6 +234,7 @@ export default function ProfileCompletionModule({
   submitLabel,
   submitDisabled = false,
   lockIdentityFields = false,
+  lockedFields = [],
   language = 'en',
   missingFields,
   onChange,
@@ -251,6 +256,10 @@ export default function ProfileCompletionModule({
   const [preferenceAnnouncement, setPreferenceAnnouncement] = useState('');
   const isManSeekingMan = values.gender === 'man' && values.seeking === 'men';
   const identityFieldsLocked = entry.profileSetup.lockIdentity || lockIdentityFields;
+  const lockedFieldSet = new Set(lockedFields);
+  const isFieldLocked = (field: keyof ProfileCompletionValues) =>
+    lockedFieldSet.has(field)
+    || (identityFieldsLocked && (field === 'gender' || field === 'seeking'));
   const statusCopy = completionStatusCopy[language];
   const announcePreferenceCycle = (
     preference: ProfilePreferenceCycleKey,
@@ -271,16 +280,13 @@ export default function ProfileCompletionModule({
       return;
     }
     setSubmitAttempt((attempt) => attempt + 1);
-    onSubmit(event);
+    onSubmit(event, lockedFields);
   };
-  const canEditMissingField = (field: keyof typeof missingFields) =>
-    !isCompletionFlow || missingFields[field];
   const incompleteFieldMarker = (
     field: keyof typeof missingFields,
     value: string,
-    locked = false,
   ) => (
-    isCompletionFlow && missingFields[field] && !value.trim() && !locked
+    isCompletionFlow && missingFields[field] && !value.trim() && !isFieldLocked(field)
       ? 'true'
       : undefined
   );
@@ -347,7 +353,7 @@ export default function ProfileCompletionModule({
           <div key={section} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
               <label htmlFor="profile-completion-dob" style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('dob')}</label>
-              {isCompletionFlow && fieldStatus('dob', values.dob, false, !missingFields.dob)}
+              {isCompletionFlow && fieldStatus('dob', values.dob, false, isFieldLocked('dob'))}
             </div>
             <input
               id="profile-completion-dob"
@@ -355,7 +361,7 @@ export default function ProfileCompletionModule({
               value={values.dob}
               onChange={(event) => onChange.dob(event.target.value)}
               style={{ ...inputStyle, colorScheme: 'dark' }}
-              disabled={!canEditMissingField('dob')}
+              disabled={isFieldLocked('dob')}
               aria-describedby={isCompletionFlow ? 'profile-field-status-dob' : undefined}
               data-profile-incomplete-editable={incompleteFieldMarker('dob', values.dob)}
               required
@@ -371,13 +377,13 @@ export default function ProfileCompletionModule({
                 'gender',
                 values.gender,
                 identityFieldsLocked && missingFields.gender,
-                !missingFields.gender,
+                isFieldLocked('gender'),
               )}
               <select
                 id="profile-completion-gender"
                 value={values.gender}
                 onChange={(event) => onChange.gender(event.target.value)}
-                disabled={identityFieldsLocked || !canEditMissingField('gender')}
+                disabled={isFieldLocked('gender')}
                 style={{ ...inputStyle, flex: 1, minWidth: 0, padding: '6px 4px' }}
                 aria-describedby={[
                   isCompletionFlow ? 'profile-field-status-gender' : null,
@@ -386,7 +392,6 @@ export default function ProfileCompletionModule({
                 data-profile-incomplete-editable={incompleteFieldMarker(
                   'gender',
                   values.gender,
-                  identityFieldsLocked,
                 )}
                 required
               >
@@ -399,11 +404,11 @@ export default function ProfileCompletionModule({
                 id="profile-completion-seeking"
                 value={values.seeking}
                 onChange={(event) => onChange.seeking(event.target.value)}
-                disabled={identityFieldsLocked}
+                disabled={isFieldLocked('seeking')}
                 style={{ ...inputStyle, flex: 1, minWidth: 0, padding: '6px 4px' }}
                 aria-describedby={identityFieldsLocked ? 'profile-identity-locked-help' : undefined}
                 data-profile-incomplete-editable={
-                  isCompletionFlow && !identityFieldsLocked && !values.seeking.trim()
+                  isCompletionFlow && !isFieldLocked('seeking') && !values.seeking.trim()
                     ? 'true'
                     : undefined
                 }
@@ -432,14 +437,14 @@ export default function ProfileCompletionModule({
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                 <label htmlFor="profile-completion-height" style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('height')}</label>
-                {isCompletionFlow && fieldStatus('height', values.height, false, !missingFields.height)}
+                {isCompletionFlow && fieldStatus('height', values.height, false, isFieldLocked('height'))}
               </div>
               <select
                 id="profile-completion-height"
                 value={values.height}
                 onChange={(event) => onChange.height(event.target.value)}
                 style={{ ...inputStyle, padding: '6px' }}
-                disabled={!canEditMissingField('height')}
+                disabled={isFieldLocked('height')}
                 aria-describedby={isCompletionFlow ? 'profile-field-status-height' : undefined}
                 data-profile-incomplete-editable={incompleteFieldMarker('height', values.height)}
                 required
@@ -451,14 +456,14 @@ export default function ProfileCompletionModule({
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                 <label htmlFor="profile-completion-weight" style={{ fontSize: '11px', fontWeight: 'bold' }}>{t('weight')}</label>
-                {isCompletionFlow && fieldStatus('weight', values.weight, false, !missingFields.weight)}
+                {isCompletionFlow && fieldStatus('weight', values.weight, false, isFieldLocked('weight'))}
               </div>
               <select
                 id="profile-completion-weight"
                 value={values.weight}
                 onChange={(event) => onChange.weight(event.target.value)}
                 style={{ ...inputStyle, padding: '6px' }}
-                disabled={!canEditMissingField('weight')}
+                disabled={isFieldLocked('weight')}
                 aria-describedby={isCompletionFlow ? 'profile-field-status-weight' : undefined}
                 data-profile-incomplete-editable={incompleteFieldMarker('weight', values.weight)}
                 required
@@ -480,50 +485,55 @@ export default function ProfileCompletionModule({
               <button
                 type="button"
                 onClick={() => announcePreferenceCycle('role', onCycleRole)}
+                disabled={isFieldLocked('rolePref')}
                 aria-label={`${t('rolePreference')}: ${t(values.rolePref)}`}
                 aria-describedby="profile-preference-cycle-hint"
-                data-profile-incomplete-editable={isCompletionFlow && !values.rolePref.trim() ? 'true' : undefined}
-                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                data-profile-incomplete-editable={isCompletionFlow && !isFieldLocked('rolePref') && !values.rolePref.trim() ? 'true' : undefined}
+                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: isFieldLocked('rolePref') ? 'not-allowed' : 'pointer', opacity: isFieldLocked('rolePref') ? 0.55 : 1, textAlign: 'center' }}
               >
                 {t(values.rolePref)}
               </button>
               <button
                 type="button"
                 onClick={() => announcePreferenceCycle('safety', onCycleSafety)}
+                disabled={isFieldLocked('safetyPref')}
                 aria-label={`${t('safetyPreference')}: ${t(values.safetyPref)}`}
                 aria-describedby="profile-preference-cycle-hint"
-                data-profile-incomplete-editable={isCompletionFlow && !values.safetyPref.trim() ? 'true' : undefined}
-                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                data-profile-incomplete-editable={isCompletionFlow && !isFieldLocked('safetyPref') && !values.safetyPref.trim() ? 'true' : undefined}
+                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: isFieldLocked('safetyPref') ? 'not-allowed' : 'pointer', opacity: isFieldLocked('safetyPref') ? 0.55 : 1, textAlign: 'center' }}
               >
                 {t(values.safetyPref)}
               </button>
               <button
                 type="button"
                 onClick={() => announcePreferenceCycle('playstyle', onCyclePlaystyle)}
+                disabled={isFieldLocked('playstylePref')}
                 aria-label={`${t('playstylePreference')}: ${t(values.playstylePref)}`}
                 aria-describedby="profile-preference-cycle-hint"
-                data-profile-incomplete-editable={isCompletionFlow && !values.playstylePref.trim() ? 'true' : undefined}
-                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                data-profile-incomplete-editable={isCompletionFlow && !isFieldLocked('playstylePref') && !values.playstylePref.trim() ? 'true' : undefined}
+                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: isFieldLocked('playstylePref') ? 'not-allowed' : 'pointer', opacity: isFieldLocked('playstylePref') ? 0.55 : 1, textAlign: 'center' }}
               >
                 {t(values.playstylePref)}
               </button>
               <button
                 type="button"
                 onClick={() => announcePreferenceCycle('howMany', onCycleHowMany)}
+                disabled={isFieldLocked('howManyPref')}
                 aria-label={`${t('groupSize')}: ${t(`${values.howManyPref}_setup`)}`}
                 aria-describedby="profile-preference-cycle-hint"
-                data-profile-incomplete-editable={isCompletionFlow && !values.howManyPref.trim() ? 'true' : undefined}
-                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                data-profile-incomplete-editable={isCompletionFlow && !isFieldLocked('howManyPref') && !values.howManyPref.trim() ? 'true' : undefined}
+                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#9333ea', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: isFieldLocked('howManyPref') ? 'not-allowed' : 'pointer', opacity: isFieldLocked('howManyPref') ? 0.55 : 1, textAlign: 'center' }}
               >
                 {t(`${values.howManyPref}_setup`)}
               </button>
               <button
                 type="button"
                 onClick={() => announcePreferenceCycle('where', onCycleWhere)}
+                disabled={isFieldLocked('wherePref')}
                 aria-label={`${statusCopy.labels.where}: ${values.wherePref === null ? t('Anywhere') : t(values.wherePref)}`}
                 aria-describedby="profile-preference-cycle-hint"
-                data-profile-incomplete-editable={isCompletionFlow && values.wherePref === undefined ? 'true' : undefined}
-                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center' }}
+                data-profile-incomplete-editable={isCompletionFlow && !isFieldLocked('wherePref') && values.wherePref === undefined ? 'true' : undefined}
+                style={{ flex: 1, padding: '10px 2px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: isFieldLocked('wherePref') ? 'not-allowed' : 'pointer', opacity: isFieldLocked('wherePref') ? 0.55 : 1, textAlign: 'center' }}
               >
                 {values.wherePref === null ? t('Anywhere') : t(values.wherePref)}
               </button>
@@ -540,7 +550,8 @@ export default function ProfileCompletionModule({
               value={values.nonManMode}
               onChange={(event) => onChange.nonManMode(event.target.value)}
               style={{ ...inputStyle, padding: '6px', fontSize: '10px' }}
-              data-profile-incomplete-editable={isCompletionFlow && !values.nonManMode.trim() ? 'true' : undefined}
+              disabled={isFieldLocked('nonManMode')}
+              data-profile-incomplete-editable={isCompletionFlow && !isFieldLocked('nonManMode') && !values.nonManMode.trim() ? 'true' : undefined}
               required
             >
               <option value="Browsing only - You cannot send not receive private message from others">{statusCopy.modes.browsingOnly}</option>

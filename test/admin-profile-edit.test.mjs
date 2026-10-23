@@ -25,7 +25,19 @@ test("admin edits send only editable profile fields and keep identity locked", (
   assert.doesNotMatch(fieldMap, /\b(?:gender|seeking)\s*:/);
   assert.match(appSource, /action: 'update'[\s\S]*?profile: updates/);
   assert.match(appSource, /lockIdentityFields/);
-  assert.match(profileFormSource, /disabled=\{identityFieldsLocked\}/);
+  assert.match(profileFormSource, /disabled=\{isFieldLocked\('gender'\)\}/);
+  assert.match(profileFormSource, /disabled=\{isFieldLocked\('seeking'\)\}/);
+});
+
+test('profile form defaults to editable and honors explicit field locks when saving', () => {
+  assert.match(profileFormSource, /lockedFields = \[\]/);
+  assert.match(profileFormSource, /onSubmit\(event,\s*lockedFields\)/);
+  assert.match(appSource, /lockedFields: readonly \(keyof ProfileCompletionValues\)\[\] = \[\]/);
+  assert.match(appSource, /isProfileFieldEditable\('dob'\)/);
+  assert.match(appSource, /isProfileFieldEditable\('gender'\)/);
+  assert.match(appSource, /isProfileFieldEditable\('height'\)/);
+  assert.match(appSource, /isProfileFieldEditable\('weight'\)/);
+  assert.doesNotMatch(appSource, /profileCompletionMissingFields\.dob\) profileUpdate\.dob/);
 });
 
 test("the all-user action is labeled Gift update info and keeps the one-time offer flow", () => {
