@@ -3820,8 +3820,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           Number.isFinite(Date.parse(existingProfile.profile_update_offer_at))
             ? existingProfile.profile_update_offer_at
             : null;
-        const profileSetupWasForfeited =
-          existingProfile.profile_completion_skipped_after_reset === true;
         if (existingProfile.is_underage) { setIsUnderageLocked(true); setIsReady(true); return; }
         const fix = await requestLocationAccess(navigator.geolocation);
         if (!fix) {
@@ -3939,7 +3937,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         if (pendingProfileUpdateOfferAt) {
           setProfileUpdateOfferAt(pendingProfileUpdateOfferAt);
           setCurrentUser(myProfile);
-        } else if (!isFullySetup && !profileSetupWasForfeited) {
+        } else if (!isFullySetup) {
           setShowProfileSetup(true);
           setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null, vip_expiry: existingProfile?.vip_expiry || null });
         } else {
@@ -4117,8 +4115,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         setErrorMessage('');
         setShowProfileSetup(true);
       } else {
-        setShowProfileSetup(false);
-        void fetchUsersData();
+        // Forfeiting the optional reset offer never bypasses mandatory profile
+        // completion; incomplete users remain blocked until they fill required fields.
+        setShowProfileSetup(true);
       }
     } catch {
       setProfileUpdateOfferError(PROFILE_UPDATE_OFFER_COPY[lang].failed);
