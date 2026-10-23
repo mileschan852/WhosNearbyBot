@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build && node scripts/create-shared-gui.mjs",
     "lint": "oxlint",
     "test": "node --test --test-concurrency=1",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare": "node scripts/install-publish-guard.mjs",
+    "setup:publish-guard": "node scripts/install-publish-guard.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",
