@@ -29,6 +29,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Verify GUI publishing target before deploy
+        run: node scripts/verify-publish-target.mjs --workflow
+
       - name: Install dependencies
         run: npm ci
 
@@ -39,7 +42,6 @@ jobs:
         run: npm test
 
       - name: Check current HKMO Date loader contract
-        if: github.repository == 'mileschan852/WhosNearbyBot' && github.ref == 'refs/heads/main'
         run: node scripts/check-hkmodate-loader.mjs
 
       - name: Setup Pages
