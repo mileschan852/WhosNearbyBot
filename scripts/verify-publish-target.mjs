@@ -66,7 +66,7 @@ function verifyPrePushTarget() {
   const input = readFileSync(0, 'utf8').trim();
   const updates = input ? input.split(/\r?\n/) : [];
   for (const line of updates) {
-    const [localSha, localRef, remoteSha, remoteRef] = line.trim().split(/\s+/);
+    const [localRef, localSha, remoteRef, remoteSha] = line.trim().split(/\s+/);
     if (!localSha || !localRef || !remoteSha || !remoteRef) {
       refuse('Git supplied an invalid ref update to the pre-push guard.');
     }

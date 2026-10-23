@@ -51,7 +51,7 @@ function runPrePush(repo, {
   ], {
     cwd: repo.directory,
     encoding: 'utf8',
-    input: `${localSha}\t${localRef}\t${remoteSha}\t${remoteRef}\n`,
+    input: `${localRef}\t${localSha}\t${remoteRef}\t${remoteSha}\n`,
   });
 }
 
@@ -80,6 +80,18 @@ test('pre-push accepts a fast-forward to the explicit production remote', (conte
   const repo = createRepo();
   context.after(() => rmSync(repo.directory, { recursive: true, force: true }));
   const result = runPrePush(repo);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('pre-push allows a new review branch on the expected repository', (context) => {
+  const repo = createRepo();
+  context.after(() => rmSync(repo.directory, { recursive: true, force: true }));
+  const result = runPrePush(repo, {
+    remoteName: 'origin',
+    localRef: 'refs/heads/feature',
+    remoteRef: 'refs/heads/feature',
+    remoteSha: zeroSha,
+  });
   assert.equal(result.status, 0, result.stderr);
 });
 
