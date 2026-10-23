@@ -39,7 +39,8 @@ test("admin-only profile controls sit in a top-left row", () => {
   const actions = appSource.slice(start, end);
   assert.ok(actions.includes("left: '14px'"));
   assert.ok(actions.includes("flexDirection: 'row'"));
-  assert.ok(actions.includes('data-testid="admin-force-reset-profile"'));
+  assert.ok(actions.includes('data-testid="admin-edit-profile"'));
+  assert.ok(!actions.includes('data-testid="admin-force-reset-profile"'));
   assert.ok(actions.includes('data-testid="admin-force-swap-sex"'));
   assert.ok(actions.includes("♂️🔄♀️"));
 });
