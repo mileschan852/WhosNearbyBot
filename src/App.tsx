@@ -2,7 +2,8 @@
 // Covers: initialization, profile setup, grid/map views, filters, payments,
 // profile card, games menu, footer navigation.
 
-import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, type FormEvent } from 'react';
+import type { ProfileCompletionValues } from './modules/profile-completion/ProfileCompletionModule';
 import type {
   VipCampaign,
   VipFailedRewardClaim,
@@ -165,7 +166,7 @@ const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
     useNow: 'Use now',
     forfeit: 'Forfeit',
     failed: 'We could not save your choice. Please refresh the app and try again.',
-    resetAllConfirm: 'Reset ALL users? Everyone will receive one free profile update offer on their next login and can use it or forfeit it.',
+    resetAllConfirm: 'Gift update info to all users? This clears only their birth date/age and shows the free-update offer at their next login. Photos, locations, and last-online data stay unchanged.',
   },
   'zh-CN': {
     title: '免费更新资料',
@@ -173,7 +174,7 @@ const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
     useNow: '现在使用',
     forfeit: '放弃',
     failed: '无法保存您的选择。请刷新应用后重试。',
-    resetAllConfirm: '重置所有用户？所有人下次登录时都会收到一次免费的资料更新机会，可选择使用或放弃。',
+    resetAllConfirm: '向所有用户赠送资料更新机会？此操作只会清除出生日期/年龄，并在下次登录时显示免费更新提示。照片、位置和最近上线时间保持不变。',
   },
   'zh-TW': {
     title: '免費更新資料',
@@ -181,7 +182,7 @@ const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
     useNow: '現在使用',
     forfeit: '放棄',
     failed: '無法儲存您的選擇。請重新整理應用程式後重試。',
-    resetAllConfirm: '重設所有使用者？所有人下次登入時都會收到一次免費的資料更新機會，可選擇使用或放棄。',
+    resetAllConfirm: '向所有使用者贈送資料更新機會？此操作只會清除出生日期／年齡，並在下次登入時顯示免費更新提示。照片、位置和最近上線時間保持不變。',
   },
   ja: {
     title: 'プロフィール無料更新',
@@ -189,7 +190,7 @@ const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
     useNow: '今すぐ利用',
     forfeit: '放棄する',
     failed: '選択を保存できませんでした。アプリを更新して、もう一度お試しください。',
-    resetAllConfirm: '全ユーザーをリセットしますか？次回ログイン時にプロフィールを無料で更新できる機会が1回表示され、利用するか放棄できます。',
+    resetAllConfirm: '全ユーザーにプロフィール更新の機会を贈りますか？生年月日／年齢のみを消去し、次回ログイン時に無料更新の案内を表示します。写真・位置情報・最終オンライン時刻は保持されます。',
   },
   ko: {
     title: '무료 프로필 업데이트',
@@ -197,7 +198,7 @@ const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
     useNow: '지금 사용',
     forfeit: '포기',
     failed: '선택을 저장하지 못했습니다. 앱을 새로고침한 후 다시 시도해 주세요.',
-    resetAllConfirm: '모든 사용자를 초기화할까요? 다음 로그인 시 무료 프로필 업데이트 기회가 한 번 제공되며, 사용하거나 포기할 수 있습니다.',
+    resetAllConfirm: '모든 사용자에게 프로필 업데이트 기회를 선물할까요? 생년월일/나이만 지우고 다음 로그인 때 무료 업데이트 안내를 표시합니다. 사진, 위치, 마지막 접속 시간은 유지됩니다.',
   },
   ru: {
     title: 'Бесплатное обновление профиля',
@@ -205,7 +206,7 @@ const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
     useNow: 'Использовать',
     forfeit: 'Отказаться',
     failed: 'Не удалось сохранить выбор. Обновите приложение и попробуйте снова.',
-    resetAllConfirm: 'Сбросить всех пользователей? При следующем входе каждому будет предложено одно бесплатное обновление профиля, которое можно использовать или отклонить.',
+    resetAllConfirm: 'Подарить всем пользователям обновление профиля? Будут удалены только дата рождения и возраст, а при следующем входе появится предложение бесплатного обновления. Фото, местоположение и время последнего входа сохранятся.',
   },
 };
 const FILTER_UI_COPY: Record<LangKey, {
@@ -2517,6 +2518,34 @@ export interface UserProfile {
   interest_state_known?: boolean;
 }
 
+function toAdminProfileValues(profile: Partial<UserProfile>): ProfileCompletionValues {
+  return {
+    dob: typeof profile.dob === 'string' ? profile.dob.slice(0, 10) : '',
+    gender: profile.gender || '',
+    seeking: profile.seeking || '',
+    height: profile.height || '',
+    weight: profile.weight || '',
+    rolePref: profile.role_pref || 'Versatile',
+    safetyPref: profile.safety_pref || 'Safe',
+    playstylePref: profile.playstyle_pref || 'Clean',
+    howManyPref: profile.how_many_pref || 'DoesntMatter',
+    wherePref: profile.where_pref || null,
+    nonManMode: profile.non_man_mode || '',
+  };
+}
+
+const ADMIN_EDIT_PROFILE_FIELD_MAP: Partial<Record<keyof ProfileCompletionValues, string>> = {
+  dob: 'dob',
+  height: 'height',
+  weight: 'weight',
+  rolePref: 'role_pref',
+  safetyPref: 'safety_pref',
+  playstylePref: 'playstyle_pref',
+  wherePref: 'where_pref',
+  howManyPref: 'how_many_pref',
+  nonManMode: 'non_man_mode',
+};
+
 type ProfileCompletionMissingFields = {
   dob: boolean;
   gender: boolean;
@@ -2525,10 +2554,15 @@ type ProfileCompletionMissingFields = {
 };
 
 type AdminProfileActionCopy = {
-  resetSingleConfirm: (name: string) => string;
-  resetSingleDone: string;
-  resetAllConfirm: string;
-  resetAllDone: string;
+  adminEditButton: string;
+  adminEditTitle: (name: string) => string;
+  adminEditDescription: string;
+  adminEditSave: string;
+  adminEditSaving: string;
+  adminEditDone: string;
+  adminEditFailed: string;
+  giftUpdateInfoButton: string;
+  giftUpdateInfoDone: string;
   swapSexButton: string;
   swapSexConfirm: (name: string, from: string, to: string) => string;
   swapSexDone: (gender: string) => string;
@@ -2538,10 +2572,15 @@ type AdminProfileActionCopy = {
 
 const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
   en: {
-    resetSingleConfirm: (name) => `Remove ${name || "this user's"} age? This clears only their date of birth.`,
-    resetSingleDone: 'Age removed. Other profile information is unchanged.',
-    resetAllConfirm: 'Remove only the date of birth (age) from all users? Everyone will see the complete-info screen on their next login.',
-    resetAllDone: 'Age removed from all users.',
+    adminEditButton: 'Admin edit',
+    adminEditTitle: (name) => `Admin edit: ${name || 'user'}`,
+    adminEditDescription: 'Edit this user’s profile information. Gender and seeking stay unchanged; photo and saved location are not included.',
+    adminEditSave: 'Save changes',
+    adminEditSaving: 'Saving…',
+    adminEditDone: 'Profile updated.',
+    adminEditFailed: 'Could not update this profile.',
+    giftUpdateInfoButton: 'Gift update info',
+    giftUpdateInfoDone: 'The free update offer was gifted to all users; their birth date/age was cleared. Photos, locations, and last-online data stayed unchanged.',
     swapSexButton: 'Force swap sex',
     swapSexConfirm: (name, from, to) => `Change ${name || 'this user'} from ${from} to ${to}?`,
     swapSexDone: (gender) => `Gender changed to ${gender}.`,
@@ -2549,10 +2588,15 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     swapSexFailed: 'Could not swap sex.',
   },
   'zh-CN': {
-    resetSingleConfirm: (name) => `移除${name || '此用户'}的年龄？此操作只会清除出生日期。`,
-    resetSingleDone: '年龄已移除，其他个人资料保持不变。',
-    resetAllConfirm: '仅移除所有用户的出生日期（年龄）？所有用户下次登录时会看到完善资料页面。',
-    resetAllDone: '已移除所有用户的年龄。',
+    adminEditButton: '管理员编辑',
+    adminEditTitle: (name) => `管理员编辑：${name || '用户'}`,
+    adminEditDescription: '编辑此用户的资料信息。性别和寻找对象保持不变；不会更改照片和已保存的位置。',
+    adminEditSave: '保存更改',
+    adminEditSaving: '正在保存…',
+    adminEditDone: '资料已更新。',
+    adminEditFailed: '无法更新此资料。',
+    giftUpdateInfoButton: '赠送资料更新',
+    giftUpdateInfoDone: '已向所有用户赠送免费更新机会，并清除出生日期/年龄；照片、位置和最近上线时间保持不变。',
     swapSexButton: '强制切换性别',
     swapSexConfirm: (name, from, to) => `将${name || '此用户'}的性别从${from}切换为${to}？`,
     swapSexDone: (gender) => `性别已更改为${gender}。`,
@@ -2560,10 +2604,15 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     swapSexFailed: '无法切换性别。',
   },
   'zh-TW': {
-    resetSingleConfirm: (name) => `移除${name || '此用戶'}的年齡？此操作只會清除出生日期。`,
-    resetSingleDone: '年齡已移除，其他個人資料保持不變。',
-    resetAllConfirm: '只移除所有用戶的出生日期（年齡）？所有用戶下次登入時會看到完善資料頁面。',
-    resetAllDone: '已移除所有用戶的年齡。',
+    adminEditButton: '管理員編輯',
+    adminEditTitle: (name) => `管理員編輯：${name || '用戶'}`,
+    adminEditDescription: '編輯此用戶的資料。性別和尋找對象保持不變；不會更改照片和已儲存的位置。',
+    adminEditSave: '儲存變更',
+    adminEditSaving: '正在儲存…',
+    adminEditDone: '資料已更新。',
+    adminEditFailed: '無法更新此資料。',
+    giftUpdateInfoButton: '贈送資料更新',
+    giftUpdateInfoDone: '已向所有用戶贈送免費更新機會，並清除出生日期／年齡；照片、位置和最近上線時間保持不變。',
     swapSexButton: '強制切換性別',
     swapSexConfirm: (name, from, to) => `將${name || '此用戶'}的性別由${from}切換為${to}？`,
     swapSexDone: (gender) => `性別已更改為${gender}。`,
@@ -2571,10 +2620,15 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     swapSexFailed: '無法切換性別。',
   },
   ja: {
-    resetSingleConfirm: (name) => `${name || 'このユーザー'}の年齢を削除しますか？生年月日だけを消去します。`,
-    resetSingleDone: '年齢を削除しました。他のプロフィール情報は変更されていません。',
-    resetAllConfirm: '全ユーザーの生年月日（年齢）だけを削除しますか？次回ログイン時にプロフィール入力画面が表示されます。',
-    resetAllDone: '全ユーザーの年齢を削除しました。',
+    adminEditButton: '管理者編集',
+    adminEditTitle: (name) => `管理者編集：${name || 'ユーザー'}`,
+    adminEditDescription: 'このユーザーのプロフィールを編集します。性別と希望する相手は変更されず、写真と保存済みの位置情報も変更されません。',
+    adminEditSave: '変更を保存',
+    adminEditSaving: '保存中…',
+    adminEditDone: 'プロフィールを更新しました。',
+    adminEditFailed: 'プロフィールを更新できませんでした。',
+    giftUpdateInfoButton: 'プロフィール更新を贈る',
+    giftUpdateInfoDone: '全ユーザーに無料更新の機会を贈り、生年月日／年齢を消去しました。写真・位置情報・最終オンライン時刻は保持されています。',
     swapSexButton: '性別を強制変更',
     swapSexConfirm: (name, from, to) => `${name || 'このユーザー'}の性別を${from}から${to}に変更しますか？`,
     swapSexDone: (gender) => `性別を${gender}に変更しました。`,
@@ -2582,10 +2636,15 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     swapSexFailed: '性別を変更できませんでした。',
   },
   ko: {
-    resetSingleConfirm: (name) => `${name || '이 사용자'}의 나이를 삭제할까요? 생년월일만 지웁니다.`,
-    resetSingleDone: '나이가 삭제되었습니다. 다른 프로필 정보는 그대로 유지됩니다.',
-    resetAllConfirm: '모든 사용자의 생년월일(나이)만 삭제할까요? 다음 로그인 때 프로필 입력 화면이 표시됩니다.',
-    resetAllDone: '모든 사용자의 나이가 삭제되었습니다.',
+    adminEditButton: '관리자 편집',
+    adminEditTitle: (name) => `관리자 편집: ${name || '사용자'}`,
+    adminEditDescription: '이 사용자의 프로필 정보를 편집합니다. 성별과 찾는 대상은 변경되지 않으며 사진과 저장된 위치도 수정하지 않습니다.',
+    adminEditSave: '변경 사항 저장',
+    adminEditSaving: '저장 중…',
+    adminEditDone: '프로필이 업데이트되었습니다.',
+    adminEditFailed: '프로필을 업데이트하지 못했습니다.',
+    giftUpdateInfoButton: '프로필 업데이트 선물',
+    giftUpdateInfoDone: '모든 사용자에게 무료 업데이트 기회를 선물하고 생년월일/나이를 지웠습니다. 사진, 위치, 마지막 접속 시간은 유지됩니다.',
     swapSexButton: '성별 강제 변경',
     swapSexConfirm: (name, from, to) => `${name || '이 사용자'}의 성별을 ${from}에서 ${to}(으)로 변경할까요?`,
     swapSexDone: (gender) => `성별이 ${gender}(으)로 변경되었습니다.`,
@@ -2593,10 +2652,15 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     swapSexFailed: '성별을 변경하지 못했습니다.',
   },
   ru: {
-    resetSingleConfirm: (name) => `Удалить возраст пользователя «${name || 'этого пользователя'}»? Будет удалена только дата рождения.`,
-    resetSingleDone: 'Возраст удалён. Остальные данные профиля не изменены.',
-    resetAllConfirm: 'Удалить только даты рождения (возраст) у всех пользователей? При следующем входе появится экран заполнения профиля.',
-    resetAllDone: 'Возраст удалён у всех пользователей.',
+    adminEditButton: 'Редактировать профиль (админ)',
+    adminEditTitle: (name) => `Редактирование администратором: ${name || 'пользователь'}`,
+    adminEditDescription: 'Изменение данных профиля пользователя. Пол и предпочтение остаются без изменений; фото и сохранённое местоположение не затрагиваются.',
+    adminEditSave: 'Сохранить изменения',
+    adminEditSaving: 'Сохранение…',
+    adminEditDone: 'Профиль обновлён.',
+    adminEditFailed: 'Не удалось обновить профиль.',
+    giftUpdateInfoButton: 'Подарить обновление профиля',
+    giftUpdateInfoDone: 'Всем пользователям подарена возможность бесплатного обновления и удалены дата рождения/возраст. Фото, местоположение и время последнего входа сохранены.',
     swapSexButton: 'Принудительно сменить пол',
     swapSexConfirm: (name, from, to) => `Изменить пол пользователя «${name || 'этого пользователя'}» с «${from}» на «${to}»?`,
     swapSexDone: (gender) => `Пол изменён на «${gender}».`,
@@ -2863,6 +2927,18 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
   const [showProfileSetupPreview, setShowProfileSetupPreview] = useState(false);
   const profileSetupPreviewDialogRef = useRef<HTMLDivElement | null>(null);
+  const [adminEditTarget, setAdminEditTarget] = useState<UserProfile | null>(null);
+  const [adminEditDraft, setAdminEditDraft] = useState<ProfileCompletionValues | null>(null);
+  const [adminEditTouched, setAdminEditTouched] = useState<Set<keyof ProfileCompletionValues>>(
+    () => new Set(),
+  );
+  const [adminEditLoading, setAdminEditLoading] = useState(false);
+  const [adminEditSaving, setAdminEditSaving] = useState(false);
+  const [adminEditError, setAdminEditError] = useState('');
+  const adminProfileEditDialogRef = useRef<HTMLDivElement | null>(null);
+  const adminEditSavingRef = useRef(false);
+  const adminEditRequestRef = useRef(0);
+  const adminEditTargetId = adminEditTarget?.id ?? null;
   const [showRolesModal, setShowRolesModal] = useState<boolean>(false);
   const [showVipPeriods, setShowVipPeriods] = useState<boolean>(false);
   const [vipGrantWindowEnabled, setVipGrantWindowEnabled] = useState<boolean>(false);
@@ -3001,6 +3077,65 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, [showProfileSetupPreview, isAdmin]);
+
+  useEffect(() => {
+    if (!adminEditTargetId) return;
+    if (!isAdmin) {
+      adminEditRequestRef.current += 1;
+      setAdminEditTarget(null);
+      setAdminEditDraft(null);
+      setAdminEditTouched(new Set());
+      return;
+    }
+
+    const dialog = adminProfileEditDialogRef.current;
+    if (!dialog) return;
+
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () =>
+      Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+    focusableElements()[0]?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (adminEditSavingRef.current) return;
+        event.preventDefault();
+        adminEditRequestRef.current += 1;
+        setAdminEditTarget(null);
+        setAdminEditDraft(null);
+        setAdminEditTouched(new Set());
+        setAdminEditError('');
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusables = focusableElements();
+      const first = focusables[0];
+      const last = focusables.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [adminEditTargetId, isAdmin]);
 
   useEffect(() => {
     vipCampaignListRequestRef.current += 1;
@@ -5441,21 +5576,96 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch {}
   };
 
-  const handleForceReset = async () => {
-    if (!selectedProfile) return;
-    const targetId = selectedProfile.id;
-    const copy = adminProfileActionCopy[lang];
-    if (!window.confirm(copy.resetSingleConfirm(selectedProfile.name || ''))) return;
+  const closeAdminEdit = () => {
+    if (adminEditSavingRef.current) return;
+    adminEditRequestRef.current += 1;
+    setAdminEditTarget(null);
+    setAdminEditDraft(null);
+    setAdminEditTouched(new Set());
+    setAdminEditLoading(false);
+    setAdminEditError('');
+  };
+
+  const updateAdminEditField = <K extends keyof ProfileCompletionValues,>(
+    field: K,
+    value: ProfileCompletionValues[K],
+  ) => {
+    setAdminEditDraft((draft) => draft ? { ...draft, [field]: value } : draft);
+    setAdminEditTouched((fields) => new Set(fields).add(field));
+  };
+
+  const handleOpenAdminEdit = async (requestedTarget?: UserProfile | null) => {
+    const target = requestedTarget ?? selectedProfile;
+    if (!isAdmin || !target || target.id === currentUser?.id || adminEditSavingRef.current) return;
+    const requestId = ++adminEditRequestRef.current;
+    setAdminEditTarget(target);
+    setAdminEditDraft(null);
+    setAdminEditTouched(new Set());
+    setAdminEditError('');
+    setAdminEditLoading(true);
     try {
-      await workerPost('/api/reset-profile', { target_id: targetId });
+      const result = await workerPost('/api/admin/profile', {
+        action: 'get',
+        target_id: target.id,
+      });
+      if (requestId !== adminEditRequestRef.current) return;
+      if (result?.profile?.id !== target.id) {
+        throw new Error('The server did not return the selected profile.');
+      }
+      setAdminEditDraft(toAdminProfileValues(result.profile));
+    } catch (error) {
+      if (requestId === adminEditRequestRef.current) {
+        setAdminEditError(formatAdminFailure(error, adminProfileActionCopy[lang].adminEditFailed));
+      }
+    } finally {
+      if (requestId === adminEditRequestRef.current) setAdminEditLoading(false);
+    }
+  };
+
+  const handleSaveAdminEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isAdmin || !adminEditTarget || !adminEditDraft || adminEditSavingRef.current) return;
+
+    const updates: Record<string, unknown> = {};
+    for (const field of adminEditTouched) {
+      const apiField = ADMIN_EDIT_PROFILE_FIELD_MAP[field];
+      if (apiField) updates[apiField] = adminEditDraft[field];
+    }
+    if (Object.keys(updates).length === 0) {
+      closeAdminEdit();
+      return;
+    }
+
+    const targetId = adminEditTarget.id;
+    const copy = adminProfileActionCopy[lang];
+    adminEditSavingRef.current = true;
+    setAdminEditSaving(true);
+    setAdminEditError('');
+    try {
+      const result = await workerPost('/api/admin/profile', {
+        action: 'update',
+        target_id: targetId,
+        profile: updates,
+      });
+      if (result?.updated !== true || result?.profile?.id !== targetId) {
+        throw new Error('The server did not confirm the profile update.');
+      }
       setSelectedProfile((profile) =>
-        profile?.id === targetId ? { ...profile, dob: null, age: null } : profile,
+        profile?.id === targetId ? { ...profile, ...result.profile } : profile,
       );
       setUsers((profiles) => profiles.map((profile) =>
-        profile.id === targetId ? { ...profile, dob: null, age: null } : profile,
+        profile.id === targetId ? { ...profile, ...result.profile } : profile,
       ));
-      alert(copy.resetSingleDone);
-    } catch (e) { console.error(e); alert(formatAdminFailure(e, t('resetFailed'))); }
+      adminEditSavingRef.current = false;
+      setAdminEditSaving(false);
+      closeAdminEdit();
+      alert(copy.adminEditDone);
+    } catch (error) {
+      setAdminEditError(formatAdminFailure(error, copy.adminEditFailed));
+    } finally {
+      adminEditSavingRef.current = false;
+      setAdminEditSaving(false);
+    }
   };
 
   const handleForceSwapSex = async () => {
@@ -6235,13 +6445,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
-  const handleResetAll = async () => {
+  const handleGiftUpdateInfoToAll = async () => {
     const copy = adminProfileActionCopy[lang];
     if (!window.confirm(PROFILE_UPDATE_OFFER_COPY[lang].resetAllConfirm)) return;
     try {
       await workerPost('/api/reset-all');
       setShowAdminMenu(false);
-      alert(copy.resetAllDone);
+      alert(copy.giftUpdateInfoDone);
     } catch (e) { console.error(e); alert(formatAdminFailure(e, t('resetFailed'))); }
   };
 
@@ -6780,7 +6990,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 data-testid="admin-profile-actions"
                 style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 5, display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '6px', maxWidth: 'calc(100% - 64px)' }}
               >
-                <button type="button" onClick={(e) => { e.stopPropagation(); handleForceReset(); }} data-testid="admin-force-reset-profile" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#7f1d1d', border: '1px solid #444', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }} title={t('forceReset')} aria-label={t('forceReset')}><span style={{ fontSize: '8px', lineHeight: 1 }}>🔁</span></button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); void handleOpenAdminEdit(); }} data-testid="admin-edit-profile" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#1d4ed8', border: '1px solid #444', borderRadius: '8px', fontSize: '18px', cursor: 'pointer' }} title={adminProfileActionCopy[lang].adminEditButton} aria-label={adminProfileActionCopy[lang].adminEditButton}><span aria-hidden="true">✎</span></button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); void handleForceSwapSex(); }}
@@ -6919,7 +7129,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                         {globalVipActive && (<button type="button" disabled={savingVipGrant} onClick={() => handleGrantGlobalVip(0)} style={{ padding: '7px 10px', backgroundColor: '#3a1010', border: '1px solid #663333', borderRadius: '6px', fontSize: '12px', color: '#f87171', cursor: savingVipGrant ? 'wait' : 'pointer', textAlign: 'left' }}>{t('revokeVipAll')}</button>)}
                       </div>
                     )}
-                    <button type="button" onClick={handleResetAll} style={{ padding: '9px 10px', backgroundColor: '#7f1d1d', border: '1px solid #991b1b', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('forceResetAll')}</button>
+                    <button type="button" onClick={handleGiftUpdateInfoToAll} data-testid="admin-gift-update-info-all" style={{ padding: '9px 10px', backgroundColor: '#166534', border: '1px solid #15803d', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{adminProfileActionCopy[lang].giftUpdateInfoButton}</button>
                   </div>
                 )}
               </div>
@@ -7300,6 +7510,149 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 t={t}
               />
             </Suspense>
+          </div>
+        </div>
+      )}
+
+      {adminEditTarget && isAdmin && (
+        <div
+          onClick={closeAdminEdit}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 6000,
+            backgroundColor: 'rgba(0,0,0,0.78)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '12px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            ref={adminProfileEditDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-profile-edit-title"
+            data-testid="dialog-admin-profile-edit"
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '720px',
+              maxHeight: 'calc(100dvh - 24px)',
+              overflowY: 'auto',
+              borderRadius: '16px',
+              outline: 'none',
+            }}
+          >
+            {adminEditLoading ? (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  padding: '24px',
+                  borderRadius: '12px',
+                  backgroundColor: '#161616',
+                  color: '#ccc',
+                  textAlign: 'center',
+                }}
+              >
+                {t('loading')}
+              </div>
+            ) : adminEditDraft ? (
+              <Suspense
+                fallback={
+                  <div role="status" aria-live="polite" style={{ padding: '24px', borderRadius: '12px', backgroundColor: '#161616', color: '#ccc', textAlign: 'center' }}>
+                    {t('loading')}
+                  </div>
+                }
+              >
+                <ProfileCompletionModule
+                  entry={entry}
+                  values={adminEditDraft}
+                  isCompletionFlow={false}
+                  presentation="embedded"
+                  titleOverride={adminProfileActionCopy[lang].adminEditTitle(adminEditTarget.name)}
+                  titleId="admin-profile-edit-title"
+                  warningOverride={adminProfileActionCopy[lang].adminEditDescription}
+                  submitLabel={adminEditSaving
+                    ? adminProfileActionCopy[lang].adminEditSaving
+                    : adminProfileActionCopy[lang].adminEditSave}
+                  submitDisabled={adminEditSaving}
+                  lockIdentityFields
+                  language={lang}
+                  missingFields={{ dob: false, gender: false, height: false, weight: false }}
+                  onChange={{
+                    dob: (value) => updateAdminEditField('dob', value),
+                    gender: (value) => updateAdminEditField('gender', value),
+                    seeking: (value) => updateAdminEditField('seeking', value),
+                    height: (value) => updateAdminEditField('height', value),
+                    weight: (value) => updateAdminEditField('weight', value),
+                    rolePref: (value) => updateAdminEditField('rolePref', value),
+                    safetyPref: (value) => updateAdminEditField('safetyPref', value),
+                    playstylePref: (value) => updateAdminEditField('playstylePref', value),
+                    howManyPref: (value) => updateAdminEditField('howManyPref', value),
+                    wherePref: (value) => updateAdminEditField('wherePref', value),
+                    nonManMode: (value) => updateAdminEditField('nonManMode', value),
+                  }}
+                  onSubmit={handleSaveAdminEdit}
+                  onClose={closeAdminEdit}
+                  showCloseButton
+                  errorMessage={adminEditError}
+                  heightOptions={buildProfileHeightOptions(adminEditDraft.height)}
+                  weightOptions={weightOptions}
+                  t={t}
+                  onCycleRole={() => {
+                    const next = cycleNext(adminEditDraft.rolePref, PROFILE_ROLE_CYCLE_OPTIONS)
+                      ?? adminEditDraft.rolePref;
+                    updateAdminEditField('rolePref', next);
+                    return next;
+                  }}
+                  onCycleSafety={() => {
+                    const next = cycleNext(adminEditDraft.safetyPref, PROFILE_SAFETY_CYCLE_OPTIONS)
+                      ?? adminEditDraft.safetyPref;
+                    updateAdminEditField('safetyPref', next);
+                    return next;
+                  }}
+                  onCyclePlaystyle={() => {
+                    const next = cycleNext(adminEditDraft.playstylePref, PROFILE_PLAYSTYLE_CYCLE_OPTIONS)
+                      ?? adminEditDraft.playstylePref;
+                    updateAdminEditField('playstylePref', next);
+                    return next;
+                  }}
+                  onCycleHowMany={() => {
+                    const next = cycleNext(adminEditDraft.howManyPref, PROFILE_HOW_MANY_CYCLE_OPTIONS)
+                      ?? adminEditDraft.howManyPref;
+                    updateAdminEditField('howManyPref', next);
+                    return next;
+                  }}
+                  onCycleWhere={() => {
+                    const next = cycleWhere(adminEditDraft.wherePref, PROFILE_WHERE_CYCLE_OPTIONS)
+                      ?? adminEditDraft.wherePref;
+                    updateAdminEditField('wherePref', next);
+                    return next;
+                  }}
+                />
+              </Suspense>
+            ) : (
+              <div
+                style={{
+                  padding: '24px',
+                  borderRadius: '12px',
+                  backgroundColor: '#161616',
+                  color: '#fff',
+                  textAlign: 'center',
+                }}
+              >
+                <p role="alert" style={{ color: '#fca5a5', marginTop: 0 }}>
+                  {adminEditError || adminProfileActionCopy[lang].adminEditFailed}
+                </p>
+                <button type="button" onClick={closeAdminEdit} style={{ minHeight: '44px', padding: '8px 14px' }}>
+                  {t('close')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

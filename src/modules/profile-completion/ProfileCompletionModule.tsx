@@ -40,6 +40,12 @@ export interface ProfileCompletionModuleProps {
   isCompletionFlow: boolean;
   presentation?: 'modal' | 'embedded';
   previewOnly?: boolean;
+  titleOverride?: string;
+  titleId?: string;
+  warningOverride?: string;
+  submitLabel?: string;
+  submitDisabled?: boolean;
+  lockIdentityFields?: boolean;
   language?: ProfileCompletionLanguage;
   missingFields: {
     dob: boolean;
@@ -218,6 +224,12 @@ export default function ProfileCompletionModule({
   isCompletionFlow,
   presentation = 'modal',
   previewOnly = false,
+  titleOverride,
+  titleId = 'profile-completion-title',
+  warningOverride,
+  submitLabel,
+  submitDisabled = false,
+  lockIdentityFields = false,
   language = 'en',
   missingFields,
   onChange,
@@ -238,6 +250,7 @@ export default function ProfileCompletionModule({
   const [submitAttempt, setSubmitAttempt] = useState(0);
   const [preferenceAnnouncement, setPreferenceAnnouncement] = useState('');
   const isManSeekingMan = values.gender === 'man' && values.seeking === 'men';
+  const identityFieldsLocked = entry.profileSetup.lockIdentity || lockIdentityFields;
   const statusCopy = completionStatusCopy[language];
   const announcePreferenceCycle = (
     preference: ProfilePreferenceCycleKey,
@@ -323,9 +336,9 @@ export default function ProfileCompletionModule({
       ...DEFAULT_PROFILE_SETUP_ORDER,
     ]),
   ];
-  const warningCopy = entry.profileSetup.warningKey === 'profileWarning'
+  const warningCopy = warningOverride ?? (entry.profileSetup.warningKey === 'profileWarning'
     ? isCompletionFlow ? statusCopy.warning : statusCopy.editWarning
-    : t(entry.profileSetup.warningKey);
+    : t(entry.profileSetup.warningKey));
 
   const renderSection = (section: ProfileSetupSection): ReactNode => {
     switch (section) {
@@ -357,23 +370,23 @@ export default function ProfileCompletionModule({
               {isCompletionFlow && fieldStatus(
                 'gender',
                 values.gender,
-                entry.profileSetup.lockIdentity && missingFields.gender,
+                identityFieldsLocked && missingFields.gender,
                 !missingFields.gender,
               )}
               <select
                 id="profile-completion-gender"
                 value={values.gender}
                 onChange={(event) => onChange.gender(event.target.value)}
-                disabled={entry.profileSetup.lockIdentity || !canEditMissingField('gender')}
+                disabled={identityFieldsLocked || !canEditMissingField('gender')}
                 style={{ ...inputStyle, flex: 1, minWidth: 0, padding: '6px 4px' }}
                 aria-describedby={[
                   isCompletionFlow ? 'profile-field-status-gender' : null,
-                  entry.profileSetup.lockIdentity ? 'profile-identity-locked-help' : null,
+                  identityFieldsLocked ? 'profile-identity-locked-help' : null,
                 ].filter(Boolean).join(' ') || undefined}
                 data-profile-incomplete-editable={incompleteFieldMarker(
                   'gender',
                   values.gender,
-                  entry.profileSetup.lockIdentity,
+                  identityFieldsLocked,
                 )}
                 required
               >
@@ -386,11 +399,11 @@ export default function ProfileCompletionModule({
                 id="profile-completion-seeking"
                 value={values.seeking}
                 onChange={(event) => onChange.seeking(event.target.value)}
-                disabled={entry.profileSetup.lockIdentity}
+                disabled={identityFieldsLocked}
                 style={{ ...inputStyle, flex: 1, minWidth: 0, padding: '6px 4px' }}
-                aria-describedby={entry.profileSetup.lockIdentity ? 'profile-identity-locked-help' : undefined}
+                aria-describedby={identityFieldsLocked ? 'profile-identity-locked-help' : undefined}
                 data-profile-incomplete-editable={
-                  isCompletionFlow && !entry.profileSetup.lockIdentity && !values.seeking.trim()
+                  isCompletionFlow && !identityFieldsLocked && !values.seeking.trim()
                     ? 'true'
                     : undefined
                 }
@@ -401,7 +414,7 @@ export default function ProfileCompletionModule({
                 ))}
               </select>
             </div>
-            {entry.profileSetup.lockIdentity && (
+            {identityFieldsLocked && (
               <div
                 id="profile-identity-locked-help"
                 data-testid="profile-identity-locked"
@@ -554,7 +567,7 @@ export default function ProfileCompletionModule({
             ✕
           </button>
         )}
-        <h2 style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{t(entry.profileSetup.titleKey)}</h2>
+        <h2 id={titleId} style={{ fontSize: '18px', margin: 0, color: '#007bff', textAlign: 'center' }}>{titleOverride ?? t(entry.profileSetup.titleKey)}</h2>
         <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#ff4d4d', textAlign: 'center', margin: 0, lineHeight: '1.4' }}>{warningCopy}</p>
         {isCompletionFlow && (
           <div
@@ -616,8 +629,8 @@ export default function ProfileCompletionModule({
             {preferenceAnnouncement}
           </div>
           {!previewOnly && (
-            <button type="submit" style={{ marginTop: '4px', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-              {t('saveProfile')}
+            <button type="submit" disabled={submitDisabled} aria-busy={submitDisabled || undefined} style={{ marginTop: '4px', padding: '10px', backgroundColor: submitDisabled ? '#4b5563' : '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: submitDisabled ? 'wait' : 'pointer' }}>
+              {submitLabel ?? t('saveProfile')}
             </button>
           )}
         </form>
