@@ -76,6 +76,7 @@ import {
   type GenderFilterValue,
 } from './utils/preference-filters';
 import { isInvisibilityExpired, resolveGridVisibility, resolveMapVisibility } from './utils/invisibility-expiry';
+import { MAP_ACTIVITY_COPY } from './modules/map/map-activity-copy';
 import {
   createFlyingMessageNotice,
   getFlyingMessageNoticeAfterDismissal,
@@ -3275,6 +3276,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [flyingPriceDraft, setFlyingPriceDraft] = useState<string>('0');
   const [savingFlyingPrice, setSavingFlyingPrice] = useState<boolean>(false);
   const [flyingMessagePrice, setFlyingMessagePrice] = useState<number>(0);
+  const [showMapPartyPriceEditor, setShowMapPartyPriceEditor] = useState<boolean>(false);
+  const [mapPartyPriceDraft, setMapPartyPriceDraft] = useState<string>('0');
+  const [savingMapPartyPrice, setSavingMapPartyPrice] = useState<boolean>(false);
+  const [mapPartyPostPrice, setMapPartyPostPrice] = useState<number>(0);
   const effectiveFlyingMessagePrice = paidUnlocked ? 0 : flyingMessagePrice;
   const [flyingMessageText, setFlyingMessageText] = useState<string>('');
   const [flyingMessages, setFlyingMessages] = useState<FlyingMessage[]>([]);
@@ -6467,6 +6472,26 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
+  const handleSaveMapPartyPrice = async () => {
+    const price = Number(mapPartyPriceDraft);
+    if (!Number.isSafeInteger(price) || price < 0 || price > 10_000) {
+      window.alert('Price must be between 0 and 10000 Stars.');
+      return;
+    }
+    setSavingMapPartyPrice(true);
+    try {
+      const result = await workerPost('/api/admin/map-party-price', { starsPrice: price });
+      setMapPartyPostPrice(result.starsPrice);
+      setMapPartyPriceDraft(String(result.starsPrice));
+      setShowMapPartyPriceEditor(false);
+      setShowAdminMenu(false);
+    } catch (error) {
+      window.alert(formatAdminFailure(error, 'Party posting price could not be saved.'));
+    } finally {
+      setSavingMapPartyPrice(false);
+    }
+  };
+
   const handleGiftUpdateInfoToAll = async () => {
     const copy = adminProfileActionCopy[lang];
     if (!window.confirm(PROFILE_UPDATE_OFFER_COPY[lang].resetAllConfirm)) return;
@@ -6981,6 +7006,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 isOnline={isOnlineWithin15Min}
                 profileImageLabel={t('profileImage')}
                 onSelectProfile={handleCardClick}
+                lang={lang}
+                apiPost={(path, body) => workerPostRef.current(path, body)}
+                startInvoice={startInvoice}
+                onPartyPriceChanged={setMapPartyPostPrice}
               />
             </Suspense>
           )}
@@ -7090,6 +7119,52 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                           style={{ padding: '7px 9px', backgroundColor: '#166534', border: '1px solid #15803d', borderRadius: '5px', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: savingFlyingPrice ? 'wait' : 'pointer' }}
                         >
                           {savingFlyingPrice ? flyingCopy.sending : flyingCopy.save}
+                        </button>
+                      </form>
+                    )}
+                    {mapModuleEnabled && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const result = await workerPost('/api/admin/map-party-price');
+                            const price = Number(result.starsPrice);
+                            if (!Number.isSafeInteger(price) || price < 0 || price > 10_000) {
+                              throw new Error('The saved party-post fee is invalid.');
+                            }
+                            setMapPartyPostPrice(price);
+                            setMapPartyPriceDraft(String(price));
+                            setShowMapPartyPriceEditor((value) => !value);
+                          } catch (error) {
+                            window.alert(formatAdminFailure(error, 'Party posting price could not be loaded.'));
+                          }
+                        }}
+                        style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '12px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        {MAP_ACTIVITY_COPY[lang].adminPartyPrice} · {mapPartyPostPrice} ⭐
+                      </button>
+                    )}
+                    {mapModuleEnabled && showMapPartyPriceEditor && (
+                      <form
+                        onSubmit={(event) => { event.preventDefault(); void handleSaveMapPartyPrice(); }}
+                        style={{ display: 'flex', gap: '5px', padding: '2px 0 4px' }}
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          max={10_000}
+                          step={1}
+                          value={mapPartyPriceDraft}
+                          onChange={(event) => setMapPartyPriceDraft(event.target.value)}
+                          aria-label={MAP_ACTIVITY_COPY[lang].adminPartyPrice}
+                          style={{ flex: 1, minWidth: 0, padding: '7px', backgroundColor: '#121212', color: '#fff', border: '1px solid #555', borderRadius: '5px', fontSize: '12px' }}
+                        />
+                        <button
+                          type="submit"
+                          disabled={savingMapPartyPrice}
+                          style={{ padding: '7px 9px', backgroundColor: '#166534', border: '1px solid #15803d', borderRadius: '5px', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: savingMapPartyPrice ? 'wait' : 'pointer' }}
+                        >
+                          {savingMapPartyPrice ? MAP_ACTIVITY_COPY[lang].savingPrice : MAP_ACTIVITY_COPY[lang].savePrice}
                         </button>
                       </form>
                     )}
