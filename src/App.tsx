@@ -7010,6 +7010,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 apiPost={(path, body) => workerPostRef.current(path, body)}
                 startInvoice={startInvoice}
                 onPartyPriceChanged={setMapPartyPostPrice}
+                isAdmin={isAdmin}
               />
             </Suspense>
           )}

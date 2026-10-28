@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import type { UserProfile } from '../App';
-import { MAP_ACTIVITY_COPY, type MapActivityLang } from '../modules/map/map-activity-copy';
+import { MAP_ACTIVITY_COPY, MAP_ACTIVITY_REPORT_COPY, type MapActivityLang } from '../modules/map/map-activity-copy';
 
 interface MapViewProps {
   location: { lat: number; lng: number };
@@ -19,6 +19,7 @@ interface MapViewProps {
   apiPost: (path: string, body?: Record<string, unknown>) => Promise<any>;
   startInvoice: (invoiceLink: string) => Promise<string>;
   onPartyPriceChanged: (price: number) => void;
+  isAdmin: boolean;
 }
 
 interface PartyPost {
@@ -56,6 +57,31 @@ interface PartyFormValues {
   soughtRoles: string[];
   joinCostStars: string;
   note: string;
+}
+
+interface MapActivityReport {
+  id: string;
+  activity_type: 'party' | 'cruising_spot';
+  target_id: string;
+  reporter_profile_id: string;
+  reason: 'unsafe' | 'misleading' | 'inappropriate' | 'spam' | 'other';
+  details: string;
+  status: 'open' | 'dismissed' | 'actioned';
+  reviewed_by_profile_id: string | null;
+  reviewed_at: string | null;
+  admin_note: string;
+  created_at: string;
+  targetSummary?: { note?: string; status?: string; moderation_status?: string; expires_at?: string; created_at?: string } | null;
+}
+
+interface MapActivityModerationEvent {
+  id: string;
+  activity_type: 'party' | 'cruising_spot';
+  target_id: string;
+  admin_profile_id: string;
+  action: string;
+  note: string;
+  created_at: string;
 }
 
 function MapController({
@@ -272,8 +298,10 @@ export default function MapView({
   apiPost,
   startInvoice,
   onPartyPriceChanged,
+  isAdmin,
 }: MapViewProps) {
   const text = MAP_ACTIVITY_COPY[lang];
+  const reportText = MAP_ACTIVITY_REPORT_COPY[lang];
   const [parties, setParties] = useState<PartyPost[]>([]);
   const [cruisingSpots, setCruisingSpots] = useState<CruisingSpot[]>([]);
   const [effectivePostPrice, setEffectivePostPrice] = useState(0);
@@ -281,9 +309,15 @@ export default function MapView({
   const [activityNotice, setActivityNotice] = useState('');
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityBusy, setActivityBusy] = useState(false);
-  const [dialog, setDialog] = useState<'host-prompt' | 'party-form' | 'party-details' | 'spot-details' | null>(null);
+  const [dialog, setDialog] = useState<'host-prompt' | 'party-form' | 'party-details' | 'spot-details' | 'report' | 'admin-reports' | null>(null);
   const [selectedParty, setSelectedParty] = useState<PartyPost | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<CruisingSpot | null>(null);
+  const [reportReason, setReportReason] = useState<MapActivityReport['reason']>('unsafe');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportBusy, setReportBusy] = useState(false);
+  const [adminReports, setAdminReports] = useState<MapActivityReport[]>([]);
+  const [moderationEvents, setModerationEvents] = useState<MapActivityModerationEvent[]>([]);
+  const [adminReportsLoading, setAdminReportsLoading] = useState(false);
   const [partyForm, setPartyForm] = useState<PartyFormValues>({
     durationHours: '2',
     maxPeople: '4',
@@ -479,6 +513,58 @@ export default function MapView({
       setActivityBusy(false);
     }
   };
+  const openReportDialog = () => {
+    setReportReason('unsafe');
+    setReportDetails('');
+    setDialog('report');
+  };
+  const submitActivityReport = async () => {
+    const activityType = selectedParty ? 'party' : selectedSpot ? 'cruising_spot' : null;
+    const targetId = selectedParty?.id || selectedSpot?.id;
+    if (!activityType || !targetId) return;
+    setReportBusy(true);
+    try {
+      const result = await apiPostRef.current('/api/map/activity/report', {
+        activityType, targetId, reason: reportReason, details: reportDetails.trim(),
+      });
+      setDialog(null);
+      setSelectedParty(null);
+      setSelectedSpot(null);
+      setActivityNotice(result?.duplicate ? reportText.reportDuplicate : reportText.reportSent);
+    } catch (error) {
+      setActivityNotice(error instanceof Error ? error.message : reportText.reportFailed);
+    } finally {
+      setReportBusy(false);
+    }
+  };
+  const loadAdminReports = async () => {
+    setAdminReportsLoading(true);
+    try {
+      const result = await apiPostRef.current('/api/admin/map-activity-reports', { action: 'list' });
+      if (!Array.isArray(result?.reports) || !Array.isArray(result?.events)) throw new Error(reportText.reportFailed);
+      setAdminReports(result.reports as MapActivityReport[]);
+      setModerationEvents(result.events as MapActivityModerationEvent[]);
+      setDialog('admin-reports');
+    } catch (error) {
+      setActivityNotice(error instanceof Error ? error.message : reportText.reportFailed);
+    } finally {
+      setAdminReportsLoading(false);
+    }
+  };
+  const reviewReport = async (report: MapActivityReport, action: 'dismiss' | 'hide' | 'remove' | 'restore') => {
+    setReportBusy(true);
+    try {
+      await apiPostRef.current('/api/admin/map-activity-reports', { action, reportId: report.id });
+      const result = await apiPostRef.current('/api/admin/map-activity-reports', { action: 'list' });
+      setAdminReports(result.reports as MapActivityReport[]);
+      setModerationEvents(result.events as MapActivityModerationEvent[]);
+      await refreshActivities();
+    } catch (error) {
+      setActivityNotice(error instanceof Error ? error.message : reportText.reportFailed);
+    } finally {
+      setReportBusy(false);
+    }
+  };
   const openHostChat = () => {
     const username = selectedParty?.host.username.replace(/^@/, '').trim();
     if (!username) return;
@@ -548,6 +634,16 @@ export default function MapView({
         >
           {text.markSpot}
         </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => void loadAdminReports()}
+            disabled={adminReportsLoading}
+            style={mapActionButtonStyle('#374151')}
+          >
+            {adminReportsLoading ? text.loading : reportText.reviewReports}
+          </button>
+        )}
         {!canPublishLocation && (
           <div
             role="status"
@@ -653,8 +749,10 @@ export default function MapView({
             <h2 id="map-activity-dialog-title" style={{ margin: '0 0 12px', fontSize: '18px' }}>
               {dialog === 'host-prompt' ? text.promptTitle
                 : dialog === 'party-form' ? text.formTitle
-                  : dialog === 'party-details' ? text.partyDetails
-                    : text.spotTitle}
+                : dialog === 'party-details' ? text.partyDetails
+                  : dialog === 'report' ? reportText.report
+                    : dialog === 'admin-reports' ? reportText.reviewReports
+                      : text.spotTitle}
             </h2>
             {dialog === 'host-prompt' && (
               <>
@@ -806,6 +904,11 @@ export default function MapView({
                       {text.usernameMissing}
                     </button>
                   )}
+                  {!selectedParty.isMine && (
+                    <button type="button" onClick={openReportDialog} style={mapSecondaryButtonStyle}>
+                      {reportText.report}
+                    </button>
+                  )}
                   <button type="button" onClick={closeDialog} style={mapSecondaryButtonStyle}>{text.close}</button>
                 </div>
               </div>
@@ -834,11 +937,71 @@ export default function MapView({
                       </button>
                     </>
                   )}
+                  {!selectedSpot.isMine && (
+                    <button type="button" onClick={openReportDialog} style={mapSecondaryButtonStyle}>
+                      {reportText.report}
+                    </button>
+                  )}
                   <button type="button" disabled={activityBusy} onClick={closeDialog} style={mapSecondaryButtonStyle}>
                     {text.close}
                   </button>
                 </div>
               </>
+            )}
+            {dialog === 'report' && (
+              <form onSubmit={(event) => { event.preventDefault(); void submitActivityReport(); }} style={{ display: 'grid', gap: '12px' }}>
+                <label style={mapFieldStyle}>
+                  <span>{reportText.reason}</span>
+                  <select value={reportReason} onChange={(event) => setReportReason(event.target.value as MapActivityReport['reason'])} style={mapInputStyle}>
+                    {Object.entries(reportText.reasonOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <label style={mapFieldStyle}>
+                  <span>{reportText.details}</span>
+                  <textarea rows={3} maxLength={280} value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} style={{ ...mapInputStyle, resize: 'vertical' }} />
+                </label>
+                <div style={mapDialogActionsStyle}>
+                  <button type="submit" disabled={reportBusy} style={mapPrimaryButtonStyle}>{reportBusy ? reportText.reporting : reportText.submitReport}</button>
+                  <button type="button" disabled={reportBusy} onClick={closeDialog} style={mapSecondaryButtonStyle}>{text.cancel}</button>
+                </div>
+              </form>
+            )}
+            {dialog === 'admin-reports' && (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px' }}>{reportText.reportQueue}</h3>
+                {adminReports.filter((report) => report.status === 'open').length === 0 && <p style={mapDialogTextStyle}>{reportText.noReports}</p>}
+                {adminReports.filter((report) => report.status === 'open').map((report) => (
+                  <article key={report.id} style={{ display: 'grid', gap: '7px', padding: '10px', border: '1px solid #444', borderRadius: '9px' }}>
+                    <strong>{reportText.reasonOptions[report.reason]} · {report.activity_type === 'party' ? text.partyDetails : text.spotTitle}</strong>
+                    <small style={mapHintStyle}>{report.target_id} · {new Date(report.created_at).toLocaleString()}</small>
+                    <small style={mapHintStyle}>Reporter: {report.reporter_profile_id}</small>
+                    {report.targetSummary && (
+                      <small style={mapHintStyle}>
+                        {report.targetSummary.note || report.targetSummary.status || ''}
+                        {report.targetSummary.moderation_status ? ` · ${report.targetSummary.moderation_status}` : ''}
+                      </small>
+                    )}
+                    {report.details && <p style={{ ...mapDialogTextStyle, margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{report.details}</p>}
+                    <div style={{ ...mapDialogActionsStyle, justifyContent: 'flex-start' }}>
+                      <button type="button" disabled={reportBusy} onClick={() => void reviewReport(report, 'dismiss')} style={mapSecondaryButtonStyle}>{reportText.dismiss}</button>
+                      <button type="button" disabled={reportBusy} onClick={() => void reviewReport(report, 'hide')} style={mapSecondaryButtonStyle}>{reportText.hidePin}</button>
+                      <button type="button" disabled={reportBusy} onClick={() => void reviewReport(report, 'remove')} style={{ ...mapSecondaryButtonStyle, borderColor: '#b91c1c' }}>{reportText.removePin}</button>
+                    </div>
+                  </article>
+                ))}
+                <h3 style={{ margin: '4px 0 0', fontSize: '15px' }}>{reportText.auditTrail}</h3>
+                {moderationEvents.length === 0 && <small style={mapHintStyle}>{reportText.noReports}</small>}
+                {moderationEvents.slice(0, 30).map((item) => (
+                  <div key={item.id} style={{ padding: '8px', borderRadius: '7px', background: '#242424', overflowWrap: 'anywhere' }}>
+                    <strong>{item.action} · {item.activity_type}</strong>
+                    <small style={{ display: 'block', color: '#aaa' }}>{item.target_id} · {new Date(item.created_at).toLocaleString()} · {item.admin_profile_id}</small>
+                    {item.note && <small style={{ color: '#ccc' }}>{item.note}</small>}
+                  </div>
+                ))}
+                <div style={mapDialogActionsStyle}>
+                  <button type="button" disabled={reportBusy} onClick={closeDialog} style={mapSecondaryButtonStyle}>{text.close}</button>
+                </div>
+              </div>
             )}
           </section>
         </div>

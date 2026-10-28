@@ -341,3 +341,88 @@ const copy = {
 
 export type MapActivityCopy = { [Key in keyof (typeof copy)['en']]: string };
 export const MAP_ACTIVITY_COPY: Record<MapActivityLang, MapActivityCopy> = copy;
+
+export const MAP_ACTIVITY_REPORT_COPY: Record<MapActivityLang, {
+  report: string;
+  reason: string;
+  details: string;
+  submitReport: string;
+  reportSent: string;
+  reportDuplicate: string;
+  reportFailed: string;
+  reviewReports: string;
+  reportQueue: string;
+  noReports: string;
+  dismiss: string;
+  hidePin: string;
+  removePin: string;
+  restorePin: string;
+  auditTrail: string;
+  reporting: string;
+  reasonOptions: Record<'unsafe' | 'misleading' | 'inappropriate' | 'spam' | 'other', string>;
+}> = {
+  en: {
+    report: 'Report pin', reason: 'Reason', details: 'Short details (optional)',
+    submitReport: 'Submit report', reportSent: 'Report submitted for review.',
+    reportDuplicate: 'You have already reported this pin.',
+    reportFailed: 'Could not submit report. Please try again.',
+    reviewReports: 'Review reports', reportQueue: 'Map pin reports',
+    noReports: 'No reports to review.', dismiss: 'Dismiss', hidePin: 'Hide pin',
+    removePin: 'Remove pin', restorePin: 'Restore pin', auditTrail: 'Moderation history',
+    reporting: 'Submitting…',
+    reasonOptions: { unsafe: 'Unsafe', misleading: 'Misleading', inappropriate: 'Inappropriate', spam: 'Spam', other: 'Other' },
+  },
+  'zh-CN': {
+    report: '举报标记', reason: '原因', details: '补充说明（选填）',
+    submitReport: '提交举报', reportSent: '举报已提交审核。',
+    reportDuplicate: '你已举报过此标记。',
+    reportFailed: '无法提交举报，请重试。', reviewReports: '审核举报',
+    reportQueue: '地图标记举报', noReports: '没有待审核的举报。',
+    dismiss: '忽略', hidePin: '隐藏标记', removePin: '移除标记',
+    restorePin: '恢复标记', auditTrail: '审核记录', reporting: '提交中…',
+    reasonOptions: { unsafe: '不安全', misleading: '误导信息', inappropriate: '不当内容', spam: '垃圾内容', other: '其他' },
+  },
+  'zh-TW': {
+    report: '檢舉標記', reason: '原因', details: '補充說明（選填）',
+    submitReport: '提交檢舉', reportSent: '檢舉已提交審核。',
+    reportDuplicate: '你已檢舉過此標記。',
+    reportFailed: '無法提交檢舉，請重試。', reviewReports: '審核檢舉',
+    reportQueue: '地圖標記檢舉', noReports: '沒有待審核的檢舉。',
+    dismiss: '忽略', hidePin: '隱藏標記', removePin: '移除標記',
+    restorePin: '還原標記', auditTrail: '審核記錄', reporting: '提交中…',
+    reasonOptions: { unsafe: '不安全', misleading: '誤導資訊', inappropriate: '不當內容', spam: '垃圾內容', other: '其他' },
+  },
+  ja: {
+    report: 'ピンを報告', reason: '理由', details: '補足（任意）',
+    submitReport: '報告を送信', reportSent: '報告を審査に送信しました。',
+    reportDuplicate: 'このピンはすでに報告済みです。',
+    reportFailed: '報告を送信できません。もう一度お試しください。',
+    reviewReports: '報告を確認', reportQueue: '地図ピンの報告',
+    noReports: '確認待ちの報告はありません。', dismiss: '却下',
+    hidePin: 'ピンを非表示', removePin: 'ピンを削除', restorePin: 'ピンを復元',
+    auditTrail: '対応履歴', reporting: '送信中…',
+    reasonOptions: { unsafe: '危険', misleading: '誤解を招く', inappropriate: '不適切', spam: 'スパム', other: 'その他' },
+  },
+  ko: {
+    report: '핀 신고', reason: '사유', details: '추가 설명(선택)',
+    submitReport: '신고 제출', reportSent: '신고가 검토 대상으로 제출되었습니다.',
+    reportDuplicate: '이미 신고한 핀입니다.',
+    reportFailed: '신고를 제출할 수 없습니다. 다시 시도해 주세요.',
+    reviewReports: '신고 검토', reportQueue: '지도 핀 신고',
+    noReports: '검토할 신고가 없습니다.', dismiss: '기각',
+    hidePin: '핀 숨기기', removePin: '핀 삭제', restorePin: '핀 복원',
+    auditTrail: '조치 기록', reporting: '제출 중…',
+    reasonOptions: { unsafe: '위험함', misleading: '오해를 일으킴', inappropriate: '부적절함', spam: '스팸', other: '기타' },
+  },
+  ru: {
+    report: 'Пожаловаться на метку', reason: 'Причина', details: 'Подробности (необязательно)',
+    submitReport: 'Отправить жалобу', reportSent: 'Жалоба отправлена на рассмотрение.',
+    reportDuplicate: 'Вы уже пожаловались на эту метку.',
+    reportFailed: 'Не удалось отправить жалобу. Попробуйте снова.',
+    reviewReports: 'Проверить жалобы', reportQueue: 'Жалобы на метки',
+    noReports: 'Нет жалоб для проверки.', dismiss: 'Отклонить',
+    hidePin: 'Скрыть метку', removePin: 'Удалить метку', restorePin: 'Восстановить метку',
+    auditTrail: 'История модерации', reporting: 'Отправка…',
+    reasonOptions: { unsafe: 'Небезопасно', misleading: 'Вводит в заблуждение', inappropriate: 'Недопустимо', spam: 'Спам', other: 'Другое' },
+  },
+};
