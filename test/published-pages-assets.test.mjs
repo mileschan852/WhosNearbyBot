@@ -14,10 +14,10 @@ const html = `<!doctype html>
     <script type="module" src="./assets/site-def.js"></script>
   </body></html>`;
 
-function response(body, status = 200) {
+function response(body, status = 200, contentType = 'text/html; charset=utf-8') {
   return new Response(body, {
     status,
-    headers: { 'content-type': 'text/html; charset=utf-8' },
+    headers: { 'content-type': contentType },
   });
 }
 
@@ -26,8 +26,12 @@ test('published page smoke check resolves and fetches assets under the Pages bas
   const fetchImpl = async (url) => {
     calls.push(String(url));
     if (String(url) === pageUrl) return response(html);
-    if (String(url) === `${pageUrl}assets/site-abc.css`) return response('body { color: white; }');
-    if (String(url) === `${pageUrl}assets/site-def.js`) return response('console.log("loaded");');
+    if (String(url) === `${pageUrl}assets/site-abc.css`) {
+      return response('body { color: white; }', 200, 'text/css');
+    }
+    if (String(url) === `${pageUrl}assets/site-def.js`) {
+      return response('console.log("loaded");', 200, 'text/javascript');
+    }
     return response('not found', 404);
   };
 
@@ -64,12 +68,39 @@ test('published smoke check fails when a referenced asset is missing', async () 
   );
 });
 
+test('published smoke check rejects an HTML fallback returned for a successful asset request', async () => {
+  const fetchImpl = async (url) => {
+    if (String(url) === pageUrl) return response(html);
+    if (String(url).endsWith('.css')) return response('body {}', 200, 'text/css');
+    return response('<html><body>Not found</body></html>');
+  };
+
+  await assert.rejects(
+    verifyPublishedPagesAssets({ pageUrl, fetchImpl }),
+    /JavaScript asset returned an HTML page instead of an asset/,
+  );
+});
+
+test('published smoke check fails when the stylesheet is missing', async () => {
+  const fetchImpl = async (url) => {
+    if (String(url) === pageUrl) return response(html);
+    if (String(url).endsWith('.css')) return response('not found', 404, 'text/css');
+    return response('console.log("loaded");', 200, 'text/javascript');
+  };
+
+  await assert.rejects(
+    verifyPublishedPagesAssets({ pageUrl, fetchImpl }),
+    /CSS asset request failed \(404\)/,
+  );
+});
+
 test('post-deploy smoke check retries transient page failures', async () => {
   let pageReads = 0;
   const fetchImpl = async (url) => {
     if (String(url) === pageUrl && pageReads++ === 0) return response('temporary error', 503);
     if (String(url) === pageUrl) return response(html);
-    return response('asset content');
+    if (String(url).endsWith('.css')) return response('body {}', 200, 'text/css');
+    return response('console.log("loaded");', 200, 'text/javascript');
   };
 
   const result = await checkPublishedPagesAssetsWithRetry({
