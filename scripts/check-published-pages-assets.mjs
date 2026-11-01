@@ -85,6 +85,10 @@ async function verifyAsset(fetchImpl, asset) {
   if (!response.ok) {
     throw new Error(`${asset.type} asset request failed (${response.status}): ${asset.url.href}`);
   }
+  const contentType = response.headers?.get?.('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  if (contentType === 'text/html' || contentType === 'application/xhtml+xml') {
+    throw new Error(`${asset.type} asset returned an HTML page instead of an asset: ${asset.url.href}`);
+  }
   const body = await response.arrayBuffer();
   if (body.byteLength === 0) {
     throw new Error(`${asset.type} asset response was empty: ${asset.url.href}`);
