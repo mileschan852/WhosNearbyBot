@@ -92,7 +92,7 @@ function browserBootstrap(scenario) {
       playstyle_pref: 'Clean',
       how_many_pref: 'DoesntMatter',
       where_pref: null,
-      non_man_mode: null,
+      non_man_mode: scenario.entryId === 'hkmo-date' ? null : 'Meet up',
       is_underage: false,
       hide_age: false,
       hide_age_expiry: null,
