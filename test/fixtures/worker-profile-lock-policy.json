@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "entries": {
+    "nearby": {
+      "botKey": "botB",
+      "lockedFields": [],
+      "defaults": {
+        "gender": "man",
+        "seeking": "women"
+      }
+    },
+    "hkmo-date": {
+      "botKey": "botA",
+      "lockedFields": ["gender", "seeking"],
+      "defaults": {
+        "gender": "man",
+        "seeking": "men"
+      }
+    }
+  }
+}
