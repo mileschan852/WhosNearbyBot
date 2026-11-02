@@ -42,14 +42,34 @@ function browserBootstrap() {
   return `(() => {
     const workerOrigin = 'https://whosnearbybot.mileschan852.workers.dev';
     const incompleteProfileScenario = new URLSearchParams(location.search).has('incomplete');
+    const mapPinSubjectScenario = new URLSearchParams(location.search).has('subject');
     const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
       status,
       headers: { 'content-type': 'application/json' },
     });
+    const targetStateKey = 'map-view-switch-target-state';
+    if (!localStorage.getItem(targetStateKey)) {
+      localStorage.setItem(targetStateKey, JSON.stringify({
+        map_visible: true,
+        grid_visible: true,
+        invisible_expiry: null,
+      }));
+    }
+    const readTargetState = () => {
+      try {
+        return JSON.parse(localStorage.getItem(targetStateKey) || '{}');
+      } catch {
+        return {};
+      }
+    };
+    const writeTargetState = (next) => {
+      localStorage.setItem(targetStateKey, JSON.stringify(next));
+      return next;
+    };
     const currentProfile = {
-      id: 'tg_7001',
-      name: 'Grid Viewer',
-      username: 'grid_viewer',
+      id: mapPinSubjectScenario ? 'tg_7002' : 'tg_7001',
+      name: mapPinSubjectScenario ? 'Map Pin Profile' : 'Grid Viewer',
+      username: mapPinSubjectScenario ? 'map_pin_profile' : 'grid_viewer',
       avatar: '',
       dob: '1990-01-01',
       gender: 'man',
@@ -64,7 +84,7 @@ function browserBootstrap() {
       where_pref: null,
       is_underage: false,
       grid_visible: true,
-      map_visible: false,
+      map_visible: mapPinSubjectScenario,
       hide_age: false,
       invisible_expiry: null,
       vip_expiry: null,
@@ -86,16 +106,18 @@ function browserBootstrap() {
       lng: 114.1694,
       distance: 650,
     };
-    const state = { requests: [], nearbyResponses: [] };
+    const state = { requests: [], nearbyResponses: [], profileUpdates: [] };
+    state.currentProfile = currentProfile;
+    state.setTargetState = writeTargetState;
     window.__mapViewSwitchE2e = state;
     window.Telegram = {
       WebApp: {
         initData: 'query_id=map-view-test&auth_date=1791676800&hash=map-view-test',
         initDataUnsafe: {
           user: {
-            id: 7001,
-            first_name: 'Grid Viewer',
-            username: 'grid_viewer',
+            id: mapPinSubjectScenario ? 7002 : 7001,
+            first_name: mapPinSubjectScenario ? 'Map Pin Profile' : 'Grid Viewer',
+            username: mapPinSubjectScenario ? 'map_pin_profile' : 'grid_viewer',
             language_code: 'en',
           },
         },
@@ -154,19 +176,39 @@ function browserBootstrap() {
             telegramPremium: false,
           });
         case '/api/profile':
+          state.profileUpdates.push({ profile: { ...(body.profile || {}) } });
           Object.assign(currentProfile, body.profile || {});
+          if (currentProfile.id === mapVisibleProfile.id &&
+              typeof body.profile?.map_visible === 'boolean') {
+            writeTargetState({
+              ...readTargetState(),
+              map_visible: body.profile.map_visible,
+            });
+          }
           return json({ updated: true, profile: { ...currentProfile } });
         case '/api/nearby': {
           const isMapRequest = body.mapRequest === true;
-          const returnedProfile = { ...mapVisibleProfile };
-          if (!isMapRequest) {
-            delete returnedProfile.lat;
-            delete returnedProfile.lng;
-          }
+          const targetState = readTargetState();
+          const expiry = Date.parse(targetState.invisible_expiry || '');
+          const activelyInvisible = targetState.grid_visible === false &&
+            Number.isFinite(expiry) && expiry > Date.now();
+          const mapVisible = targetState.map_visible === true && !activelyInvisible;
+          const returnedProfile = {
+            ...mapVisibleProfile,
+            grid_visible: targetState.grid_visible !== false || !activelyInvisible,
+            map_visible: activelyInvisible ? false : targetState.map_visible === true,
+            invisible_expiry: targetState.invisible_expiry || null,
+            lat: isMapRequest && mapVisible ? mapVisibleProfile.lat : null,
+            lng: isMapRequest && mapVisible ? mapVisibleProfile.lng : null,
+            distance: activelyInvisible ? null : mapVisibleProfile.distance,
+          };
           state.nearbyResponses.push({
             mapRequest: isMapRequest,
             includesCoordinates: typeof returnedProfile.lat === 'number' &&
               typeof returnedProfile.lng === 'number',
+            mapVisible: returnedProfile.map_visible,
+            activelyInvisible,
+            distance: returnedProfile.distance,
           });
           return json([returnedProfile]);
         }
@@ -326,6 +368,8 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
 
   let page;
   let targetId;
+  let subjectPage;
+  let subjectTargetId;
   try {
     const viteBase = `http://127.0.0.1:${vitePort}`;
     const cdpBase = `http://127.0.0.1:${cdpPort}`;
@@ -420,6 +464,102 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
     assert.equal(mapState.mapResponse.includesCoordinates, true);
     assert.equal(mapState.profilePin.hasImage, false, 'the Worker profile should render without an uploaded photo');
 
+    const subjectTargetResponse = await fetch(`${cdpBase}/json/new?about%3Ablank`, { method: 'PUT' });
+    assert.ok(subjectTargetResponse.ok, `Could not create the profile-owner tab (${subjectTargetResponse.status}).`);
+    const subjectTarget = await subjectTargetResponse.json();
+    subjectTargetId = subjectTarget.id;
+    subjectPage = new CdpPage(subjectTarget.webSocketDebuggerUrl);
+    await subjectPage.ready();
+    await subjectPage.send('Page.enable');
+    await subjectPage.send('Runtime.enable');
+    await subjectPage.send('Network.enable');
+    await subjectPage.send('Page.addScriptToEvaluateOnNewDocument', { source: browserBootstrap() });
+    await subjectPage.send('Page.navigate', {
+      url: `${viteBase}/test/fixtures/map-view-switch.browser.html?subject=1`,
+    });
+    await waitForPageState(
+      subjectPage,
+      `(() => ({
+        id: window.__mapViewSwitchE2e?.currentProfile?.id,
+        mapVisible: window.__mapViewSwitchE2e?.currentProfile?.map_visible,
+        authRequests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/auth').length || 0,
+        mapButton: !!document.querySelector('button[aria-label="Map"]'),
+      }))()`,
+      (state) => state.id === 'tg_7002' && state.mapVisible === true &&
+        state.authRequests > 0 && state.mapButton,
+      'the map-pin owner to open with Map visibility enabled',
+    );
+    await subjectPage.evaluate(`document.querySelector('button[aria-label="Map"]').click()`);
+    const savedVisibility = await waitForPageState(
+      subjectPage,
+      `(() => {
+        const updates = window.__mapViewSwitchE2e?.profileUpdates || [];
+        const savedOff = updates.some((update) => update.profile.map_visible === false);
+        let targetState = {};
+        try {
+          targetState = JSON.parse(localStorage.getItem('map-view-switch-target-state') || '{}');
+        } catch {}
+        return { savedOff, mapVisible: targetState.map_visible };
+      })()`,
+      (state) => state.savedOff && state.mapVisible === false,
+      'Map visibility to be saved as off for the pin owner',
+    );
+    assert.equal(savedVisibility.mapVisible, false);
+
+    const hiddenRequestStart = await page.evaluate('window.__mapViewSwitchE2e.nearbyResponses.length');
+    await page.evaluate(`(() => {
+      localStorage.removeItem('last_refresh_tg_7001');
+      document.querySelector('button[title="Refresh"]').click();
+    })()`);
+    const hiddenPinState = await waitForPageState(
+      page,
+      `(() => {
+        const responses = window.__mapViewSwitchE2e.nearbyResponses;
+        const latest = responses.slice(${hiddenRequestStart}).find((item) =>
+          item.mapRequest && item.mapVisible === false && item.activelyInvisible === false
+        );
+        const targetPins = [...document.querySelectorAll('.leaflet-marker-icon.custom-map-pin')]
+          .filter((pin) => pin.textContent.trim() === 'M');
+        return { latest, targetPinCount: targetPins.length };
+      })()`,
+      (state) => state.latest && state.latest.includesCoordinates === false &&
+        state.targetPinCount === 0,
+      'the existing pin to disappear after its owner disables Map visibility',
+    );
+    assert.equal(hiddenPinState.latest.mapVisible, false);
+    assert.equal(hiddenPinState.targetPinCount, 0);
+
+    const invisibleRequestStart = await page.evaluate(`(() => {
+      window.__mapViewSwitchE2e.setTargetState({
+        map_visible: true,
+        grid_visible: false,
+        invisible_expiry: new Date(Date.now() + 60_000).toISOString(),
+      });
+      localStorage.removeItem('last_refresh_tg_7001');
+      return window.__mapViewSwitchE2e.nearbyResponses.length;
+    })()`);
+    await page.evaluate(`document.querySelector('button[title="Refresh"]').click()`);
+    const invisiblePinState = await waitForPageState(
+      page,
+      `(() => {
+        const responses = window.__mapViewSwitchE2e.nearbyResponses;
+        const latest = responses.slice(${invisibleRequestStart}).find((item) =>
+          item.mapRequest && item.activelyInvisible === true
+        );
+        const targetPins = [...document.querySelectorAll('.leaflet-marker-icon.custom-map-pin')]
+          .filter((pin) => pin.textContent.trim() === 'M');
+        return { latest, targetPinCount: targetPins.length };
+      })()`,
+      (state) => state.latest && state.latest.mapVisible === false &&
+        state.latest.includesCoordinates === false && state.latest.distance === null &&
+        state.targetPinCount === 0,
+      'active Invisibility to suppress the pin despite Map visibility being enabled',
+    );
+    assert.equal(invisiblePinState.latest.mapVisible, false);
+    assert.equal(invisiblePinState.latest.includesCoordinates, false);
+    assert.equal(invisiblePinState.latest.distance, null);
+    assert.equal(invisiblePinState.targetPinCount, 0);
+
     const gridRequestStart = await page.evaluate(
       `window.__mapViewSwitchE2e.nearbyResponses.length`,
     );
@@ -446,6 +586,12 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
     assert.equal(gridState.gridResponse.mapRequest, false);
     assert.equal(gridState.gridResponse.includesCoordinates, false);
   } finally {
+    if (subjectPage) subjectPage.close();
+    if (subjectTargetId) {
+      try {
+        await fetch(`http://127.0.0.1:${cdpPort}/json/close/${subjectTargetId}`);
+      } catch {}
+    }
     if (page) page.close();
     if (targetId) {
       try {
