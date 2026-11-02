@@ -6610,96 +6610,112 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     )
     : '';
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#121212', color: '#ffffff', fontFamily: 'sans-serif', overflow: 'hidden' }}>
-
-      {(showProfileSetup || showProfileEditModal) && (
-        <Suspense
-          fallback={
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 10000,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#121212',
-                color: '#fff',
-              }}
-            >
-              {t('loading')}
-            </div>
-          }
+  const appShellStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    width: '100vw',
+    backgroundColor: '#121212',
+    color: '#ffffff',
+    fontFamily: 'sans-serif',
+    overflow: 'hidden',
+  };
+  const profileCompletionView = (
+    <Suspense
+      fallback={
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#121212',
+            color: '#fff',
+          }}
         >
-          <ProfileCompletionModule
-          entry={entry}
-          isCompletionFlow={showProfileSetup && !showProfileEditModal}
-          language={lang}
-          missingFields={profileCompletionMissingFields}
-          values={{
-            dob,
-            gender,
-            seeking,
-            height,
-            weight,
-            rolePref,
-            safetyPref,
-            playstylePref,
-            howManyPref,
-            wherePref,
-            nonManMode,
-          }}
-          onChange={{
-            dob: setDob,
-            gender: setGender,
-            seeking: setSeeking,
-            height: setHeight,
-            weight: setWeight,
-            rolePref: setRolePref,
-            safetyPref: setSafetyPref,
-            playstylePref: setPlaystylePref,
-            howManyPref: setHowManyPref,
-            wherePref: setWherePref,
-            nonManMode: setNonManMode,
-          }}
-          onSubmit={handleSaveInitialProfile}
-          onClose={() => setShowProfileEditModal(false)}
-          showCloseButton={showProfileEditModal}
-          errorMessage={errorMessage}
-          heightOptions={heightOptions}
-          weightOptions={weightOptions}
-          t={t}
-          onCycleRole={() => {
-            const nextValue = cycleNext(rolePref, PROFILE_ROLE_CYCLE_OPTIONS);
-            setRolePref(nextValue);
-            return nextValue;
-          }}
-          onCycleSafety={() => {
-            const nextValue = cycleNext(safetyPref, PROFILE_SAFETY_CYCLE_OPTIONS);
-            setSafetyPref(nextValue);
-            return nextValue;
-          }}
-          onCyclePlaystyle={() => {
-            const nextValue = cycleNext(playstylePref, PROFILE_PLAYSTYLE_CYCLE_OPTIONS);
-            setPlaystylePref(nextValue);
-            return nextValue;
-          }}
-          onCycleHowMany={() => {
-            const nextValue = cycleNext(howManyPref, PROFILE_HOW_MANY_CYCLE_OPTIONS);
-            setHowManyPref(nextValue);
-            return nextValue;
-          }}
-          onCycleWhere={() => {
-            const nextValue = cycleWhere(wherePref, PROFILE_WHERE_CYCLE_OPTIONS);
-            setWherePref(nextValue);
-            return nextValue;
-          }}
-          />
-        </Suspense>
-      )}
+          {t('loading')}
+        </div>
+      }
+    >
+      <ProfileCompletionModule
+        entry={entry}
+        isCompletionFlow={showProfileSetup && !showProfileEditModal}
+        language={lang}
+        missingFields={profileCompletionMissingFields}
+        values={{
+          dob,
+          gender,
+          seeking,
+          height,
+          weight,
+          rolePref,
+          safetyPref,
+          playstylePref,
+          howManyPref,
+          wherePref,
+          nonManMode,
+        }}
+        onChange={{
+          dob: setDob,
+          gender: setGender,
+          seeking: setSeeking,
+          height: setHeight,
+          weight: setWeight,
+          rolePref: setRolePref,
+          safetyPref: setSafetyPref,
+          playstylePref: setPlaystylePref,
+          howManyPref: setHowManyPref,
+          wherePref: setWherePref,
+          nonManMode: setNonManMode,
+        }}
+        onSubmit={handleSaveInitialProfile}
+        onClose={() => setShowProfileEditModal(false)}
+        showCloseButton={showProfileEditModal}
+        errorMessage={errorMessage}
+        heightOptions={heightOptions}
+        weightOptions={weightOptions}
+        t={t}
+        onCycleRole={() => {
+          const nextValue = cycleNext(rolePref, PROFILE_ROLE_CYCLE_OPTIONS);
+          setRolePref(nextValue);
+          return nextValue;
+        }}
+        onCycleSafety={() => {
+          const nextValue = cycleNext(safetyPref, PROFILE_SAFETY_CYCLE_OPTIONS);
+          setSafetyPref(nextValue);
+          return nextValue;
+        }}
+        onCyclePlaystyle={() => {
+          const nextValue = cycleNext(playstylePref, PROFILE_PLAYSTYLE_CYCLE_OPTIONS);
+          setPlaystylePref(nextValue);
+          return nextValue;
+        }}
+        onCycleHowMany={() => {
+          const nextValue = cycleNext(howManyPref, PROFILE_HOW_MANY_CYCLE_OPTIONS);
+          setHowManyPref(nextValue);
+          return nextValue;
+        }}
+        onCycleWhere={() => {
+          const nextValue = cycleWhere(wherePref, PROFILE_WHERE_CYCLE_OPTIONS);
+          setWherePref(nextValue);
+          return nextValue;
+        }}
+      />
+    </Suspense>
+  );
+
+  if (showProfileSetup && !showProfileEditModal) {
+    return <div style={appShellStyle}>{profileCompletionView}</div>;
+  }
+
+  return (
+    <div style={appShellStyle}>
+
+      {showProfileEditModal && profileCompletionView}
 
       {isReady && profileUpdateOfferAt && !showProfileSetup && !showProfileEditModal && (
         <div
