@@ -41,6 +41,7 @@ async function waitForHttp(url, child, logs, label, timeoutMs = 20_000) {
 function browserBootstrap() {
   return `(() => {
     const workerOrigin = 'https://whosnearbybot.mileschan852.workers.dev';
+    const incompleteProfileScenario = new URLSearchParams(location.search).has('incomplete');
     const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
       status,
       headers: { 'content-type': 'application/json' },
@@ -54,7 +55,7 @@ function browserBootstrap() {
       gender: 'man',
       seeking: 'women',
       height: '170',
-      weight: '70',
+      weight: incompleteProfileScenario ? '' : '70',
       non_man_mode: 'Meet up',
       role_pref: null,
       safety_pref: null,
@@ -119,7 +120,19 @@ function browserBootstrap() {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init = {}) => {
       const url = new URL(typeof input === 'string' ? input : input.url, location.href);
-      if (url.origin === location.origin) return originalFetch(input, init);
+      if (url.origin === location.origin) {
+        const response = await originalFetch(input, init);
+        if (incompleteProfileScenario && url.pathname === '/config.json') {
+          const config = await response.json();
+          const entry = config.entries?.[config.defaultEntryId];
+          if (entry?.modules) {
+            entry.modules.gridFilter = false;
+            entry.modules.map = true;
+          }
+          return json(config);
+        }
+        return response;
+      }
       if (url.origin !== workerOrigin) {
         if (url.pathname.endsWith('/tonconnect-manifest.json')) {
           return json({ url: 'https://example.invalid', name: 'Map test', iconUrl: 'https://example.invalid/icon.png' });
@@ -336,6 +349,25 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
       mobile: true,
     });
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: browserBootstrap() });
+    await page.send('Page.navigate', {
+      url: `${viteBase}/test/fixtures/map-view-switch.browser.html?incomplete=1`,
+    });
+
+    const incompleteState = await waitForPageState(
+      page,
+      `(() => ({
+        completion: !!document.querySelector('[data-testid="profile-completion-status"]'),
+        grid: !!document.querySelector('[data-testid="bottom-navigation-grid"]'),
+        map: !!document.querySelector('button[aria-label="Map"]'),
+        authRequests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/auth').length || 0,
+        mapActivityRequests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/map/activities').length || 0,
+      }))()`,
+      (state) => state.completion && state.authRequests > 0 && !state.grid &&
+        !state.map && state.mapActivityRequests === 0,
+      'an incomplete profile to remain on the completion screen without loading Map',
+    );
+    assert.equal(incompleteState.mapActivityRequests, 0);
+
     await page.send('Page.navigate', {
       url: `${viteBase}/test/fixtures/map-view-switch.browser.html`,
     });
