@@ -39,7 +39,7 @@ test('HKMO Date keeps unpaid search men-only and does not narrow VIP access', ()
 
 test('grid, map, and in-app chat share the same app eligibility guard', () => {
   const accessGuard = sourceBlock('const passesMandatoryGenderAccess = (user: UserProfile) => {', 'const checkFilterPass = (user: UserProfile) => {');
-  assert.match(accessGuard, /if \(botKey === 'botB'\) \{\s*return matchesMutualSeekingVisibility\(/);
+  assert.match(accessGuard, /if \(entry\.profileMode === 'nearby'\) \{\s*return matchesMutualSeekingVisibility\(/);
   assert.match(accessGuard, /user\.seeking/);
   assert.match(accessGuard, /return matchesEntryGenderAccess\(/);
   const chatHandler = sourceBlock('const handleStartChat = (targetUser: UserProfile) => {', 'const currentUserIsM2M =');

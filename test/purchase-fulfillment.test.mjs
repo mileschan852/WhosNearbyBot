@@ -92,6 +92,20 @@ test('a paid flying message confirms only for the matching intent, user, bot, an
     getFlyingMessageFulfillmentMessage('paid', intentId, response, '123456', 'botB'),
     null,
   );
+  const customInstanceMessage = {
+    ...flyingMessage,
+    audience_bot: 'partner-app',
+  };
+  assert.deepEqual(
+    getFlyingMessageFulfillmentMessage(
+      'paid',
+      intentId,
+      { ...fulfilledResponse, message: customInstanceMessage },
+      '123456',
+      'partner-app',
+    ),
+    customInstanceMessage,
+  );
   assert.equal(
     getFlyingMessageFulfillmentMessage('cancelled', intentId, response, '123456', 'botA'),
     null,

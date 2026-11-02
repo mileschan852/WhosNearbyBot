@@ -35,6 +35,13 @@ test('HKMO Date locks non-VIP search to men without overwriting saved filters', 
   assert.deepEqual(savedPreference, ['woman']);
 });
 
+test('custom app instances can select a profile mode independent of their app ID', () => {
+  assert.equal(isHkmoDateMenOnlyFilterLocked('hkmodate', false), true);
+  assert.equal(isHkmoDateMenOnlyFilterLocked('partner-app', false), false);
+  assert.equal(matchesEntryGenderAccess('nearby', false, false, 'women', 'man'), false);
+  assert.equal(matchesEntryGenderAccess('hkmodate', false, false, 'women', 'man'), true);
+});
+
 test('VIP users and users entering through Who’s Nearby keep their saved gender filter', () => {
   const savedPreference = ['woman'];
 

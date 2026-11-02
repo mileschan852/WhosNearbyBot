@@ -10,7 +10,7 @@ export interface RafflePaymentRecoveryEvent {
 export interface RafflePaymentReviewIntent {
   intentId: string;
   telegramId: string;
-  bot: 'botA' | 'botB';
+  bot: string;
   status: string;
   updatedAt: string | null;
   ticketIssued: boolean;
@@ -181,7 +181,11 @@ export function RafflePaymentReviewPanel({
             >
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px' }}>
                 <span><strong>{common.telegramId}:</strong> {intent.telegramId}</span>
-                <span><strong>Bot:</strong> {intent.bot === 'botA' ? 'HKMO Date' : "Who's Nearby"}</span>
+                <span><strong>Bot:</strong> {intent.bot === 'botA'
+                  ? 'HKMO Date'
+                  : intent.bot === 'botB'
+                    ? "Who's Nearby"
+                    : intent.bot}</span>
                 <span><strong>{common.status}:</strong> {copy.statusLabels[intent.status] || intent.status}</span>
                 <span>
                   <strong>{common.date}:</strong>{' '}

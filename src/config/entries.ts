@@ -5,7 +5,8 @@ import type { StarMenuItemConfig } from './star-menu.js';
 import { resolveAppEntry as resolveAppEntryImpl } from './resolve-app-entry.js';
 
 export type AppEntryId = string;
-export type AppBotKey = 'botA' | 'botB';
+export type AppBotKey = string;
+export type AppProfileMode = 'nearby' | 'hkmodate';
 
 export type ProfileSetupSection =
   | 'birthdate'
@@ -18,6 +19,7 @@ export interface AppEntryConfig {
   id: AppEntryId;
   label: string;
   botKey: AppBotKey;
+  profileMode: AppProfileMode;
   chatUrl: string;
   starMenuItems: StarMenuItemConfig[];
   useConfiguredLabelForHeader?: boolean;
@@ -76,6 +78,8 @@ const supportedLockedGenders = new Set<string>(
 const supportedLockedSeekingValues = new Set<string>(
   PROFILE_SEEKING_OPTIONS.map(({ value }) => value),
 );
+const appBotKeyPattern = /^(?:botA|botB|[a-z][a-z0-9_-]{0,31})$/;
+const profileModes = new Set<AppProfileMode>(['nearby', 'hkmodate']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -103,6 +107,7 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
   }
 
   const entries: Record<AppEntryId, AppEntryConfig> = {};
+  const configuredBotKeys = new Set<string>();
   for (const [id, rawEntry] of Object.entries(value.entries)) {
     if (!isRecord(rawEntry) || !isRecord(rawEntry.profileSetup)) {
       throw new Error(`The app configuration entry "${id}" is invalid.`);
@@ -110,6 +115,8 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
     const profileSetup = rawEntry.profileSetup;
     const sectionOrder = profileSetup.sectionOrder;
     const chatUrl = rawEntry.chatUrl;
+    const profileMode = rawEntry.profileMode
+      ?? (rawEntry.botKey === 'botA' ? 'hkmodate' : 'nearby');
     if (profileSetup.lockIdentity === true) {
       if (
         typeof profileSetup.defaultGender !== 'string'
@@ -132,7 +139,11 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
       rawEntry.id !== id
       || typeof rawEntry.label !== 'string'
       || !rawEntry.label.trim()
-      || (rawEntry.botKey !== 'botA' && rawEntry.botKey !== 'botB')
+      || typeof rawEntry.botKey !== 'string'
+      || !appBotKeyPattern.test(rawEntry.botKey)
+      || configuredBotKeys.has(rawEntry.botKey)
+      || typeof profileMode !== 'string'
+      || !profileModes.has(profileMode as AppProfileMode)
       || !isHttpsUrl(chatUrl)
       || typeof profileSetup.titleKey !== 'string'
       || typeof profileSetup.warningKey !== 'string'
@@ -146,8 +157,10 @@ export function parseAppRuntimeConfig(value: unknown): AppRuntimeConfig {
     ) {
       throw new Error(`The app configuration entry "${id}" has invalid values.`);
     }
+    configuredBotKeys.add(rawEntry.botKey);
     entries[id] = {
       ...rawEntry,
+      profileMode,
       modules: parseAppModules(rawEntry.modules),
       starMenuItems: parseStarMenuItems(rawEntry.starMenuItems, id),
     } as unknown as AppEntryConfig;

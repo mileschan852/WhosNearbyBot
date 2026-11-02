@@ -1,3 +1,5 @@
+const APP_INSTANCE_ID_PATTERN = /^(?:botA|botB|[a-z][a-z0-9_-]{0,31})$/;
+
 export function getPurchaseFulfillmentOutcome(paymentStatus, expectedIntentId, response) {
   if (paymentStatus === 'unsupported') return 'unsupported';
   if (paymentStatus !== 'paid') return 'cancelled';
@@ -25,7 +27,8 @@ export function getFlyingMessageFulfillmentMessage(
     getPurchaseFulfillmentOutcome(paymentStatus, expectedIntentId, response) !== 'fulfilled' ||
     typeof expectedTgId !== 'string' ||
     !expectedTgId ||
-    !['botA', 'botB'].includes(expectedBot)
+    typeof expectedBot !== 'string' ||
+    !APP_INSTANCE_ID_PATTERN.test(expectedBot)
   ) {
     return null;
   }

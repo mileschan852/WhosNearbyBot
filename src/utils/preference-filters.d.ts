@@ -10,13 +10,13 @@ export type GenderFilterValue = 'man' | 'woman';
 export function normalizeGenderFilterValues(values: unknown): GenderFilterValue[];
 
 export function isHkmoDateMenOnlyFilterLocked(
-  botKey: string | null | undefined,
+  profileModeOrBotKey: string | null | undefined,
   vipAccessActive: boolean,
 ): boolean;
 
 export function getEffectiveGenderFilterValues(
   filterValues: readonly GenderFilterValue[] | null | undefined,
-  botKey: string | null | undefined,
+  profileModeOrBotKey: string | null | undefined,
   vipAccessActive: boolean,
 ): GenderFilterValue[];
 
@@ -39,7 +39,7 @@ export function matchesMutualSeekingVisibility(
 ): boolean;
 
 export function matchesEntryGenderAccess(
-  botKey: string | null | undefined,
+  profileModeOrBotKey: string | null | undefined,
   filterAccessActive: boolean,
   vipAccessActive: boolean,
   seeking: string | null | undefined,

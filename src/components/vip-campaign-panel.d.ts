@@ -4,7 +4,7 @@ export type VipCampaignWindow = 'today' | 'week' | 'month' | '1_day' | '3_days';
 
 export interface VipCampaign {
   id: string;
-  sourceBotKey: 'botA' | 'botB' | null;
+  sourceBotKey: string | null;
   durationDays: number;
   eligibilityWindow: VipCampaignWindow | null;
   cutoffAt: string | null;
@@ -20,8 +20,8 @@ export interface VipFailedRewardClaim {
   id: string;
   campaignId: string;
   campaignDurationDays: number;
-  sourceBotKey: 'botA' | 'botB' | null;
-  botKey: 'botA' | 'botB';
+  sourceBotKey: string | null;
+  botKey: string;
   recipientId: string;
   recipientUsername: string | null;
   daysGranted: number;
@@ -29,7 +29,7 @@ export interface VipFailedRewardClaim {
   attempts: number;
   manualRetryCount: number;
   lastAttemptAt: string | null;
-  lastBotKey: 'botA' | 'botB' | null;
+  lastBotKey: string | null;
   deliveryStatus: 'failed' | 'delivery_uncertain';
 }
 
@@ -41,8 +41,8 @@ export interface VipRewardRetryAudit {
   adminTgId: string;
   adminUsername: string | null;
   retriedAt: string;
-  sourceBotKey: 'botA' | 'botB' | null;
-  originalBotKey: 'botA' | 'botB';
+  sourceBotKey: string | null;
+  originalBotKey: string;
   deliveryOutcome: VipRewardRetryDeliveryOutcome;
 }
 
@@ -189,7 +189,7 @@ export function VipCampaignPanel(props: {
   failedRewardClaimsError: string;
   retryingFailedRewardClaimId: string | null;
   crossCampaignFailedRewardSearchValue: string;
-  crossCampaignFailedRewardSourceBotKey: 'all' | 'botA' | 'botB';
+  crossCampaignFailedRewardSourceBotKey: 'all' | string;
   crossCampaignFailedRewardSearched: boolean;
   crossCampaignFailedRewardClaims: VipFailedRewardClaim[];
   crossCampaignFailedRewardClaimsHasMore: boolean;
@@ -207,7 +207,7 @@ export function VipCampaignPanel(props: {
   queueHealthLoading?: boolean;
   queueHealthError?: string;
   copy: VipCampaignCopy;
-  sourceAppLabels: Record<'botA' | 'botB', string>;
+  sourceAppLabels: Record<string, string>;
   windowLabels: Record<VipCampaignWindow, string>;
   formatDate: (value: string) => string;
   onClose: () => void;
@@ -218,8 +218,8 @@ export function VipCampaignPanel(props: {
   onLoadMoreFailedRewards: (campaignId: string) => void;
   onRetryFailedReward: (claimId: string) => void;
   onCrossCampaignFailedRewardSearchChange: (value: string) => void;
-  onCrossCampaignFailedRewardSourceChange: (value: 'all' | 'botA' | 'botB') => void;
-  onSearchCrossCampaignFailedRewards: (search: string, sourceBotKey: 'all' | 'botA' | 'botB') => void;
+  onCrossCampaignFailedRewardSourceChange: (value: 'all' | string) => void;
+  onSearchCrossCampaignFailedRewards: (search: string, sourceBotKey: 'all' | string) => void;
   onLoadMoreCrossCampaignFailedRewards: () => void;
   onToggleRetryAudit?: (campaignId: string) => void;
   onLoadMoreRetryAudit?: (campaignId: string) => void;

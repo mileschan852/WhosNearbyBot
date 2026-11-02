@@ -556,6 +556,20 @@ test('runtime config rejects empty or unsupported defaults when identity is lock
   }
 });
 
+test('runtime config accepts registered custom app IDs with an explicit profile mode', () => {
+  const customConfig = structuredClone(config);
+  customConfig.entries.nearby.botKey = 'partner-app';
+  customConfig.entries.nearby.profileMode = 'nearby';
+
+  const parsed = parseAppRuntimeConfig(customConfig);
+  assert.equal(parsed.entries.nearby.botKey, 'partner-app');
+  assert.equal(parsed.entries.nearby.profileMode, 'nearby');
+
+  const invalidId = structuredClone(customConfig);
+  invalidId.entries.nearby.botKey = 'Partner App';
+  assert.throws(() => parseAppRuntimeConfig(invalidId), /entry "nearby".*invalid values/);
+});
+
 test('invalid locked identity defaults identify the specific clone entry', () => {
   const cloneId = 'test-clone';
   const cloneConfig = structuredClone(config);

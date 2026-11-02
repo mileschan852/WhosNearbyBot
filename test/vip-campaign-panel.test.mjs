@@ -990,9 +990,13 @@ test('campaign response parser rejects malformed counts and inconsistent cutoff 
     hasMore: false,
   }), /Invalid campaign list response/);
   assert.throws(() => parseVipCampaignPage({
-    campaigns: [{ ...campaign, sourceBotKey: 'botC' }],
+    campaigns: [{ ...campaign, sourceBotKey: 'Invalid ID' }],
     hasMore: false,
   }), /Invalid campaign list response/);
+  assert.equal(parseVipCampaignPage({
+    campaigns: [{ ...campaign, sourceBotKey: 'partner-app' }],
+    hasMore: false,
+  }).campaigns[0].sourceBotKey, 'partner-app');
 });
 
 test('campaigns still load when an older backend omits failed-notification counts', () => {

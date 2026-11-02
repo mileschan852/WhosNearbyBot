@@ -100,6 +100,7 @@ import { getDefaultDiscoveryView } from './config/app-modules.js';
 import {
   resolveAppEntry,
   resolveInitialProfileIdentity,
+  type AppBotKey,
   type AppEntryId,
   type AppRuntimeConfig,
 } from './config/entries';
@@ -722,7 +723,7 @@ type FlyingMessage = {
   text: string;
   from_name: string;
   created_at: string;
-  audience_bot: 'botA' | 'botB';
+  audience_bot: string;
 };
 
 type RafflePrizeKey = 'vip' | 'filter' | 'invisible' | 'hide_age';
@@ -1457,7 +1458,8 @@ function parseRafflePaymentReviewPage(value: unknown): {
         !rafflePaymentUuidPattern.test(row.intentId) ||
         typeof row.telegramId !== 'string' ||
         !/^[0-9]{1,20}$/.test(row.telegramId) ||
-        (row.bot !== 'botA' && row.bot !== 'botB') ||
+        (typeof row.bot !== 'string' ||
+          !/^(?:botA|botB|[a-z][a-z0-9_-]{0,31})$/.test(row.bot)) ||
         typeof row.status !== 'string' ||
         !/^[a-z][a-z0-9_-]{0,47}$/.test(row.status) ||
         (row.updatedAt !== null &&
@@ -2840,7 +2842,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     window.Telegram?.WebApp?.initDataUnsafe?.start_param,
     window.location.search,
   );
-  const verifiedBotKeyRef = useRef<'botA' | 'botB' | null>(null);
+  const verifiedBotKeyRef = useRef<AppBotKey | null>(null);
   const [lang, setLang] = useState<LangKey>('en');
   const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
   const howManyLabel = (value?: string | null) =>
@@ -2988,10 +2990,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [failedRewardClaimsError, setFailedRewardClaimsError] = useState('');
   const [crossCampaignFailedRewardSearch, setCrossCampaignFailedRewardSearch] = useState('');
   const [crossCampaignFailedRewardSourceBot, setCrossCampaignFailedRewardSourceBot] =
-    useState<'all' | 'botA' | 'botB'>('all');
+    useState<'all' | AppBotKey>('all');
   const [crossCampaignFailedRewardActiveSearch, setCrossCampaignFailedRewardActiveSearch] = useState('');
   const [crossCampaignFailedRewardActiveSourceBot, setCrossCampaignFailedRewardActiveSourceBot] =
-    useState<'all' | 'botA' | 'botB'>('all');
+    useState<'all' | AppBotKey>('all');
   const [crossCampaignFailedRewardSearched, setCrossCampaignFailedRewardSearched] = useState(false);
   const [crossCampaignFailedRewardClaims, setCrossCampaignFailedRewardClaims] =
     useState<VipFailedRewardClaim[]>([]);
@@ -3346,15 +3348,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [filterHeightMax, setFilterHeightMax] = useState<number>(200);
   const [filterGenderVals, setFilterGenderVals] = useState<GenderFilterValue[]>([]);
   const vipEntitlementActive = isVip || temporaryVipActive || globalVipActive;
-  const hkmoMenOnlyFilterLocked = isHkmoDateMenOnlyFilterLocked(
-    verifiedBotKeyRef.current,
-    vipEntitlementActive,
-  );
-  const effectiveFilterGenderVals = getEffectiveGenderFilterValues(
-    filterGenderVals,
-    verifiedBotKeyRef.current,
-    vipEntitlementActive,
-  );
   const [filterPrefMatcherOn, setFilterPrefMatcherOn] = useState<boolean>(true);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [interestSendingTo, setInterestSendingTo] = useState<string | null>(null);
@@ -3369,6 +3362,15 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [isGamesMenuOpen, setIsGamesMenuOpen] = useState<boolean>(false);
   const [entryId, setEntryId] = useState<AppEntryId>(() => initialEntry.id);
   const entry = config.entries[entryId];
+  const hkmoMenOnlyFilterLocked = isHkmoDateMenOnlyFilterLocked(
+    entry.profileMode,
+    vipEntitlementActive,
+  );
+  const effectiveFilterGenderVals = getEffectiveGenderFilterValues(
+    filterGenderVals,
+    entry.profileMode,
+    vipEntitlementActive,
+  );
   const gridFilterEnabled = entry.modules.gridFilter;
   const mapModuleEnabled = entry.modules.map;
   const starRaffleEnabled = entry.modules.starRaffle;
@@ -3923,9 +3925,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         if (!window.Telegram?.WebApp?.initData) throw new Error('Open Who’s Nearby from Telegram to continue.');
         const authResponse = await workerPost('/api/auth');
         setIsTelegramPremium(authResponse.telegramPremium === true);
-        if (authResponse.bot === 'botA' || authResponse.bot === 'botB') {
-          verifiedBotKeyRef.current = authResponse.bot;
+        if (authResponse.bot !== activeEntry.botKey) {
+          throw new Error('This app entry is not registered with its backend bot.');
         }
+        verifiedBotKeyRef.current = activeEntry.botKey;
         const existingProfile: any = authResponse.profile;
         if (!existingProfile?.id) throw new Error('Your profile could not be loaded.');
         const userUsername = existingProfile.username || tgUser?.username || '';
@@ -5382,8 +5385,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const passesMandatoryGenderAccess = (user: UserProfile) => {
     if (currentUser && user.id === currentUser.id) return true;
-    const botKey = verifiedBotKeyRef.current || entry.botKey;
-    if (botKey === 'botB') {
+    if (entry.profileMode === 'nearby') {
       return matchesMutualSeekingVisibility(
         currentUser?.gender,
         currentUser?.seeking ?? seeking,
@@ -5393,7 +5395,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       );
     }
     return matchesEntryGenderAccess(
-      botKey,
+      entry.profileMode,
       filterAccessActive,
       vipEntitlementActive,
       currentUser?.seeking ?? seeking,
@@ -6160,7 +6162,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     offset = 0,
     append = false,
     search = crossCampaignFailedRewardActiveSearch,
-    sourceBotKey: 'all' | 'botA' | 'botB' = crossCampaignFailedRewardActiveSourceBot,
+    sourceBotKey: 'all' | AppBotKey = crossCampaignFailedRewardActiveSourceBot,
   ) => {
     const requestSequence = ++crossCampaignFailedRewardRequestRef.current;
     const normalizedSearch = search.trim();
@@ -6209,7 +6211,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const searchCrossCampaignFailedRewardClaims = (
     search: string,
-    sourceBotKey: 'all' | 'botA' | 'botB',
+    sourceBotKey: 'all' | AppBotKey,
   ) => {
     setCrossCampaignFailedRewardSearch(search);
     setCrossCampaignFailedRewardSourceBot(sourceBotKey);
@@ -7937,8 +7939,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
             stopping: vipGrantCopy[lang].campaignStopping,
           }}
           sourceAppLabels={{
-            botA: Object.values(config.entries).find((candidate) => candidate.botKey === 'botA')?.label ?? 'botA',
-            botB: Object.values(config.entries).find((candidate) => candidate.botKey === 'botB')?.label ?? 'botB',
+            ...Object.fromEntries(
+              Object.values(config.entries).map((candidate) => [candidate.botKey, candidate.label]),
+            ),
           }}
           windowLabels={{
             '1_day': t('period_1d'),

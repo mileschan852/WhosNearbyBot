@@ -10,12 +10,17 @@ export function normalizeGenderFilterValues(values) {
   return [...new Set(values.filter((value) => value === 'man' || value === 'woman'))];
 }
 
-export function isHkmoDateMenOnlyFilterLocked(botKey, vipAccessActive) {
-  return botKey === 'botA' && vipAccessActive !== true;
+function resolveProfileMode(profileModeOrBotKey) {
+  if (profileModeOrBotKey === 'hkmodate' || profileModeOrBotKey === 'botA') return 'hkmodate';
+  return 'nearby';
 }
 
-export function getEffectiveGenderFilterValues(filterValues, botKey, vipAccessActive) {
-  return isHkmoDateMenOnlyFilterLocked(botKey, vipAccessActive)
+export function isHkmoDateMenOnlyFilterLocked(profileModeOrBotKey, vipAccessActive) {
+  return resolveProfileMode(profileModeOrBotKey) === 'hkmodate' && vipAccessActive !== true;
+}
+
+export function getEffectiveGenderFilterValues(filterValues, profileModeOrBotKey, vipAccessActive) {
+  return isHkmoDateMenOnlyFilterLocked(profileModeOrBotKey, vipAccessActive)
     ? ['man']
     : normalizeGenderFilterValues(filterValues);
 }
@@ -57,16 +62,17 @@ export function matchesMutualSeekingVisibility(
 }
 
 export function matchesEntryGenderAccess(
-  botKey,
+  profileModeOrBotKey,
   filterAccessActive,
   vipAccessActive,
   seeking,
   profileGender,
 ) {
-  if (isHkmoDateMenOnlyFilterLocked(botKey, vipAccessActive)) {
+  const profileMode = resolveProfileMode(profileModeOrBotKey);
+  if (isHkmoDateMenOnlyFilterLocked(profileMode, vipAccessActive)) {
     return profileGender === 'man';
   }
-  if (botKey === 'botB' && filterAccessActive !== true) {
+  if (profileMode === 'nearby' && filterAccessActive !== true) {
     return matchesDefaultSeekingGender(seeking, profileGender);
   }
   return true;

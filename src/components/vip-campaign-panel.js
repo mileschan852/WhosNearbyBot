@@ -2,10 +2,15 @@ import { createElement } from 'react';
 
 const h = createElement;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const APP_INSTANCE_ID_PATTERN = /^(?:botA|botB|[a-z][a-z0-9_-]{0,31})$/;
 const VIP_CAMPAIGN_WINDOWS = new Set(['today', 'week', 'month', '1_day', '3_days']);
 const VIP_FAILURE_EVENT_ID_PATTERN = /^[1-9][0-9]{0,18}$/;
 const VIP_FAILURE_EVENT_ID_MAX = 9_223_372_036_854_775_807n;
 export const VIP_FAILURE_ALERT_POLL_INTERVAL_MS = 60_000;
+
+function isAppInstanceId(value) {
+  return typeof value === 'string' && APP_INSTANCE_ID_PATTERN.test(value);
+}
 
 export function startVipFailureAlertPolling({
   enabled,
@@ -138,7 +143,7 @@ export function parseVipCampaignPage(value) {
       ? null
       : rawFailedRewardNotificationCount;
     if (typeof id !== 'string' || !UUID_PATTERN.test(id) ||
-        (sourceBotKey !== null && sourceBotKey !== 'botA' && sourceBotKey !== 'botB') ||
+        (sourceBotKey !== null && !isAppInstanceId(sourceBotKey)) ||
         !['pending', 'delivered', 'failed', 'cancelled', 'not_applicable'].includes(announcementStatus) ||
         !Number.isSafeInteger(durationDays) || durationDays < 1 || durationDays > 365 ||
         (eligibilityWindow !== null && !VIP_CAMPAIGN_WINDOWS.has(eligibilityWindow)) ||
@@ -197,8 +202,8 @@ export function parseVipFailedRewardPage(value) {
     if (typeof id !== 'string' || !UUID_PATTERN.test(id) ||
         typeof campaignId !== 'string' || !UUID_PATTERN.test(campaignId) ||
         !Number.isSafeInteger(campaignDurationDays) || campaignDurationDays < 1 || campaignDurationDays > 365 ||
-        (sourceBotKey !== null && sourceBotKey !== 'botA' && sourceBotKey !== 'botB') ||
-        (botKey !== 'botA' && botKey !== 'botB') ||
+        (sourceBotKey !== null && !isAppInstanceId(sourceBotKey)) ||
+        !isAppInstanceId(botKey) ||
         typeof recipientId !== 'string' || !/^tg_[0-9]{1,20}$/.test(recipientId) ||
         (recipientUsername !== null &&
           (typeof recipientUsername !== 'string' || !/^[A-Za-z0-9_]{1,32}$/.test(recipientUsername))) ||
@@ -208,7 +213,7 @@ export function parseVipFailedRewardPage(value) {
         !Number.isSafeInteger(manualRetryCount) || manualRetryCount < 0 || manualRetryCount > 3 ||
         (lastAttemptAt !== null &&
           (typeof lastAttemptAt !== 'string' || !Number.isFinite(Date.parse(lastAttemptAt)))) ||
-        (lastBotKey !== null && lastBotKey !== 'botA' && lastBotKey !== 'botB') ||
+        (lastBotKey !== null && !isAppInstanceId(lastBotKey)) ||
         !['failed', 'delivery_uncertain'].includes(deliveryStatus)) {
       throw new Error('Invalid failed reward claim');
     }
@@ -259,8 +264,8 @@ export function parseVipRewardRetryAuditPage(value) {
         (adminUsername !== null &&
           (typeof adminUsername !== 'string' || !/^[A-Za-z0-9_]{1,32}$/.test(adminUsername))) ||
         typeof retriedAt !== 'string' || !Number.isFinite(Date.parse(retriedAt)) ||
-        (sourceBotKey !== null && sourceBotKey !== 'botA' && sourceBotKey !== 'botB') ||
-        (originalBotKey !== 'botA' && originalBotKey !== 'botB') ||
+        (sourceBotKey !== null && !isAppInstanceId(sourceBotKey)) ||
+        !isAppInstanceId(originalBotKey) ||
         !['pending', 'delivered', 'failed', 'delivery_uncertain'].includes(deliveryOutcome)) {
       throw new Error('Invalid VIP reward retry audit record');
     }
@@ -575,8 +580,8 @@ export function VipCampaignPanel({
     },
   },
   h('option', { value: 'all' }, copy.crossCampaignFailedRewardsAllSources),
-  h('option', { value: 'botA' }, sourceAppLabels.botA),
-  h('option', { value: 'botB' }, sourceAppLabels.botB),
+  ...Object.entries(sourceAppLabels).map(([botKey, label]) =>
+    h('option', { key: botKey, value: botKey }, label)),
   )),
   h('button', {
     type: 'submit',
@@ -619,12 +624,12 @@ export function VipCampaignPanel({
       ? `@${claim.recipientUsername}`
       : claim.recipientId.replace(/^tg_/, '');
     const sourceApp = claim.sourceBotKey
-      ? sourceAppLabels[claim.sourceBotKey]
+      ? sourceAppLabels[claim.sourceBotKey] ?? claim.sourceBotKey
       : copy.legacySourceApp;
     const campaignDetails = copy.crossCampaignFailedRewardsDetails
       .replace('{campaign}', claim.campaignId.slice(0, 8))
       .replace('{source}', sourceApp)
-      .replace('{bot}', sourceAppLabels[claim.botKey]);
+      .replace('{bot}', sourceAppLabels[claim.botKey] ?? claim.botKey);
     const retrying = retryingFailedRewardClaimId === claim.id;
     return h('article', {
       key: claim.id,

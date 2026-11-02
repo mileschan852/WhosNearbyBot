@@ -16,7 +16,7 @@ export type FlyingMessageFulfillmentMessage = {
   text: string;
   from_name: string;
   created_at: string;
-  audience_bot: 'botA' | 'botB';
+  audience_bot: string;
 };
 
 export function getFlyingMessageFulfillmentMessage(
