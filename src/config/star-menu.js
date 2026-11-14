@@ -9,7 +9,7 @@ export const DEFAULT_STAR_MENU_ITEMS = Object.freeze([
     id: 'tonflip',
     label: 'TonFlip',
     icon: 'tonflip',
-    url: 'https://app.tonflip.tg?r=mbab62ov',
+    url: 'https://t.me/SpaceOdysseyPlay_bot?start=ref_1231127407',
   }),
   Object.freeze({
     id: 'photify',

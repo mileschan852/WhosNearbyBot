@@ -12,6 +12,12 @@ test('both public entries configure three external actions separately from the r
       entry.starMenuItems.map(({ id }) => id),
       ['busta', 'tonflip', 'photify'],
     );
+    assert.equal(entry.starMenuItems.find(({ id }) => id === 'tonflip')?.url,
+      'https://t.me/SpaceOdysseyPlay_bot?start=ref_1231127407');
+    assert.equal(entry.starMenuItems.find(({ id }) => id === 'photify')?.url,
+      'https://t.me/PhotifyAIOfficialBot?start=referral_1231127407');
+    assert.equal(entry.starMenuItems.find(({ id }) => id === 'tonflip')?.icon, 'tonflip');
+    assert.equal(entry.starMenuItems.find(({ id }) => id === 'photify')?.icon, 'photify');
     assert.match(entry.chatUrl, /^https:\/\//);
     assert.equal(parseStarMenuItems(entry.starMenuItems, entry.id).length, 3);
   }
@@ -19,6 +25,10 @@ test('both public entries configure three external actions separately from the r
 
 test('older config files keep the existing three external actions by default', () => {
   assert.deepEqual(parseStarMenuItems(undefined), DEFAULT_STAR_MENU_ITEMS);
+  assert.equal(DEFAULT_STAR_MENU_ITEMS.find(({ id }) => id === 'tonflip')?.url,
+    'https://t.me/SpaceOdysseyPlay_bot?start=ref_1231127407');
+  assert.equal(DEFAULT_STAR_MENU_ITEMS.find(({ id }) => id === 'photify')?.url,
+    'https://t.me/PhotifyAIOfficialBot?start=referral_1231127407');
 });
 
 test('clones can replace, reorder, or remove external menu actions', () => {

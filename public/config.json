@@ -19,7 +19,7 @@
       "chatUrl": "https://t.me/whosnearby",
       "starMenuItems": [
         { "id": "busta", "label": "Busta", "icon": "busta", "url": "https://t.me/bustagift_xbot/app?startapp=pal1231127407" },
-        { "id": "tonflip", "label": "TonFlip", "icon": "tonflip", "url": "https://app.tonflip.tg?r=mbab62ov" },
+        { "id": "tonflip", "label": "TonFlip", "icon": "tonflip", "url": "https://t.me/SpaceOdysseyPlay_bot?start=ref_1231127407" },
         { "id": "photify", "label": "Photify", "icon": "photify", "url": "https://t.me/PhotifyAIOfficialBot?start=referral_1231127407" }
       ],
       "useConfiguredLabelForHeader": false,
@@ -46,7 +46,7 @@
       "chatUrl": "https://t.me/hkmochat",
       "starMenuItems": [
         { "id": "busta", "label": "Busta", "icon": "busta", "url": "https://t.me/bustagift_xbot/app?startapp=pal1231127407" },
-        { "id": "tonflip", "label": "TonFlip", "icon": "tonflip", "url": "https://app.tonflip.tg?r=mbab62ov" },
+        { "id": "tonflip", "label": "TonFlip", "icon": "tonflip", "url": "https://t.me/SpaceOdysseyPlay_bot?start=ref_1231127407" },
         { "id": "photify", "label": "Photify", "icon": "photify", "url": "https://t.me/PhotifyAIOfficialBot?start=referral_1231127407" }
       ],
       "useConfiguredLabelForHeader": true,
