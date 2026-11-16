@@ -55,3 +55,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5.0.1
+
+      - name: Verify published HKMO Date shell and shared GUI assets
+        if: github.repository == 'mileschan852/WhosNearbyBot' && github.ref == 'refs/heads/main'
+        run: node scripts/check-hkmodate-published-assets.mjs
