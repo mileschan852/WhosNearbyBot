@@ -422,20 +422,21 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
         grid: !!document.querySelector('button[aria-label="Grid"]'),
         map: !!document.querySelector('button[aria-label="Map"]'),
         requests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/auth').length || 0,
+        nearbyResponses: window.__mapViewSwitchE2e?.nearbyResponses?.length || 0,
         readyState: document.readyState,
         url: location.href,
         body: document.body?.innerText?.slice(0, 400) || '',
         rootMarkup: document.querySelector('#root')?.innerHTML?.slice(0, 500) || '',
         bootstrapLoaded: !!window.__mapViewSwitchE2e,
       }))()`,
-      (state) => state.grid && state.map && state.requests > 0,
+      (state) => state.grid && state.map && state.requests > 0 && state.nearbyResponses > 0,
       'the real app and its Grid/Map navigation',
     );
 
     const mapRequestStart = await page.evaluate(
       `window.__mapViewSwitchE2e.nearbyResponses.length`,
     );
-    await page.evaluate(`document.querySelector('button[aria-label="Grid"]').click()`);
+    await page.evaluate(`document.querySelector('button[aria-label="Map"]').click()`);
 
     const mapState = await waitForPageState(
       page,
@@ -563,7 +564,7 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
     const gridRequestStart = await page.evaluate(
       `window.__mapViewSwitchE2e.nearbyResponses.length`,
     );
-    await page.evaluate(`document.querySelector('button[aria-label="Map"]').click()`);
+    await page.evaluate(`document.querySelector('button[aria-label="Grid"]').click()`);
     const gridState = await waitForPageState(
       page,
       `(() => {
@@ -599,6 +600,14 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
       } catch {}
     }
     await Promise.all([stopChild(browser), stopChild(vite)]);
-    await rm(tempDir, { recursive: true, force: true });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+        break;
+      } catch (error) {
+        if (attempt >= 9) throw error;
+        await delay(100);
+      }
+    }
   }
 });
