@@ -418,6 +418,7 @@ declare global {
 }
 
 const PAYMENT_WORKER_URL = 'https://whosnearbybot.mileschan852.workers.dev';
+const NEARBY_REFRESH_INTERVAL_MS = 15 * 60_000;
 const WORKER_REQUEST_TIMEOUT_MS = 12_000;
 
 type LangKey = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'ru';
@@ -2940,7 +2941,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const workerPostRef = useRef<
     (path: string, body?: Record<string, unknown>) => Promise<any>
   >(async () => { throw new Error('Worker request handler is not initialized.'); });
-  const fetchUsersDataRef = useRef<(() => Promise<void>) | null>(null);
+  const fetchUsersDataRef = useRef<((includeMapCoordinates?: boolean) => Promise<UserProfile[] | null>) | null>(null);
+  const lastMapProfileRefreshAtRef = useRef(0);
   const confirmPendingAccessRef = useRef<
     (marker: PendingAccessRecheck, profile: UserProfile) => boolean
   >(() => false);
@@ -3937,9 +3939,11 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     else setFilterPlaystyleVal('Clean');
   };
 
-  const fetchUsersData = async () => {
+  const fetchUsersData = async (
+    includeMapCoordinates = view === 'map',
+  ): Promise<UserProfile[] | null> => {
     try {
-      const data = await workerPost('/api/nearby');
+      const data = await workerPost('/api/nearby', { mapRequest: includeMapCoordinates });
       if (!Array.isArray(data)) throw new Error('Nearby search returned invalid data.');
       const processed: UserProfile[] = data.map((u: any) => ({
         id: u.id || 'unknown',
@@ -3976,8 +3980,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         return (a.distance || 0) - (b.distance || 0);
       });
       setUsers(processed);
+      return processed;
     } catch (error) {
       console.error('Error fetching nearby users:', error);
+      return null;
     }
   };
   fetchUsersDataRef.current = fetchUsersData;
@@ -3989,7 +3995,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         void fetchUsersDataRef.current?.();
       }
     };
-    const timer = window.setInterval(refreshNearby, 60_000);
+    const timer = window.setInterval(refreshNearby, NEARBY_REFRESH_INTERVAL_MS);
     document.addEventListener('visibilitychange', refreshNearby);
     return () => {
       window.clearInterval(timer);
@@ -5309,7 +5315,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       if (result.profile?.grid_visible === false) setInvisibleNotice('active');
       else setInvisibleNotice('');
       setView('grid');
-      await fetchUsersData();
+      await fetchUsersData(false);
     } catch (error) {
       console.error('Could not update grid visibility:', error);
       alert(error instanceof Error ? error.message : String(error));
@@ -5324,7 +5330,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       applyOwnProfile(result.profile);
       setView(nextVal ? 'map' : gridFilterEnabled ? 'grid' : 'map');
       if (nextVal) setHasOpenedMap(true);
-      await fetchUsersData();
+      await fetchUsersData(nextVal);
     } catch (error) {
       console.error('Could not update map visibility:', error);
       alert(error instanceof Error ? error.message : String(error));
@@ -5466,6 +5472,22 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     setSelectedProfile(targetUser);
     if (currentUser && targetUser.id !== currentUser.id) loadPrivateNote(targetUser.id);
     else { setNoteDraft(''); setShowNoteBox(false); }
+    if (view !== 'map' || !currentUser || targetUser.id === currentUser.id) return;
+    const now = Date.now();
+    if (now - lastMapProfileRefreshAtRef.current < 5_000) return;
+    lastMapProfileRefreshAtRef.current = now;
+    const refresh = fetchUsersDataRef.current?.(true);
+    if (!refresh) return;
+    void refresh.then((profiles) => {
+      setSelectedProfile((previous) => {
+        if (previous?.id !== targetUser.id) return previous;
+        const refreshed = profiles?.find((profile) => profile.id === targetUser.id);
+        if (!refreshed || typeof refreshed.lat !== 'number' || typeof refreshed.lng !== 'number') {
+          return null;
+        }
+        return { ...previous, ...refreshed };
+      });
+    });
   };
 
   const handleStartChat = (targetUser: UserProfile) => {

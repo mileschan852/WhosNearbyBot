@@ -57,6 +57,16 @@ test("incoming interest appears as an accessible heart badge at the top-left of 
 });
 
 test("the nearby grid refreshes while the Mini App is active so other users see new signals", () => {
-  assert.match(appSource, /window\.setInterval\(refreshNearby, 60_000\)/);
+  assert.match(appSource, /const NEARBY_REFRESH_INTERVAL_MS = 15 \* 60_000/);
+  assert.match(appSource, /window\.setInterval\(refreshNearby, NEARBY_REFRESH_INTERVAL_MS\)/);
   assert.match(appSource, /document\.addEventListener\('visibilitychange', refreshNearby\)/);
+});
+
+test("Map requests coordinates on demand and closes cards for stale pins", () => {
+  assert.match(appSource, /includeMapCoordinates = view === 'map'/);
+  assert.match(appSource, /workerPost\('\/api\/nearby', \{ mapRequest: includeMapCoordinates \}\)/);
+  assert.match(appSource, /await fetchUsersData\(nextVal\)/);
+  assert.match(appSource, /await fetchUsersData\(false\)/);
+  assert.match(appSource, /fetchUsersDataRef\.current\?\.\(true\)/);
+  assert.match(appSource, /if \(!refreshed \|\| typeof refreshed\.lat !== 'number' \|\| typeof refreshed\.lng !== 'number'\)/);
 });
