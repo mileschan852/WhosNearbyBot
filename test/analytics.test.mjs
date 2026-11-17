@@ -162,6 +162,51 @@ test('a delayed filter renewal emits once after the matching Worker profile reac
   }]);
 });
 
+test('a later renewal for the same account emits a separate event and deduplicates both markers', async () => {
+  const now = Date.now();
+  const accountId = 'tg_private_101';
+  const firstMarker = makeFilterRenewalMarker({
+    now,
+    accountId,
+    minimumExpiry: now + 29 * dayMs,
+    location: 'active_filter_subscription',
+  });
+  const secondMarker = makeFilterRenewalMarker({
+    now,
+    accountId,
+    minimumExpiry: firstMarker.minimumExpiry + dayMs,
+    location: 'filter_expiry_notice',
+  });
+  const confirmedProfile = {
+    id: accountId,
+    filter_sub_expiry: new Date(secondMarker.minimumExpiry).toISOString(),
+  };
+  const events = [];
+  const report = createFilterRenewalConfirmationReporter((name, data) => {
+    events.push({ name, data });
+  }, createLocalTestClaim());
+
+  assert.equal(await report('paid', firstMarker, confirmedProfile), true);
+  assert.equal(await report('paid', secondMarker, confirmedProfile), true);
+  assert.equal(await report('paid', firstMarker, confirmedProfile), false);
+  assert.equal(await report('paid', secondMarker, confirmedProfile), false);
+  assert.deepEqual(events, [
+    {
+      name: 'filter_renewal_confirmed',
+      data: { location: firstMarker.location },
+    },
+    {
+      name: 'filter_renewal_confirmed',
+      data: { location: secondMarker.location },
+    },
+  ]);
+  assert.ok(events.every((event) =>
+    Object.keys(event.data).length === 1 &&
+    typeof event.data.location === 'string'
+  ));
+  assert.equal(JSON.stringify(events).includes(accountId), false);
+});
+
 test('two app instances concurrently report one renewal only once without sending account details', async () => {
   const marker = makeFilterRenewalMarker({ accountId: 'tg_private_101' });
   const profile = {
