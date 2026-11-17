@@ -65,7 +65,8 @@ test("the nearby grid refreshes while the Mini App is active so other users see 
 test("Map requests coordinates on demand and closes cards for stale pins", () => {
   assert.match(appSource, /includeMapCoordinates = view === 'map'/);
   assert.match(appSource, /workerPost\('\/api\/nearby', \{ mapRequest: includeMapCoordinates \}\)/);
-  assert.match(appSource, /void fetchUsersData\(nextVal\)/);
+  assert.match(appSource, /await fetchUsersData\(nextVal\)/);
+  assert.match(appSource, /await fetchUsersData\(false\)/);
   assert.match(appSource, /fetchUsersDataRef\.current\?\.\(true\)/);
   assert.match(appSource, /if \(!refreshed \|\| typeof refreshed\.lat !== 'number' \|\| typeof refreshed\.lng !== 'number'\)/);
 });

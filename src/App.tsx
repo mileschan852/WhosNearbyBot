@@ -5315,7 +5315,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       if (result.profile?.grid_visible === false) setInvisibleNotice('active');
       else setInvisibleNotice('');
       setView('grid');
-      await fetchUsersData();
+      await fetchUsersData(false);
     } catch (error) {
       console.error('Could not update grid visibility:', error);
       alert(error instanceof Error ? error.message : String(error));
@@ -5329,9 +5329,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       const result = await workerPost('/api/profile', { profile: { map_visible: nextVal } });
       applyOwnProfile(result.profile);
       setView(nextVal ? 'map' : gridFilterEnabled ? 'grid' : 'map');
-      void fetchUsersData(nextVal);
       if (nextVal) setHasOpenedMap(true);
-      await fetchUsersData();
+      await fetchUsersData(nextVal);
     } catch (error) {
       console.error('Could not update map visibility:', error);
       alert(error instanceof Error ? error.message : String(error));
