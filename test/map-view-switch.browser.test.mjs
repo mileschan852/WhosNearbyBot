@@ -102,9 +102,9 @@ function browserBootstrap() {
       last_seen: new Date().toISOString(),
       grid_visible: true,
       map_visible: true,
-      lat: 22.3245,
+      lat: 22.3328,
       lng: 114.1694,
-      distance: 650,
+      distance: 1500,
     };
     const state = { requests: [], nearbyResponses: [], profileUpdates: [] };
     state.currentProfile = currentProfile;
@@ -170,7 +170,7 @@ function browserBootstrap() {
         case '/api/auth':
           return json({
             profile: { ...currentProfile },
-            role: 'user',
+            role: 'admin',
             bot: 'botB',
             globalVipUntil: 0,
             telegramPremium: false,
@@ -401,7 +401,7 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
       page,
       `(() => ({
         completion: !!document.querySelector('[data-testid="profile-completion-status"]'),
-        grid: !!document.querySelector('[data-testid="bottom-navigation-grid"]'),
+        grid: !!document.querySelector('button[aria-label="Grid"]'),
         map: !!document.querySelector('button[aria-label="Map"]'),
         authRequests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/auth').length || 0,
         mapActivityRequests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/map/activities').length || 0,
@@ -419,7 +419,7 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
     await waitForPageState(
       page,
       `(() => ({
-        grid: !!document.querySelector('[data-testid="bottom-navigation-grid"]'),
+        grid: !!document.querySelector('button[aria-label="Grid"]'),
         map: !!document.querySelector('button[aria-label="Map"]'),
         requests: window.__mapViewSwitchE2e?.requests?.filter((request) => request.path === '/api/auth').length || 0,
         readyState: document.readyState,
@@ -435,7 +435,7 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
     const mapRequestStart = await page.evaluate(
       `window.__mapViewSwitchE2e.nearbyResponses.length`,
     );
-    await page.evaluate(`document.querySelector('button[aria-label="Map"]').click()`);
+    await page.evaluate(`document.querySelector('button[aria-label="Grid"]').click()`);
 
     const mapState = await waitForPageState(
       page,
@@ -570,7 +570,7 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
         const responses = window.__mapViewSwitchE2e.nearbyResponses;
         const gridResponse = responses.slice(${gridRequestStart}).find((item) => !item.mapRequest);
         const mapButton = document.querySelector('button[aria-label="Map"]');
-        const gridButton = document.querySelector('[data-testid="bottom-navigation-grid"]');
+        const gridButton = document.querySelector('button[aria-label="Grid"]');
         const map = document.querySelector('.leaflet-container');
         return {
           gridResponse,
