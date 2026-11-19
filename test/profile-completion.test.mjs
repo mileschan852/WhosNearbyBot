@@ -343,6 +343,34 @@ test('saved profile identity is preserved when entering through either app entry
   );
 });
 
+test('profile completion writes only missing identity fields', () => {
+  assert.match(
+    appSource,
+    /const isCompletionFlow = showProfileSetup && !showProfileEditModal;/,
+    'profile saves should distinguish mandatory completion from editable profile updates',
+  );
+  assert.match(
+    appSource,
+    /const canSetGender = \(!isCompletionFlow \|\| profileCompletionMissingFields\.gender\)\s*&&\s*\(!entry\.profileSetup\.lockIdentity \|\| profileCompletionMissingFields\.gender\);/,
+    'saved gender should not be resubmitted during completion, while missing or unlocked gender remains editable',
+  );
+  assert.match(
+    appSource,
+    /const canSetSeeking = \(!isCompletionFlow \|\| profileCompletionMissingFields\.seeking\)\s*&&\s*\(!entry\.profileSetup\.lockIdentity \|\| profileCompletionMissingFields\.seeking\);/,
+    'saved seeking should not be resubmitted during completion, while a missing value remains fillable',
+  );
+  assert.match(
+    appSource,
+    /if \(isProfileFieldEditable\('gender'\) && canSetGender\)/,
+    'gender updates should use their own missing-field guard',
+  );
+  assert.match(
+    appSource,
+    /if \(isProfileFieldEditable\('seeking'\) && canSetSeeking\)/,
+    'seeking updates should use their own missing-field guard',
+  );
+});
+
 test('new profiles receive only the selected entry identity defaults', () => {
   const entries = parseAppRuntimeConfig(config).entries;
   const nearbyIdentity = resolveInitialProfileIdentity(null, entries.nearby);

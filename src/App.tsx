@@ -2553,6 +2553,7 @@ const ADMIN_EDIT_PROFILE_FIELD_MAP: Partial<Record<keyof ProfileCompletionValues
 type ProfileCompletionMissingFields = {
   dob: boolean;
   gender: boolean;
+  seeking: boolean;
   height: boolean;
   weight: boolean;
 };
@@ -2921,6 +2922,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     useState<ProfileCompletionMissingFields>({
       dob: true,
       gender: true,
+      seeking: true,
       height: true,
       weight: true,
     });
@@ -4097,6 +4099,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         setProfileCompletionMissingFields({
           dob: !existingProfile?.dob,
           gender: !existingProfile?.gender,
+          seeking: !existingProfile?.seeking,
           height: !existingProfile?.height,
           weight: !existingProfile?.weight,
         });
@@ -4329,9 +4332,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         lat: location.lat,
         lng: location.lng,
       };
-      const canSetConfiguredIdentity = !entry.profileSetup.lockIdentity
-        || profileCompletionMissingFields.gender;
-      if (isProfileFieldEditable('seeking') && canSetConfiguredIdentity) {
+      const isCompletionFlow = showProfileSetup && !showProfileEditModal;
+      const canSetGender = (!isCompletionFlow || profileCompletionMissingFields.gender)
+        && (!entry.profileSetup.lockIdentity || profileCompletionMissingFields.gender);
+      const canSetSeeking = (!isCompletionFlow || profileCompletionMissingFields.seeking)
+        && (!entry.profileSetup.lockIdentity || profileCompletionMissingFields.seeking);
+      if (isProfileFieldEditable('seeking') && canSetSeeking) {
         profileUpdate.seeking = seeking;
       }
       if (isProfileFieldEditable('rolePref')) {
@@ -4353,7 +4359,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         profileUpdate.non_man_mode = isManSeekingMan ? null : nonManMode;
       }
       if (isProfileFieldEditable('dob')) profileUpdate.dob = dob;
-      if (isProfileFieldEditable('gender') && canSetConfiguredIdentity) {
+      if (isProfileFieldEditable('gender') && canSetGender) {
         profileUpdate.gender = gender;
       }
       if (isProfileFieldEditable('height')) profileUpdate.height = height;
