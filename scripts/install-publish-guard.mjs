@@ -30,21 +30,25 @@ function repositorySlug(rawUrl) {
 }
 
 let root;
-let originUrl;
 try {
   root = git(['rev-parse', '--show-toplevel']);
-  originUrl = git(['-C', root, 'remote', 'get-url', 'origin']);
 } catch {
-  console.error(`Publish guard not installed: expected a Git checkout of ${target.repository} with an origin remote.`);
-  process.exit(1);
+  console.log('Skipping publish guard setup: this is not a Git checkout.');
+  process.exit(0);
 }
 
+const configuredRemotes = git(['-C', root, 'remote']).split(/\r?\n/).filter(Boolean);
+if (!configuredRemotes.includes('origin')) {
+  console.log('Skipping publish guard setup: this Git checkout has no origin remote.');
+  process.exit(0);
+}
+
+const originUrl = git(['-C', root, 'remote', 'get-url', 'origin']);
 if (repositorySlug(originUrl) !== target.repository.toLowerCase()) {
   console.error(`Publish guard not installed: origin is not ${target.repository}; no Git settings were changed.`);
   process.exit(1);
 }
 
-const configuredRemotes = git(['-C', root, 'remote']).split(/\r?\n/).filter(Boolean);
 if (configuredRemotes.includes(target.productionRemote)) {
   const publishUrl = git(['-C', root, 'remote', 'get-url', target.productionRemote]);
   if (repositorySlug(publishUrl) !== target.repository.toLowerCase()) {
