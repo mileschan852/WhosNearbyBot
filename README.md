@@ -7,9 +7,10 @@ rules remain in the private `dating-app-backend` repository.
 
 ## Features
 
-See the [feature guide](docs/feature-summary.md) for screenshots and a short
-description of the grid, map, filters, privacy controls, purchases, raffle,
-flying messages, and admin/VIP tools.
+See the [feature guide](docs/feature-summary.md) for screenshots and descriptions
+of discovery, profile interests, map activities, filters, privacy, purchases,
+the raffle, flying messages, and admin/VIP tools. Use the
+[configuration guide](docs/configuration.md) to customize a clone.
 
 ## Start a new GUI
 

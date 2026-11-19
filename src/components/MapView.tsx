@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
@@ -328,15 +328,24 @@ export default function MapView({
   const apiPostRef = useRef(apiPost);
   const startInvoiceRef = useRef(startInvoice);
   const onPartyPriceChangedRef = useRef(onPartyPriceChanged);
+  const activityRequestIdRef = useRef(0);
+  const userId = currentUser?.id;
   apiPostRef.current = apiPost;
   startInvoiceRef.current = startInvoice;
   onPartyPriceChangedRef.current = onPartyPriceChanged;
 
-  const refreshActivities = async (showLoading = false) => {
-    if (!currentUser) return;
+  const refreshActivities = useCallback(async (
+    showLoading = false,
+    isActive: () => boolean = () => true,
+  ) => {
+    if (!userId) return;
+    const requestId = ++activityRequestIdRef.current;
+    const isCurrentRequest = () =>
+      isActive() && activityRequestIdRef.current === requestId;
     if (showLoading) setActivityLoading(true);
     try {
       const data = await apiPostRef.current('/api/map/activities');
+      if (!isCurrentRequest()) return;
       if (!Array.isArray(data?.parties) || !Array.isArray(data?.cruisingSpots)) {
         throw new Error('Map activities returned invalid data.');
       }
@@ -352,29 +361,32 @@ export default function MapView({
       );
       setActivitiesError('');
     } catch (error) {
-      setActivitiesError(error instanceof Error ? error.message : text.loadFailed);
+      if (isCurrentRequest()) {
+        setActivitiesError(error instanceof Error ? error.message : text.loadFailed);
+      }
     } finally {
-      if (showLoading) setActivityLoading(false);
+      if (showLoading && isActive()) setActivityLoading(false);
     }
-  };
+  }, [text.loadFailed, userId]);
 
   useEffect(() => {
-    if (!isVisible || !currentUser) return;
+    if (!isVisible || !userId) return;
     let active = true;
     let loading = false;
     const load = async () => {
       if (!active || loading) return;
       loading = true;
-      await refreshActivities(true);
+      await refreshActivities(true, () => active);
       loading = false;
     };
     void load();
     const timer = window.setInterval(() => void load(), 30_000);
     return () => {
       active = false;
+      activityRequestIdRef.current += 1;
       window.clearInterval(timer);
     };
-  }, [isVisible, currentUser?.id, location.lat, location.lng]);
+  }, [isVisible, userId, location.lat, location.lng, refreshActivities]);
 
   useEffect(() => {
     if (!dialog) return;

@@ -600,14 +600,6 @@ test('Grid to Map renders a coordinate pin, then returns to Grid without map coo
       } catch {}
     }
     await Promise.all([stopChild(browser), stopChild(vite)]);
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-        break;
-      } catch (error) {
-        if (attempt >= 9) throw error;
-        await delay(100);
-      }
-    }
+    await rm(tempDir, { recursive: true, force: true });
   }
 });
