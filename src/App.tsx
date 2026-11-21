@@ -95,6 +95,7 @@ import {
   removeFilterPreferences,
   saveFilterPreferences,
 } from './utils/filter-preferences-storage';
+import { hasJpgMainProfileImage } from './utils/profile-image.js';
 
 import { getDefaultDiscoveryView } from './config/app-modules.js';
 import {
@@ -125,6 +126,7 @@ const reportFilterRenewalConfirmed = createFilterRenewalConfirmationReporter();
 
 const loadVipCampaignPanelModule = () => import('./components/vip-campaign-panel.js');
 const MapView = lazy(() => import('./modules/map/NearbyMapModule'));
+const DailySwipeModule = lazy(() => import('./modules/nearby-grid/DailySwipeModule'));
 const VipCampaignPanel = lazy(() =>
   loadVipCampaignPanelModule().then(({ VipCampaignPanel: Panel }) => ({
     default: Panel,
@@ -153,6 +155,80 @@ const HOW_MANY_GROUP_LABELS: Record<string, string> = {
   ja: 'グループのみ',
   ko: '그룹 전용',
   ru: 'Только группы',
+};
+const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
+  en: {
+    swipe: 'Swipe',
+    dailySwipeComplete: 'You’ve used today’s profile deck. Come back tomorrow.',
+    dailySwipeEmpty: 'No visible profiles with JPG photos are available right now.',
+    dailySwipeStorageError: 'Today’s swipe progress could not be saved. Please retry.',
+    dailySwipeSendFailed: 'Interest could not be sent. Your place in the deck has been kept.',
+    dailySwipePhotoRequired: 'Swipe is only available to users with a .jpg profile photo.',
+    swipeProfile: 'Swipe profile',
+    pass: 'Pass',
+    interested: 'Interested',
+    dailySwipeSending: 'Sending interest…',
+  },
+  'zh-CN': {
+    swipe: '滑动',
+    dailySwipeComplete: '今天的资料已浏览完毕，请明天再来。',
+    dailySwipeEmpty: '目前没有带 JPG 照片的可见资料。',
+    dailySwipeStorageError: '无法保存今日浏览进度，请重试。',
+    dailySwipeSendFailed: '无法发送兴趣信号，当前资料仍会保留。',
+    dailySwipePhotoRequired: '只有拥有 .jpg 个人资料照片的用户才能使用滑动功能。',
+    swipeProfile: '滑动资料',
+    pass: '跳过',
+    interested: '感兴趣',
+    dailySwipeSending: '正在发送兴趣信号…',
+  },
+  'zh-TW': {
+    swipe: '滑動',
+    dailySwipeComplete: '今天的資料已瀏覽完畢，請明天再來。',
+    dailySwipeEmpty: '目前沒有帶 JPG 照片的可見資料。',
+    dailySwipeStorageError: '無法儲存今日瀏覽進度，請重試。',
+    dailySwipeSendFailed: '無法傳送興趣訊號，目前資料仍會保留。',
+    dailySwipePhotoRequired: '只有擁有 .jpg 個人資料照片的用戶才能使用滑動功能。',
+    swipeProfile: '滑動資料',
+    pass: '略過',
+    interested: '感興趣',
+    dailySwipeSending: '正在傳送興趣訊號…',
+  },
+  ja: {
+    swipe: 'スワイプ',
+    dailySwipeComplete: '今日のプロフィールを見終わりました。明日またご利用ください。',
+    dailySwipeEmpty: '現在、表示できるJPG写真付きプロフィールはありません。',
+    dailySwipeStorageError: '今日の閲覧状況を保存できませんでした。もう一度お試しください。',
+    dailySwipeSendFailed: '興味を送信できませんでした。このプロフィールはそのまま表示されます。',
+    dailySwipePhotoRequired: '.jpgのプロフィール写真があるユーザーのみスワイプを利用できます。',
+    swipeProfile: 'スワイププロフィール',
+    pass: 'スキップ',
+    interested: '興味あり',
+    dailySwipeSending: '興味を送信中…',
+  },
+  ko: {
+    swipe: '스와이프',
+    dailySwipeComplete: '오늘의 프로필을 모두 확인했습니다. 내일 다시 이용해 주세요.',
+    dailySwipeEmpty: '지금은 공개된 JPG 사진 프로필이 없습니다.',
+    dailySwipeStorageError: '오늘의 진행 상태를 저장하지 못했습니다. 다시 시도해 주세요.',
+    dailySwipeSendFailed: '관심을 보내지 못했습니다. 현재 프로필은 그대로 남아 있습니다.',
+    dailySwipePhotoRequired: '.jpg 프로필 사진이 있는 사용자만 스와이프를 사용할 수 있습니다.',
+    swipeProfile: '스와이프 프로필',
+    pass: '건너뛰기',
+    interested: '관심 있음',
+    dailySwipeSending: '관심을 보내는 중…',
+  },
+  ru: {
+    swipe: 'Просмотр',
+    dailySwipeComplete: 'Вы просмотрели сегодняшние профили. Возвращайтесь завтра.',
+    dailySwipeEmpty: 'Сейчас нет доступных профилей с фотографиями JPG.',
+    dailySwipeStorageError: 'Не удалось сохранить прогресс за сегодня. Попробуйте ещё раз.',
+    dailySwipeSendFailed: 'Не удалось отправить сигнал интереса. Профиль останется на месте.',
+    dailySwipePhotoRequired: 'Просмотр доступен только пользователям с фотографией профиля .jpg.',
+    swipeProfile: 'Профиль для просмотра',
+    pass: 'Пропустить',
+    interested: 'Интересно',
+    dailySwipeSending: 'Отправляем сигнал интереса…',
+  },
 };
 const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
   title: string;
@@ -510,6 +586,7 @@ type ScreenHelpCopy = {
   filter: ScreenHelpSection;
   refresh: ScreenHelpSection;
   grid: ScreenHelpSection;
+  swipe: ScreenHelpSection;
   map: ScreenHelpSection;
   invisibility: ScreenHelpSection;
   star: ScreenHelpSection;
@@ -527,6 +604,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     filter: { title: 'Filter', description: 'Choose which profiles appear. Some filter options require VIP or an active filter subscription.' },
     refresh: { title: 'Refresh', description: 'Reloads nearby profiles and their latest status.' },
     grid: { title: 'Profile tiles', description: 'Tap a tile to open that person’s profile. Dimmed tiles do not match your current filters.' },
+    swipe: { title: 'Swipe discovery', description: 'Swipe left or tap Pass to skip. Swipe right or tap Interested to send a heart. Today’s deck is available once per day.' },
     map: { title: 'Map', description: 'Move around the map and tap a profile marker to open that person’s profile.' },
     invisibility: { title: 'Go invisible', description: 'Tap Grid in the bottom bar to turn your profile visibility off. If Invisibility access is not active, the app will prompt you to activate or renew it. While invisible, other users will not see you in Grid or Map, even if your Map indicator is on. You will still see your own marker on your map.' },
     star: { title: 'Star menu', description: 'Open the star button to see the raffle ticket and other configured features.' },
@@ -542,6 +620,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     filter: { title: '筛选', description: '选择要显示的个人资料。部分筛选功能需要 VIP 或有效的筛选订阅。' },
     refresh: { title: '刷新', description: '重新加载附近资料及其最新状态。' },
     grid: { title: '资料卡片', description: '点击卡片查看对方资料。变暗的卡片表示不符合当前筛选条件。' },
+    swipe: { title: '滑动浏览', description: '向左滑动或点“跳过”可略过资料；向右滑动或点“感兴趣”会发送爱心。每日资料清单每天可浏览一次。' },
     map: { title: '地图', description: '移动地图并点击个人资料标记来查看对方资料。' },
     invisibility: { title: '隐身', description: '点击底部导航栏的“网格”按钮关闭个人资料可见状态。若没有有效的隐身权限，应用会提示你开通或续订。隐身期间，即使地图指示灯开启，其他用户也不会在网格或地图上看到你；你仍会在自己的地图上看到自己的标记。' },
     star: { title: '星星菜单', description: '点击星星按钮查看抽奖券和其他已配置功能。' },
@@ -557,6 +636,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     filter: { title: '篩選', description: '選擇要顯示的個人資料。部分篩選功能需要 VIP 或有效的篩選訂閱。' },
     refresh: { title: '重新整理', description: '重新載入附近資料及其最新狀態。' },
     grid: { title: '資料卡片', description: '點擊卡片查看對方資料。變暗的卡片表示不符合目前的篩選條件。' },
+    swipe: { title: '滑動瀏覽', description: '向左滑動或點「略過」可略過資料；向右滑動或點「感興趣」會傳送愛心。每日資料清單每天可瀏覽一次。' },
     map: { title: '地圖', description: '移動地圖並點擊個人資料標記以查看對方資料。' },
     invisibility: { title: '隱身', description: '點擊底部導覽列的「網格」按鈕關閉個人資料可見狀態。若沒有有效的隱身權限，應用程式會提示你開通或續訂。隱身期間，即使地圖指示燈已開啟，其他用戶也不會在網格或地圖上看到你；你仍會在自己的地圖上看到自己的標記。' },
     star: { title: '星星選單', description: '點擊星星按鈕查看抽獎券和其他已設定功能。' },
@@ -572,6 +652,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     filter: { title: 'フィルター', description: '表示するプロフィールを選びます。一部の項目にはVIPまたは有効なフィルター購読が必要です。' },
     refresh: { title: '更新', description: '近くのプロフィールと最新の状態を再読み込みします。' },
     grid: { title: 'プロフィール一覧', description: 'カードをタップするとプロフィールを表示します。暗く表示されたカードは現在のフィルターに一致していません。' },
+    swipe: { title: 'スワイプで探す', description: '左にスワイプするか「スキップ」を押すと次へ進み、右にスワイプするか「興味あり」を押すとハートを送ります。プロフィール一覧は1日1回利用できます。' },
     map: { title: '地図', description: '地図を動かし、プロフィールのマーカーをタップすると詳細を表示します。' },
     invisibility: { title: '非表示にする', description: '下部ナビゲーションの「Grid」をタップしてプロフィールの表示をオフにします。有効な非表示アクセスがない場合、購入または更新を案内します。非表示中はMapがオンでも、他のユーザーにはグリッドにも地図にも表示されません。自分の地図では自分のマーカーが見えます。' },
     star: { title: 'スター メニュー', description: '星のボタンから抽選チケットや設定された機能を開きます。' },
@@ -587,6 +668,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     filter: { title: '필터', description: '표시할 프로필을 선택합니다. 일부 필터는 VIP 또는 유효한 필터 구독이 필요합니다.' },
     refresh: { title: '새로고침', description: '주변 프로필과 최신 상태를 다시 불러옵니다.' },
     grid: { title: '프로필 타일', description: '타일을 누르면 프로필을 볼 수 있습니다. 흐리게 표시된 타일은 현재 필터와 일치하지 않습니다.' },
+    swipe: { title: '스와이프 탐색', description: '왼쪽으로 넘기거나 건너뛰기를 누르면 다음 프로필로 이동하고, 오른쪽으로 넘기거나 관심 있음을 누르면 하트를 보냅니다. 프로필 목록은 하루에 한 번 이용할 수 있습니다.' },
     map: { title: '지도', description: '지도를 이동하고 프로필 표시를 누르면 해당 프로필을 볼 수 있습니다.' },
     invisibility: { title: '비공개로 전환', description: '하단 내비게이션의 Grid 버튼을 눌러 프로필 표시를 끄세요. 활성 비공개 권한이 없으면 구매 또는 갱신 안내가 표시됩니다. 비공개 중에는 Map 표시가 켜져 있어도 다른 사용자에게 그리드와 지도에 나타나지 않습니다. 본인 지도에는 본인 마커가 계속 표시됩니다.' },
     star: { title: '별 메뉴', description: '별 버튼에서 추첨 티켓과 설정된 기능을 확인할 수 있습니다.' },
@@ -602,6 +684,7 @@ const SCREEN_HELP_COPY: Record<LangKey, ScreenHelpCopy> = {
     filter: { title: 'Фильтр', description: 'Выберите, какие профили показывать. Для некоторых фильтров нужен VIP или активная подписка на фильтр.' },
     refresh: { title: 'Обновить', description: 'Заново загружает профили поблизости и их актуальный статус.' },
     grid: { title: 'Карточки профилей', description: 'Нажмите карточку, чтобы открыть профиль. Затемнённые карточки не соответствуют текущим фильтрам.' },
+    swipe: { title: 'Просмотр профилей', description: 'Смахните влево или нажмите «Пропустить», чтобы перейти дальше; смахните вправо или нажмите «Интересно», чтобы отправить сердечко. Список доступен раз в день.' },
     map: { title: 'Карта', description: 'Перемещайте карту и нажмите маркер профиля, чтобы открыть его.' },
     invisibility: { title: 'Режим невидимости', description: 'Нажмите «Сетка» в нижней панели, чтобы выключить видимость профиля. Если доступ к невидимости не активен, приложение предложит купить или продлить его. Пока вы скрыты, другие пользователи не увидят вас в сетке или на карте, даже если индикатор карты включён. Свой маркер на своей карте вы по-прежнему видите.' },
     star: { title: 'Меню со звездой', description: 'Нажмите кнопку со звездой, чтобы открыть билет розыгрыша и другие функции.' },
@@ -621,7 +704,7 @@ function ScreenHelpOverlay({
   onClose,
 }: {
   lang: LangKey;
-  view: 'grid' | 'map';
+  view: 'grid' | 'swipe' | 'map';
   viewLabel: string;
   filterEnabled: boolean;
   discoveryEnabled: boolean;
@@ -634,7 +717,7 @@ function ScreenHelpOverlay({
     ...(discoveryEnabled ? [copy.nearby] : []),
     ...(filterEnabled ? [copy.filter] : []),
     ...(discoveryEnabled ? [copy.refresh] : []),
-    ...(view === 'grid' ? [copy.grid] : [copy.map]),
+    ...(view === 'grid' ? [copy.grid] : view === 'swipe' ? [copy.swipe] : [copy.map]),
     ...(discoveryEnabled ? [copy.invisibility] : []),
     ...(starRaffleEnabled ? [copy.star] : []),
     ...(flyingMessageEnabled ? [copy.flying] : []),
@@ -2900,10 +2983,15 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   );
   const verifiedBotKeyRef = useRef<AppBotKey | null>(null);
   const [lang, setLang] = useState<LangKey>('en');
-  const t = (key: string) => translations[lang]?.[key] || translations['en'][key] || key;
+  const t = (key: string) =>
+    translations[lang]?.[key] ||
+    DAILY_SWIPE_COPY[lang]?.[key] ||
+    translations['en'][key] ||
+    DAILY_SWIPE_COPY.en[key] ||
+    key;
   const howManyLabel = (value?: string | null) =>
     value === 'group' ? (HOW_MANY_GROUP_LABELS[lang] ?? 'Groups Only') : t(value || 'DoesntMatter');
-  const [view, setView] = useState<'grid' | 'map'>(() => getDefaultDiscoveryView(initialEntry.modules) || 'grid');
+  const [view, setView] = useState<'grid' | 'swipe' | 'map'>(() => getDefaultDiscoveryView(initialEntry.modules) || 'grid');
   const [hasOpenedMap, setHasOpenedMap] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const currentUserRef = useRef<UserProfile | null>(null);
@@ -5343,6 +5431,17 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
+  const handleOpenSwipe = async () => {
+    if (!gridFilterEnabled || !currentUser) return;
+    if (!hasJpgMainProfileImage(currentUser.avatar)) {
+      alert(t('dailySwipePhotoRequired'));
+      return;
+    }
+    setShowFilterDropdown(false);
+    setView('swipe');
+    await fetchUsersData(false);
+  };
+
   const handleUpdateSelfField = async (fields: Partial<UserProfile>) => {
     if (!currentUser) return;
     try {
@@ -5557,18 +5656,18 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     return true;
   };
 
-  const handleSendInterest = async (targetUser: UserProfile) => {
-    if (!currentUser || targetUser.id === currentUser.id || !checkFilterPass(targetUser)) return;
+  const handleSendInterest = async (targetUser: UserProfile): Promise<boolean> => {
+    if (!currentUser || targetUser.id === currentUser.id || !checkFilterPass(targetUser)) return false;
     if (targetUser.interest_state_known !== true) {
       setInterestFeedback({ profileId: targetUser.id, state: 'unavailable' });
-      return;
+      return false;
     }
     const existingCooldown = Date.parse(targetUser.interest_cooldown_until || '');
     if (Number.isFinite(existingCooldown) && existingCooldown > raffleClock) {
       setInterestFeedback({ profileId: targetUser.id, state: 'cooldown' });
-      return;
+      return true;
     }
-    if (interestSendingTo) return;
+    if (interestSendingTo) return false;
 
     setInterestSendingTo(targetUser.id);
     setInterestFeedback(null);
@@ -5596,8 +5695,10 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         profileId: targetUser.id,
         state: result.status === 'sent' ? 'sent' : 'cooldown',
       });
+      return true;
     } catch {
       setInterestFeedback({ profileId: targetUser.id, state: 'failed' });
+      return false;
     } finally {
       setInterestSendingTo((previous) => previous === targetUser.id ? null : previous);
     }
@@ -6674,6 +6775,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const mapFilteredUsers = gridFilterEnabled
     ? filterProfilesByMatchVisibility(mapCandidates, hideNonMatchingUsers, checkFilterPass)
     : mapCandidates;
+  const dailySwipeUsers = gridFilterEnabled
+    ? genderEligibleUsers.filter((user) =>
+        user.id !== currentUser?.id &&
+        resolveGridVisibility(user.grid_visible, user.invisible_expiry) &&
+        hasJpgMainProfileImage(user.avatar) &&
+        checkFilterPass(user),
+      )
+    : [];
   const hasDiscoveryModule = gridFilterEnabled || mapModuleEnabled;
   const discoveryUserCount = gridFilterEnabled ? gridFilteredUsers.length : mapFilteredUsers.length;
   const currentUserIsM2M = currentUser?.gender === 'man' && currentUser?.seeking === 'men';
@@ -7138,6 +7247,20 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               interestLabel={profileInterestCopy.received}
             />
           </div>
+        )}
+
+        {view === 'swipe' && gridFilterEnabled && (
+          <Suspense fallback={<div role="status" style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>{t('swipe')}</div>}>
+            <DailySwipeModule
+              key={currentUser?.id || 'no-account'}
+              users={dailySwipeUsers}
+              accountId={currentUser?.id || null}
+              onRightSwipe={handleSendInterest}
+              onRefresh={() => { void handleRefresh(); }}
+              formatDistance={formatDistanceBigUnit}
+              t={t}
+            />
+          </Suspense>
         )}
 
         {mapModuleEnabled && (
@@ -7749,11 +7872,13 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       <BottomNavigationModule
         view={view}
         gridEnabled={gridFilterEnabled}
+        swipeEnabled={gridFilterEnabled}
         mapEnabled={mapModuleEnabled}
         gridVisible={gridVisible}
         mapVisible={mapVisible}
         walletConnected={isWalletConnected}
         onGrid={handleToggleGrid}
+        onSwipe={() => { void handleOpenSwipe(); }}
         onChat={() => handleOpenExternalApp(entry.chatUrl)}
         onWallet={handleWalletClick}
         onMap={handleToggleMap}

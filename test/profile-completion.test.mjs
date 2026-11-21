@@ -843,7 +843,7 @@ test('profile completion labels, instructions, and validation text are translate
   assert.deepEqual(Object.keys(profileSetupPreviewTranslations).sort(), [...languages].sort());
   assert.match(
     appSource,
-    /translations\[lang\]\?\.\[key\]\s*\|\|\s*translations\['en'\]\[key\]\s*\|\|\s*key/,
+    /translations\[lang\]\?\.\[key\][\s\S]*translations\['en'\]\[key\][\s\S]*\|\|\s*key/,
     'the app should retain its existing language-to-English-to-key fallback',
   );
   assert.match(appSource, /setErrorMessage\(t\('fillAll'\)\)/);

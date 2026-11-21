@@ -18,6 +18,7 @@ const SCREEN_COPY_CONSTANTS = [
   'PROFILE_INTEREST_COPY',
   'SCREEN_HELP_COPY',
   'NO_DISCOVERY_MODULES_COPY',
+  'DAILY_SWIPE_COPY',
   'flyingMessageCopy',
   'raffleUiCopy',
 ];
@@ -120,6 +121,7 @@ const screenCopies = Object.fromEntries(
 let vite;
 let BottomNavigationModule;
 let NearbyGridModule;
+let DailySwipeModule;
 let FlyingMessageModule;
 
 before(async () => {
@@ -136,6 +138,9 @@ before(async () => {
   ));
   ({ default: NearbyGridModule } = await vite.ssrLoadModule(
     '/src/modules/nearby-grid/NearbyGridModule.tsx',
+  ));
+  ({ default: DailySwipeModule } = await vite.ssrLoadModule(
+    '/src/modules/nearby-grid/DailySwipeModule.tsx',
   ));
   ({ default: FlyingMessageModule } = await vite.ssrLoadModule(
     '/src/modules/flying-message/FlyingMessageModule.tsx',
@@ -241,7 +246,7 @@ test('screen-specific copy is complete and valid in every supported language', (
 test('untranslated labels retain the English fallback behavior', () => {
   assert.match(
     appSource,
-    /const t = \(key: string\) => translations\[lang\]\?\.\[key\] \|\| translations\['en'\]\[key\] \|\| key;/,
+    /const t = \(key: string\) =>[\s\S]*translations\[lang\]\?\.\[key\][\s\S]*translations\['en'\]\[key\][\s\S]*\|\|\s*key;/,
     'the app translator should continue falling back to English before exposing a key',
   );
 
@@ -250,22 +255,26 @@ test('untranslated labels retain the English fallback behavior', () => {
   assert.equal(resolve('zh-CN', 'intentionalFallback'), fixture.en.intentionalFallback);
 });
 
-test('grid, chat, and wallet navigation labels render accessibly in all languages', () => {
+test('grid, swipe, chat, and wallet navigation labels render accessibly in all languages', () => {
   for (const language of LANGUAGES) {
-    const dictionary = appTranslations[language];
+    const dictionary = {
+      ...appTranslations[language],
+      ...screenCopies.DAILY_SWIPE_COPY[language],
+    };
     const markup = renderToStaticMarkup(React.createElement(BottomNavigationModule, {
-      view: 'grid',
+      view: 'swipe',
       gridVisible: true,
       mapVisible: true,
       walletConnected: false,
       onGrid: () => {},
+      onSwipe: () => {},
       onChat: () => {},
       onWallet: () => {},
       onMap: () => {},
       t: (key) => dictionary[key] || appTranslations.en[key] || key,
     }));
 
-    for (const key of ['grid', 'chat', 'wallet', 'map']) {
+    for (const key of ['grid', 'swipe', 'chat', 'wallet', 'map']) {
       assert.ok(markup.includes(dictionary[key]), `${language} navigation should show ${key}`);
       assert.ok(
         markup.includes(`aria-label="${dictionary[key]}"`),
@@ -308,6 +317,55 @@ test('grid cards localize online status, profile image text, interest badge, and
     assert.ok(markup.includes(dictionary.you), `${language} should label the current user's card`);
     assert.ok(!markup.includes('\uFFFD'), `${language} grid should not render replacement characters`);
   }
+});
+
+test('Swipe renders only visible HTTPS JPG profiles and accessible pass/interest actions', () => {
+  const language = 'en';
+  const dictionary = {
+    ...appTranslations[language],
+    ...screenCopies.DAILY_SWIPE_COPY[language],
+  };
+  const markup = renderToStaticMarkup(React.createElement(DailySwipeModule, {
+    users: [
+      {
+        id: 'candidate-jpg',
+        name: 'Eligible JPG',
+        avatar: 'https://images.example/eligible.jpg',
+        grid_visible: true,
+      },
+      {
+        id: 'candidate-hidden',
+        name: 'Hidden JPG',
+        avatar: 'https://images.example/hidden.jpg',
+        grid_visible: false,
+      },
+      {
+        id: 'candidate-jpeg',
+        name: 'JPEG suffix',
+        avatar: 'https://images.example/jpeg.jpeg',
+        grid_visible: true,
+      },
+      {
+        id: 'candidate-http',
+        name: 'Insecure JPG',
+        avatar: 'http://images.example/insecure.jpg',
+        grid_visible: true,
+      },
+    ],
+    accountId: 'viewer',
+    onRightSwipe: async () => true,
+    onRefresh: () => {},
+    formatDistance: () => '1 km',
+    t: (key) => dictionary[key] || appTranslations.en[key] || key,
+  }));
+
+  assert.ok(markup.includes('data-testid="daily-swipe-card-candidate-jpg"'));
+  assert.ok(markup.includes('Eligible JPG'));
+  assert.ok(markup.includes('aria-label="Pass"'));
+  assert.ok(markup.includes('aria-label="Interested"'));
+  assert.ok(!markup.includes('Hidden JPG'));
+  assert.ok(!markup.includes('JPEG suffix'));
+  assert.ok(!markup.includes('Insecure JPG'));
 });
 
 test('flying-message composer and payment status are localized for all languages', () => {
