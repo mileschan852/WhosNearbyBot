@@ -40,6 +40,15 @@ For a template copy, set the target to its own repository and `main` branch
 before installing dependencies. HKMO Date's `docs/config.json` controls its own
 launch settings; shared interface changes are made here.
 
+## Vercel mirror
+
+The `whosnearbybot` Vercel project mirrors this GUI while the workspace
+transition is prepared for 1 December 2026. Keep its source synchronized with
+the current workspace and `WhosNearbyBot/main`. The root Vite
+build uses `npm ci`, `npm run build`, and `dist`; `vercel.json` also keeps
+client-side routes on `index.html`. This mirror does not replace GitHub Pages or
+change Telegram launch URLs before the owner switches them.
+
 The template changes the code history of new copies, not the access level of
 this public source. Existing forks and downloaded copies are separate and are
 not removed when this repository is replaced.
