@@ -6,7 +6,7 @@ import {
   saveDailySwipeProgress,
   type DailySwipeProgress,
 } from '../../utils/daily-swipe-session.js';
-import { hasJpgMainProfileImage } from '../../utils/profile-image.js';
+import { hasUploadedMainProfileImage } from '../../utils/profile-image.js';
 
 interface DailySwipeModuleProps {
   users: UserProfile[];
@@ -80,7 +80,7 @@ export default function DailySwipeModule({
       .filter((user) =>
         user.id !== accountId &&
         user.grid_visible !== false &&
-        hasJpgMainProfileImage(user.avatar),
+        hasUploadedMainProfileImage(user.avatar),
       )
       .slice()
       .sort((left, right) => left.id.localeCompare(right.id)),

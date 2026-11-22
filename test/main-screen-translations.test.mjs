@@ -319,7 +319,7 @@ test('grid cards localize online status, profile image text, interest badge, and
   }
 });
 
-test('Swipe renders only visible HTTPS JPG profiles and accessible pass/interest actions', () => {
+test('Swipe renders visible Telegram-photo profiles and accessible pass/interest actions', () => {
   const language = 'en';
   const dictionary = {
     ...appTranslations[language],
@@ -328,27 +328,27 @@ test('Swipe renders only visible HTTPS JPG profiles and accessible pass/interest
   const markup = renderToStaticMarkup(React.createElement(DailySwipeModule, {
     users: [
       {
-        id: 'candidate-jpg',
-        name: 'Eligible JPG',
-        avatar: 'https://images.example/eligible.jpg',
+        id: 'candidate-photo',
+        name: 'Uploaded Telegram photo',
+        avatar: 'https://images.example/telegram-photo?file=primary',
         grid_visible: true,
       },
       {
         id: 'candidate-hidden',
-        name: 'Hidden JPG',
-        avatar: 'https://images.example/hidden.jpg',
+        name: 'Hidden photo',
+        avatar: 'https://images.example/hidden-photo',
         grid_visible: false,
       },
       {
-        id: 'candidate-jpeg',
-        name: 'JPEG suffix',
-        avatar: 'https://images.example/jpeg.jpeg',
+        id: 'candidate-no-photo',
+        name: 'No uploaded photo',
+        avatar: '',
         grid_visible: true,
       },
       {
         id: 'candidate-http',
-        name: 'Insecure JPG',
-        avatar: 'http://images.example/insecure.jpg',
+        name: 'Insecure photo',
+        avatar: 'http://images.example/insecure-photo',
         grid_visible: true,
       },
     ],
@@ -359,13 +359,13 @@ test('Swipe renders only visible HTTPS JPG profiles and accessible pass/interest
     t: (key) => dictionary[key] || appTranslations.en[key] || key,
   }));
 
-  assert.ok(markup.includes('data-testid="daily-swipe-card-candidate-jpg"'));
-  assert.ok(markup.includes('Eligible JPG'));
+  assert.ok(markup.includes('data-testid="daily-swipe-card-candidate-photo"'));
+  assert.ok(markup.includes('Uploaded Telegram photo'));
   assert.ok(markup.includes('aria-label="Pass"'));
   assert.ok(markup.includes('aria-label="Interested"'));
-  assert.ok(!markup.includes('Hidden JPG'));
-  assert.ok(!markup.includes('JPEG suffix'));
-  assert.ok(!markup.includes('Insecure JPG'));
+  assert.ok(!markup.includes('Hidden photo'));
+  assert.ok(!markup.includes('No uploaded photo'));
+  assert.ok(!markup.includes('Insecure photo'));
 });
 
 test('flying-message composer and payment status are localized for all languages', () => {

@@ -95,7 +95,7 @@ import {
   removeFilterPreferences,
   saveFilterPreferences,
 } from './utils/filter-preferences-storage';
-import { hasJpgMainProfileImage } from './utils/profile-image.js';
+import { hasUploadedMainProfileImage } from './utils/profile-image.js';
 
 import { getDefaultDiscoveryView } from './config/app-modules.js';
 import {
@@ -160,10 +160,10 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
   en: {
     swipe: 'Swipe',
     dailySwipeComplete: 'You’ve used today’s profile deck. Come back tomorrow.',
-    dailySwipeEmpty: 'No visible profiles with JPG photos are available right now.',
+    dailySwipeEmpty: 'No visible profiles with uploaded Telegram photos are available right now.',
     dailySwipeStorageError: 'Today’s swipe progress could not be saved. Please retry.',
     dailySwipeSendFailed: 'Interest could not be sent. Your place in the deck has been kept.',
-    dailySwipePhotoRequired: 'Swipe is only available to users with a .jpg profile photo.',
+    dailySwipePhotoRequired: 'Swipe is only available to users with an uploaded Telegram profile photo.',
     swipeProfile: 'Swipe profile',
     pass: 'Pass',
     interested: 'Interested',
@@ -172,10 +172,10 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
   'zh-CN': {
     swipe: '滑动',
     dailySwipeComplete: '今天的资料已浏览完毕，请明天再来。',
-    dailySwipeEmpty: '目前没有带 JPG 照片的可见资料。',
+    dailySwipeEmpty: '目前没有带有已上传 Telegram 个人照片的可见资料。',
     dailySwipeStorageError: '无法保存今日浏览进度，请重试。',
     dailySwipeSendFailed: '无法发送兴趣信号，当前资料仍会保留。',
-    dailySwipePhotoRequired: '只有拥有 .jpg 个人资料照片的用户才能使用滑动功能。',
+    dailySwipePhotoRequired: '只有已在 Telegram 上传个人照片的用户才能使用滑动功能。',
     swipeProfile: '滑动资料',
     pass: '跳过',
     interested: '感兴趣',
@@ -184,10 +184,10 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
   'zh-TW': {
     swipe: '滑動',
     dailySwipeComplete: '今天的資料已瀏覽完畢，請明天再來。',
-    dailySwipeEmpty: '目前沒有帶 JPG 照片的可見資料。',
+    dailySwipeEmpty: '目前沒有可見且已上傳 Telegram 個人照片的資料。',
     dailySwipeStorageError: '無法儲存今日瀏覽進度，請重試。',
     dailySwipeSendFailed: '無法傳送興趣訊號，目前資料仍會保留。',
-    dailySwipePhotoRequired: '只有擁有 .jpg 個人資料照片的用戶才能使用滑動功能。',
+    dailySwipePhotoRequired: '只有已在 Telegram 上傳個人照片的用戶才能使用滑動功能。',
     swipeProfile: '滑動資料',
     pass: '略過',
     interested: '感興趣',
@@ -196,10 +196,10 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
   ja: {
     swipe: 'スワイプ',
     dailySwipeComplete: '今日のプロフィールを見終わりました。明日またご利用ください。',
-    dailySwipeEmpty: '現在、表示できるJPG写真付きプロフィールはありません。',
+    dailySwipeEmpty: '現在、Telegramにプロフィール写真をアップロードしている表示可能なプロフィールはありません。',
     dailySwipeStorageError: '今日の閲覧状況を保存できませんでした。もう一度お試しください。',
     dailySwipeSendFailed: '興味を送信できませんでした。このプロフィールはそのまま表示されます。',
-    dailySwipePhotoRequired: '.jpgのプロフィール写真があるユーザーのみスワイプを利用できます。',
+    dailySwipePhotoRequired: 'Telegramにプロフィール写真をアップロードしたユーザーのみスワイプを利用できます。',
     swipeProfile: 'スワイププロフィール',
     pass: 'スキップ',
     interested: '興味あり',
@@ -208,10 +208,10 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
   ko: {
     swipe: '스와이프',
     dailySwipeComplete: '오늘의 프로필을 모두 확인했습니다. 내일 다시 이용해 주세요.',
-    dailySwipeEmpty: '지금은 공개된 JPG 사진 프로필이 없습니다.',
+    dailySwipeEmpty: '현재 Telegram 프로필 사진을 업로드한 공개 프로필이 없습니다.',
     dailySwipeStorageError: '오늘의 진행 상태를 저장하지 못했습니다. 다시 시도해 주세요.',
     dailySwipeSendFailed: '관심을 보내지 못했습니다. 현재 프로필은 그대로 남아 있습니다.',
-    dailySwipePhotoRequired: '.jpg 프로필 사진이 있는 사용자만 스와이프를 사용할 수 있습니다.',
+    dailySwipePhotoRequired: 'Telegram 프로필 사진을 업로드한 사용자만 스와이프를 사용할 수 있습니다.',
     swipeProfile: '스와이프 프로필',
     pass: '건너뛰기',
     interested: '관심 있음',
@@ -220,10 +220,10 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
   ru: {
     swipe: 'Просмотр',
     dailySwipeComplete: 'Вы просмотрели сегодняшние профили. Возвращайтесь завтра.',
-    dailySwipeEmpty: 'Сейчас нет доступных профилей с фотографиями JPG.',
+    dailySwipeEmpty: 'Сейчас нет видимых профилей с загруженной фотографией Telegram.',
     dailySwipeStorageError: 'Не удалось сохранить прогресс за сегодня. Попробуйте ещё раз.',
     dailySwipeSendFailed: 'Не удалось отправить сигнал интереса. Профиль останется на месте.',
-    dailySwipePhotoRequired: 'Просмотр доступен только пользователям с фотографией профиля .jpg.',
+    dailySwipePhotoRequired: 'Просмотр доступен только пользователям, загрузившим фотографию профиля в Telegram.',
     swipeProfile: 'Профиль для просмотра',
     pass: 'Пропустить',
     interested: 'Интересно',
@@ -2651,36 +2651,7 @@ type AdminProfileActionCopy = {
   adminEditFailed: string;
   giftUpdateInfoButton: string;
   giftUpdateInfoDone: string;
-  swapSexButton: string;
-  swapSexConfirm: (name: string, from: string, to: string) => string;
-  swapSexDone: (gender: string) => string;
-  swapSexUnavailable: string;
-  swapSexFailed: string;
-  genderChangeHistoryTitle: string;
-  genderChangeHistoryLoading: string;
-  genderChangeHistoryEmpty: string;
-  genderChangeHistoryError: string;
-  genderChangeHistoryRetry: string;
 };
-
-type ProfileGenderChangeAuditRecord = {
-  actorTelegramId: string;
-  previousGender: 'man' | 'woman';
-  newGender: 'man' | 'woman';
-  changedAt: string;
-};
-
-function isProfileGenderChangeAuditRecord(value: unknown): value is ProfileGenderChangeAuditRecord {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Record<string, unknown>;
-  return typeof record.actorTelegramId === 'string' &&
-    /^[1-9][0-9]{0,19}$/.test(record.actorTelegramId) &&
-    (record.previousGender === 'man' || record.previousGender === 'woman') &&
-    (record.newGender === 'man' || record.newGender === 'woman') &&
-    record.previousGender !== record.newGender &&
-    typeof record.changedAt === 'string' &&
-    Number.isFinite(Date.parse(record.changedAt));
-}
 
 const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
   en: {
@@ -2693,16 +2664,6 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     adminEditFailed: 'Could not update this profile.',
     giftUpdateInfoButton: 'Gift update info',
     giftUpdateInfoDone: 'The free update offer was gifted to all users; their birth date/age was cleared. Photos, locations, and last-online data stayed unchanged.',
-    swapSexButton: 'Force swap sex',
-    swapSexConfirm: (name, from, to) => `Change ${name || 'this user'} from ${from} to ${to}?`,
-    swapSexDone: (gender) => `Gender changed to ${gender}.`,
-    swapSexUnavailable: 'Only profiles marked man or woman can be swapped.',
-    swapSexFailed: 'Could not swap sex.',
-    genderChangeHistoryTitle: 'Gender change history',
-    genderChangeHistoryLoading: 'Loading history…',
-    genderChangeHistoryEmpty: 'No forced gender changes are recorded.',
-    genderChangeHistoryError: 'Could not load gender change history.',
-    genderChangeHistoryRetry: 'Retry',
   },
   'zh-CN': {
     adminEditButton: '管理员编辑',
@@ -2714,16 +2675,6 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     adminEditFailed: '无法更新此资料。',
     giftUpdateInfoButton: '赠送资料更新',
     giftUpdateInfoDone: '已向所有用户赠送免费更新机会，并清除出生日期/年龄；照片、位置和最近上线时间保持不变。',
-    swapSexButton: '强制切换性别',
-    swapSexConfirm: (name, from, to) => `将${name || '此用户'}的性别从${from}切换为${to}？`,
-    swapSexDone: (gender) => `性别已更改为${gender}。`,
-    swapSexUnavailable: '仅可切换标记为男性或女性的个人资料。',
-    swapSexFailed: '无法切换性别。',
-    genderChangeHistoryTitle: '性别更改记录',
-    genderChangeHistoryLoading: '正在加载记录…',
-    genderChangeHistoryEmpty: '暂无强制性别更改记录。',
-    genderChangeHistoryError: '无法加载性别更改记录。',
-    genderChangeHistoryRetry: '重试',
   },
   'zh-TW': {
     adminEditButton: '管理員編輯',
@@ -2735,16 +2686,6 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     adminEditFailed: '無法更新此資料。',
     giftUpdateInfoButton: '贈送資料更新',
     giftUpdateInfoDone: '已向所有用戶贈送免費更新機會，並清除出生日期／年齡；照片、位置和最近上線時間保持不變。',
-    swapSexButton: '強制切換性別',
-    swapSexConfirm: (name, from, to) => `將${name || '此用戶'}的性別由${from}切換為${to}？`,
-    swapSexDone: (gender) => `性別已更改為${gender}。`,
-    swapSexUnavailable: '只可切換標記為男性或女性的個人資料。',
-    swapSexFailed: '無法切換性別。',
-    genderChangeHistoryTitle: '性別變更紀錄',
-    genderChangeHistoryLoading: '正在載入紀錄…',
-    genderChangeHistoryEmpty: '尚無強制性別變更紀錄。',
-    genderChangeHistoryError: '無法載入性別變更紀錄。',
-    genderChangeHistoryRetry: '重試',
   },
   ja: {
     adminEditButton: '管理者編集',
@@ -2756,16 +2697,6 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     adminEditFailed: 'プロフィールを更新できませんでした。',
     giftUpdateInfoButton: 'プロフィール更新を贈る',
     giftUpdateInfoDone: '全ユーザーに無料更新の機会を贈り、生年月日／年齢を消去しました。写真・位置情報・最終オンライン時刻は保持されています。',
-    swapSexButton: '性別を強制変更',
-    swapSexConfirm: (name, from, to) => `${name || 'このユーザー'}の性別を${from}から${to}に変更しますか？`,
-    swapSexDone: (gender) => `性別を${gender}に変更しました。`,
-    swapSexUnavailable: '男性または女性として登録されたプロフィールのみ変更できます。',
-    swapSexFailed: '性別を変更できませんでした。',
-    genderChangeHistoryTitle: '性別変更履歴',
-    genderChangeHistoryLoading: '履歴を読み込み中…',
-    genderChangeHistoryEmpty: '強制的な性別変更は記録されていません。',
-    genderChangeHistoryError: '性別変更履歴を読み込めませんでした。',
-    genderChangeHistoryRetry: '再試行',
   },
   ko: {
     adminEditButton: '관리자 편집',
@@ -2777,16 +2708,6 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     adminEditFailed: '프로필을 업데이트하지 못했습니다.',
     giftUpdateInfoButton: '프로필 업데이트 선물',
     giftUpdateInfoDone: '모든 사용자에게 무료 업데이트 기회를 선물하고 생년월일/나이를 지웠습니다. 사진, 위치, 마지막 접속 시간은 유지됩니다.',
-    swapSexButton: '성별 강제 변경',
-    swapSexConfirm: (name, from, to) => `${name || '이 사용자'}의 성별을 ${from}에서 ${to}(으)로 변경할까요?`,
-    swapSexDone: (gender) => `성별이 ${gender}(으)로 변경되었습니다.`,
-    swapSexUnavailable: '남성 또는 여성으로 표시된 프로필만 변경할 수 있습니다.',
-    swapSexFailed: '성별을 변경하지 못했습니다.',
-    genderChangeHistoryTitle: '성별 변경 기록',
-    genderChangeHistoryLoading: '기록을 불러오는 중…',
-    genderChangeHistoryEmpty: '강제 성별 변경 기록이 없습니다.',
-    genderChangeHistoryError: '성별 변경 기록을 불러오지 못했습니다.',
-    genderChangeHistoryRetry: '다시 시도',
   },
   ru: {
     adminEditButton: 'Редактировать профиль (админ)',
@@ -2798,16 +2719,6 @@ const adminProfileActionCopy: Record<LangKey, AdminProfileActionCopy> = {
     adminEditFailed: 'Не удалось обновить профиль.',
     giftUpdateInfoButton: 'Подарить обновление профиля',
     giftUpdateInfoDone: 'Всем пользователям подарена возможность бесплатного обновления и удалены дата рождения/возраст. Фото, местоположение и время последнего входа сохранены.',
-    swapSexButton: 'Принудительно сменить пол',
-    swapSexConfirm: (name, from, to) => `Изменить пол пользователя «${name || 'этого пользователя'}» с «${from}» на «${to}»?`,
-    swapSexDone: (gender) => `Пол изменён на «${gender}».`,
-    swapSexUnavailable: 'Можно изменить только профили с указанным полом «мужчина» или «женщина».',
-    swapSexFailed: 'Не удалось изменить пол.',
-    genderChangeHistoryTitle: 'История изменения пола',
-    genderChangeHistoryLoading: 'Загрузка истории…',
-    genderChangeHistoryEmpty: 'Принудительных изменений пола нет.',
-    genderChangeHistoryError: 'Не удалось загрузить историю изменений пола.',
-    genderChangeHistoryRetry: 'Повторить',
   },
 };
 
@@ -3496,10 +3407,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const vipEntitlementActive = isVip || temporaryVipActive || globalVipActive;
   const [filterPrefMatcherOn, setFilterPrefMatcherOn] = useState<boolean>(true);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
-  const [genderChangeHistory, setGenderChangeHistory] = useState<ProfileGenderChangeAuditRecord[]>([]);
-  const [genderChangeHistoryLoading, setGenderChangeHistoryLoading] = useState(false);
-  const [genderChangeHistoryFailed, setGenderChangeHistoryFailed] = useState(false);
-  const [genderChangeHistoryRefresh, setGenderChangeHistoryRefresh] = useState(0);
   const [interestSendingTo, setInterestSendingTo] = useState<string | null>(null);
   const [interestFeedback, setInterestFeedback] = useState<{
     profileId: string;
@@ -3525,48 +3432,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const mapModuleEnabled = entry.modules.map;
   const starRaffleEnabled = entry.modules.starRaffle;
   const flyingMessageEnabled = entry.modules.flyingMessage;
-  useEffect(() => {
-    let active = true;
-    const targetId = selectedProfile?.id;
-    setGenderChangeHistory([]);
-    setGenderChangeHistoryFailed(false);
-    setGenderChangeHistoryLoading(false);
-    if (!isAdmin || !targetId || targetId === currentUser?.id) {
-      return () => {
-        active = false;
-      };
-    }
-
-    setGenderChangeHistoryLoading(true);
-    void (async () => {
-      try {
-        const result = await workerPostRef.current(
-          '/api/admin/profile/gender-change-history',
-          { target_id: targetId },
-        );
-        if (
-          !Array.isArray(result?.records) ||
-          result.records.length > 50 ||
-          !result.records.every(isProfileGenderChangeAuditRecord)
-        ) {
-          throw new Error('The server returned invalid gender change history.');
-        }
-        if (active) setGenderChangeHistory(result.records);
-      } catch (error) {
-        if (active) {
-          console.error('Could not load profile gender change history:', error);
-          setGenderChangeHistoryFailed(true);
-        }
-      } finally {
-        if (active) setGenderChangeHistoryLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [currentUser?.id, genderChangeHistoryRefresh, isAdmin, selectedProfile?.id]);
-
   useEffect(() => {
     const defaultView = getDefaultDiscoveryView(entry.modules);
     setView(defaultView || 'grid');
@@ -5433,7 +5298,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const handleOpenSwipe = async () => {
     if (!gridFilterEnabled || !currentUser) return;
-    if (!hasJpgMainProfileImage(currentUser.avatar)) {
+    if (!hasUploadedMainProfileImage(currentUser.avatar)) {
       alert(t('dailySwipePhotoRequired'));
       return;
     }
@@ -5923,38 +5788,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     } finally {
       adminEditSavingRef.current = false;
       setAdminEditSaving(false);
-    }
-  };
-
-  const handleForceSwapSex = async () => {
-    if (!isAdmin || !selectedProfile) return;
-    const currentGender = selectedProfile.gender;
-    if (currentGender !== 'man' && currentGender !== 'woman') {
-      alert(adminProfileActionCopy[lang].swapSexUnavailable);
-      return;
-    }
-    const nextGender = currentGender === 'man' ? 'woman' : 'man';
-    const copy = adminProfileActionCopy[lang];
-    if (!window.confirm(copy.swapSexConfirm(
-      selectedProfile.name || '',
-      t(currentGender),
-      t(nextGender),
-    ))) return;
-    try {
-      const targetId = selectedProfile.id;
-      const result = await workerPost('/api/force-swap-sex', { target_id: targetId });
-      if (result?.gender !== nextGender) throw new Error('The server did not confirm the gender change.');
-      setSelectedProfile((profile) =>
-        profile?.id === targetId ? { ...profile, gender: nextGender } : profile,
-      );
-      setUsers((profiles) => profiles.map((profile) =>
-        profile.id === targetId ? { ...profile, gender: nextGender } : profile,
-      ));
-      setGenderChangeHistoryRefresh((revision) => revision + 1);
-      alert(copy.swapSexDone(t(nextGender)));
-    } catch (error) {
-      console.error(error);
-      alert(formatAdminFailure(error, copy.swapSexFailed));
     }
   };
 
@@ -6779,7 +6612,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     ? genderEligibleUsers.filter((user) =>
         user.id !== currentUser?.id &&
         resolveGridVisibility(user.grid_visible, user.invisible_expiry) &&
-        hasJpgMainProfileImage(user.avatar) &&
+        hasUploadedMainProfileImage(user.avatar) &&
         checkFilterPass(user),
       )
     : [];
@@ -7313,17 +7146,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 5, display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '6px', maxWidth: 'calc(100% - 64px)' }}
               >
                 <button type="button" onClick={(e) => { e.stopPropagation(); void handleOpenAdminEdit(); }} data-testid="admin-edit-profile" style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#1d4ed8', border: '1px solid #444', borderRadius: '8px', fontSize: '18px', cursor: 'pointer' }} title={adminProfileActionCopy[lang].adminEditButton} aria-label={adminProfileActionCopy[lang].adminEditButton}><span aria-hidden="true">✎</span></button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); void handleForceSwapSex(); }}
-                  disabled={activeProfile.gender !== 'man' && activeProfile.gender !== 'woman'}
-                  data-testid="admin-force-swap-sex"
-                  style={{ minWidth: '44px', minHeight: '44px', padding: '6px', backgroundColor: '#7c2d12', border: '1px solid #9a3412', borderRadius: '8px', color: '#fff', fontSize: '18px', whiteSpace: 'nowrap', cursor: activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? 'pointer' : 'not-allowed', opacity: activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? 1 : 0.55 }}
-                  title={activeProfile.gender === 'man' || activeProfile.gender === 'woman' ? adminProfileActionCopy[lang].swapSexButton : adminProfileActionCopy[lang].swapSexUnavailable}
-                  aria-label={adminProfileActionCopy[lang].swapSexButton}
-                >
-                  <span style={{ fontSize: '9px', lineHeight: 1 }}>♂️🔄♀️</span>
-                </button>
               </div>
             )}
             {isViewingSelf && (
@@ -7553,86 +7375,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 </div>
               )}
               <div style={{ width: '100%', borderTop: '1px solid #333', margin: '4px 0 16px 0' }} />
-              {!isViewingSelf && isAdmin && (
-                <section
-                  data-testid="profile-gender-change-history"
-                  aria-labelledby="profile-gender-change-history-title"
-                  style={{
-                    width: '100%',
-                    marginBottom: '16px',
-                    padding: '12px',
-                    boxSizing: 'border-box',
-                    border: '1px solid #3f3f46',
-                    borderRadius: '8px',
-                    backgroundColor: '#18181b',
-                  }}
-                >
-                  <h3
-                    id="profile-gender-change-history-title"
-                    style={{ margin: '0 0 8px', color: '#f4f4f5', fontSize: '13px' }}
-                  >
-                    {adminProfileActionCopy[lang].genderChangeHistoryTitle}
-                  </h3>
-                  {genderChangeHistoryLoading ? (
-                    <div role="status" style={{ color: '#a1a1aa', fontSize: '12px' }}>
-                      {adminProfileActionCopy[lang].genderChangeHistoryLoading}
-                    </div>
-                  ) : genderChangeHistoryFailed ? (
-                    <div role="alert" style={{ color: '#fca5a5', fontSize: '12px' }}>
-                      <span>{adminProfileActionCopy[lang].genderChangeHistoryError}</span>
-                      <button
-                        type="button"
-                        onClick={() => setGenderChangeHistoryRefresh((revision) => revision + 1)}
-                        style={{
-                          marginLeft: '8px',
-                          padding: '4px 8px',
-                          border: '1px solid #52525b',
-                          borderRadius: '5px',
-                          backgroundColor: '#27272a',
-                          color: '#fff',
-                          fontSize: '11px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {adminProfileActionCopy[lang].genderChangeHistoryRetry}
-                      </button>
-                    </div>
-                  ) : genderChangeHistory.length === 0 ? (
-                    <div style={{ color: '#a1a1aa', fontSize: '12px' }}>
-                      {adminProfileActionCopy[lang].genderChangeHistoryEmpty}
-                    </div>
-                  ) : (
-                    <ol
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        margin: 0,
-                        paddingLeft: '20px',
-                        color: '#e4e4e7',
-                        fontSize: '12px',
-                      }}
-                    >
-                      {genderChangeHistory.map((record, index) => (
-                        <li
-                          key={`${record.changedAt}-${record.actorTelegramId}-${index}`}
-                          data-testid="profile-gender-change-history-entry"
-                        >
-                          <div>
-                            {t(record.previousGender)} → {t(record.newGender)}
-                          </div>
-                          <div style={{ marginTop: '2px', color: '#a1a1aa', fontSize: '11px' }}>
-                            ID {record.actorTelegramId} ·{' '}
-                            <time dateTime={record.changedAt}>
-                              {new Date(record.changedAt).toLocaleString()}
-                            </time>
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </section>
-              )}
               {targetIsManSeekingMan && (
                 <div style={{ display: 'flex', gap: '6px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, padding: '10px 4px', backgroundColor: '#e11d48', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', opacity: (isViewingSelf ? false : tagMatchesRole(filterRoleVal, activeProfile.role_pref || 'Versatile')) ? 1 : 0.3, filter: (isViewingSelf ? false : tagMatchesRole(filterRoleVal, activeProfile.role_pref || 'Versatile')) ? 'none' : 'grayscale(100%)' }}>{formatTagText(t(activeProfile.role_pref || 'Versatile'))}</div>

@@ -31,7 +31,7 @@ test("the profile-card heart and mail actions share one responsive row", () => {
   assert.match(actions, /flex: '1 1 0'/);
 });
 
-test("admin-only profile controls sit in a top-left row", () => {
+test("admin-only profile controls retain Admin Edit without gender override", () => {
   const start = appSource.indexOf('data-testid="admin-profile-actions"');
   assert.notEqual(start, -1);
   const end = appSource.indexOf('data-testid={`profile-actions-${activeProfile.id}`}', start);
@@ -41,8 +41,9 @@ test("admin-only profile controls sit in a top-left row", () => {
   assert.ok(actions.includes("flexDirection: 'row'"));
   assert.ok(actions.includes('data-testid="admin-edit-profile"'));
   assert.ok(!actions.includes('data-testid="admin-force-reset-profile"'));
-  assert.ok(actions.includes('data-testid="admin-force-swap-sex"'));
-  assert.ok(actions.includes("♂️🔄♀️"));
+  assert.ok(!actions.includes('admin-force-swap-sex'));
+  assert.doesNotMatch(appSource, /handleForceSwapSex|\/api\/force-swap-sex/);
+  assert.doesNotMatch(appSource, /gender-change-history|genderChangeHistory/);
 });
 
 test("Traditional Chinese uses the requested heart-button wording", () => {

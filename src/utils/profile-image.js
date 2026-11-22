@@ -2,23 +2,11 @@ export function hasUploadedMainProfileImage(avatar) {
   if (typeof avatar !== 'string' || !avatar.trim()) return false;
 
   try {
+    // The Worker sets this value from Telegram's validated user.photo_url.
+    // Telegram CDN URLs are not guaranteed to include a file extension.
     const imageUrl = new URL(avatar.trim());
     return imageUrl.protocol === 'https:' &&
-      Boolean(imageUrl.hostname) &&
-      /\.jpe?g$/i.test(imageUrl.pathname);
-  } catch {
-    return false;
-  }
-}
-
-export function hasJpgMainProfileImage(avatar) {
-  if (typeof avatar !== 'string' || !avatar.trim()) return false;
-
-  try {
-    const imageUrl = new URL(avatar.trim());
-    return imageUrl.protocol === 'https:' &&
-      Boolean(imageUrl.hostname) &&
-      /\.jpg$/i.test(imageUrl.pathname);
+      Boolean(imageUrl.hostname);
   } catch {
     return false;
   }
