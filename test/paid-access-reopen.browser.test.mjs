@@ -633,6 +633,6 @@ test('reopened paid access renders only after the correct account is confirmed i
   } finally {
     await stopChild(browser);
     await stopChild(vite);
-    await rm(tempDir, { recursive: true, force: true });
+    await rm(tempDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
   }
 });
