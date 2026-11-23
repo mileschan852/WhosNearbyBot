@@ -6,6 +6,7 @@ export interface VipCampaign {
   id: string;
   sourceBotKey: string | null;
   durationDays: number;
+  maxClaims: number;
   eligibilityWindow: VipCampaignWindow | null;
   cutoffAt: string | null;
   randomize: boolean;

@@ -3,6 +3,11 @@ import type { ReactElement, KeyboardEvent as ReactKeyboardEvent } from 'react';
 export interface VipGrantNoticeDialogProps {
   title: string;
   body: string;
+  rewards?: string[];
+  profileOffer?: {
+    useNowLabel: string;
+    forfeitLabel: string;
+  } | null;
   confirmLabel: string;
   retryLabel?: string;
   confirmingLabel?: string;
@@ -10,6 +15,8 @@ export interface VipGrantNoticeDialogProps {
   errorMessage?: string;
   onConfirm: () => unknown;
   onDismiss: () => void;
+  onUseNow?: () => unknown;
+  onForfeit?: () => unknown;
 }
 
 export function handleVipGrantNoticeKeyDown(

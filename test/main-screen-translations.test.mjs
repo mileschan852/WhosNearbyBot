@@ -201,8 +201,8 @@ test('group-only profile/filter labels and reset-offer copy are complete in ever
   }
 
   assert.match(appSource, /howManyLabel\(activeProfile\.how_many_pref\)/);
-  assert.match(appSource, /data-testid="profile-update-offer-dialog"/);
-  assert.match(appSource, /api\/profile-update-offer\/resolve/);
+  assert.match(appSource, /VipGrantNoticeDialog/);
+  assert.match(appSource, /api\/rewards\/ack/);
   assert.match(appSource, /if \(pendingProfileUpdateOfferAt\)/);
   assert.match(appSource, /else if\s*\(!isFullySetup\)\s*\{\s*setShowProfileSetup\(true\)/);
   assert.doesNotMatch(appSource, /profileSetupWasForfeited/);

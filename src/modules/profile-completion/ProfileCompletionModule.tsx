@@ -39,7 +39,6 @@ export interface ProfileCompletionModuleProps {
   values: ProfileCompletionValues;
   isCompletionFlow: boolean;
   presentation?: 'modal' | 'embedded';
-  previewOnly?: boolean;
   titleOverride?: string;
   titleId?: string;
   warningOverride?: string;
@@ -85,7 +84,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
   heading: string;
   missingSummary: string;
   readySummary: string;
-  previewReadySummary: string;
   missing: string;
   filled: string;
   saved: string;
@@ -110,7 +108,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     heading: 'Required details',
     missingSummary: 'Still needed: {fields}',
     readySummary: 'Required details are filled. Save to continue.',
-    previewReadySummary: 'Required details are filled in this preview.',
     missing: 'Missing',
     filled: 'Filled',
     saved: 'Saved · locked',
@@ -129,7 +126,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     heading: '必填资料',
     missingSummary: '尚缺少：{fields}',
     readySummary: '必填资料已填写，请保存以继续。',
-    previewReadySummary: '此预览中的必填资料已填写。',
     missing: '未填写',
     filled: '已填写',
     saved: '已保存（已锁定）',
@@ -148,7 +144,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     heading: '必填資料',
     missingSummary: '尚缺少：{fields}',
     readySummary: '必填資料已填寫，請儲存以繼續。',
-    previewReadySummary: '此預覽中的必填資料已填寫。',
     missing: '未填寫',
     filled: '已填寫',
     saved: '已儲存（已鎖定）',
@@ -167,7 +162,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     heading: '必須プロフィール項目',
     missingSummary: '未入力：{fields}',
     readySummary: '必須項目が入力されています。保存して続行してください。',
-    previewReadySummary: 'このプレビューの必須項目が入力されています。',
     missing: '未入力',
     filled: '入力済み',
     saved: '保存済み・変更不可',
@@ -186,7 +180,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     heading: '필수 프로필 정보',
     missingSummary: '남은 항목: {fields}',
     readySummary: '필수 정보가 입력되었습니다. 저장하고 계속하세요.',
-    previewReadySummary: '미리보기의 필수 정보가 입력되었습니다.',
     missing: '미입력',
     filled: '입력 완료',
     saved: '저장됨 · 변경 불가',
@@ -205,7 +198,6 @@ const completionStatusCopy: Record<ProfileCompletionLanguage, {
     heading: 'Обязательные данные',
     missingSummary: 'Осталось заполнить: {fields}',
     readySummary: 'Обязательные данные заполнены. Сохраните, чтобы продолжить.',
-    previewReadySummary: 'Обязательные данные в предпросмотре заполнены.',
     missing: 'Не заполнено',
     filled: 'Заполнено',
     saved: 'Сохранено · заблокировано',
@@ -227,7 +219,6 @@ export default function ProfileCompletionModule({
   values,
   isCompletionFlow,
   presentation = 'modal',
-  previewOnly = false,
   titleOverride,
   titleId = 'profile-completion-title',
   warningOverride,
@@ -275,10 +266,6 @@ export default function ProfileCompletionModule({
     }
   }, [errorMessage, isCompletionFlow, submitAttempt]);
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
-    if (previewOnly) {
-      event.preventDefault();
-      return;
-    }
     setSubmitAttempt((attempt) => attempt + 1);
     onSubmit(event, lockedFields);
   };
@@ -593,7 +580,7 @@ export default function ProfileCompletionModule({
                 '{fields}',
                 missingRequiredFields.map(({ label }) => label).join(', '),
               )
-              : previewOnly ? statusCopy.previewReadySummary : statusCopy.readySummary}
+              : statusCopy.readySummary}
           </div>
         )}
         {errorMessage && (
@@ -639,11 +626,9 @@ export default function ProfileCompletionModule({
           >
             {preferenceAnnouncement}
           </div>
-          {!previewOnly && (
-            <button type="submit" disabled={submitDisabled} aria-busy={submitDisabled || undefined} style={{ marginTop: '4px', padding: '10px', backgroundColor: submitDisabled ? '#4b5563' : '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: submitDisabled ? 'wait' : 'pointer' }}>
-              {submitLabel ?? t('saveProfile')}
-            </button>
-          )}
+          <button type="submit" disabled={submitDisabled} aria-busy={submitDisabled || undefined} style={{ marginTop: '4px', padding: '10px', backgroundColor: submitDisabled ? '#4b5563' : '#007bff', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: submitDisabled ? 'wait' : 'pointer' }}>
+            {submitLabel ?? t('saveProfile')}
+          </button>
         </form>
       </div>
     </div>

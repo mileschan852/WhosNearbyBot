@@ -107,23 +107,13 @@ const profileCompletionSource = await readFile(
   new URL('../src/modules/profile-completion/ProfileCompletionModule.tsx', import.meta.url),
   'utf8',
 );
-const profileSetupPreviewSource = await readFile(
-  new URL('../src/modules/profile-completion/ProfileSetupPreviewModule.tsx', import.meta.url),
-  'utf8',
-);
 const completionStatusTranslations = readObjectLiteralVariable(
   profileCompletionSource,
   'ProfileCompletionModule.tsx',
   'completionStatusCopy',
 );
-const profileSetupPreviewTranslations = readObjectLiteralVariable(
-  profileSetupPreviewSource,
-  'ProfileSetupPreviewModule.tsx',
-  'copy',
-);
 let vite;
 let ProfileCompletionModule;
-let ProfileSetupPreviewModule;
 let runProfilePreferenceCycleAnnouncement;
 let focusFirstIncompleteProfileField;
 let parseAppRuntimeConfig;
@@ -145,9 +135,6 @@ before(async () => {
   ));
   ({ runProfilePreferenceCycleAnnouncement } = await vite.ssrLoadModule(
     '/src/modules/profile-completion/profile-completion-announcements.ts',
-  ));
-  ({ default: ProfileSetupPreviewModule } = await vite.ssrLoadModule(
-    '/src/modules/profile-completion/ProfileSetupPreviewModule.tsx',
   ));
   ({ focusFirstIncompleteProfileField } = await vite.ssrLoadModule(
     '/src/modules/profile-completion/profile-completion-focus.ts',
@@ -201,7 +188,6 @@ function renderCompletionForm(entry, overrides = {}) {
     onSubmit: noop,
     onClose: noop,
     showCloseButton: overrides.showCloseButton ?? false,
-    previewOnly: overrides.previewOnly ?? false,
     errorMessage: overrides.errorMessage ?? '',
     heightOptions: buildProfileHeightOptions(values.height),
     weightOptions: values.weight ? [values.weight] : ['70kg'],
@@ -514,48 +500,7 @@ test('every supported locked identity default is selectable in the rendered prof
   }
 });
 
-test('profile setup previews identify each entry and keep all edits local', () => {
-  const renderPreview = (entries) => renderToStaticMarkup(React.createElement(
-    ProfileSetupPreviewModule,
-    {
-      entries,
-      language: 'en',
-      onClose: () => {},
-      t: (key) => key,
-    },
-  ));
-  const configuredEntries = Object.values(config.entries);
-  const allEntriesMarkup = renderPreview(configuredEntries);
-  const nearbyMarkup = renderPreview([config.entries.nearby]);
-  const hkmoMarkup = renderPreview([config.entries['hkmo-date']]);
-
-  assert.ok(allEntriesMarkup.includes('data-testid="button-preview-entry-nearby"'));
-  assert.ok(allEntriesMarkup.includes('data-testid="button-preview-entry-hkmo-date"'));
-  assert.ok(allEntriesMarkup.includes('Previewing:'));
-  assert.ok(
-    allEntriesMarkup.includes('Who&#x27;s Nearby') || allEntriesMarkup.includes("Who's Nearby"),
-  );
-  assert.ok(allEntriesMarkup.includes('Changes stay in this preview only; nothing is saved or submitted.'));
-
-  const nearbySelects = [...nearbyMarkup.matchAll(/<select\b[^>]*>/g)].map(([tag]) => tag);
-  assert.equal(nearbySelects[0].includes('disabled=""'), false);
-  assert.equal(nearbySelects[1].includes('disabled=""'), false);
-  assert.ok(nearbyMarkup.includes('value="man" selected=""'));
-  assert.ok(nearbyMarkup.includes('value="women" selected=""'));
-  assert.ok(nearbyMarkup.includes('Still needed: Date of birth, Height, Weight'));
-
-  const hkmoSelects = [...hkmoMarkup.matchAll(/<select\b[^>]*>/g)].map(([tag]) => tag);
-  assert.equal(hkmoSelects[0].includes('disabled=""'), true);
-  assert.equal(hkmoSelects[1].includes('disabled=""'), true);
-  assert.ok(hkmoMarkup.includes('Gender and seeking are configured by this entry and locked.'));
-  assert.ok(hkmoMarkup.includes('value="man" selected=""'));
-  assert.ok(hkmoMarkup.includes('value="men" selected=""'));
-  assert.ok(hkmoMarkup.includes('value="35kg (77lbs)"'));
-  assert.equal(allEntriesMarkup.includes('type="submit"'), false);
-  assert.equal(hkmoMarkup.includes('type="submit"'), false);
-});
-
-test('profile weight options are shared between the live form and its preview', () => {
+test('profile weight options are shared by the live profile forms', () => {
   const options = buildProfileWeightOptions();
   assert.equal(options.length, 126);
   assert.equal(options[0], '35kg (77lbs)');
@@ -794,7 +739,6 @@ test('profile completion labels, instructions, and validation text are translate
     'heading',
     'missingSummary',
     'readySummary',
-    'previewReadySummary',
     'missing',
     'filled',
     'saved',
@@ -840,7 +784,6 @@ test('profile completion labels, instructions, and validation text are translate
 
   assert.deepEqual(Object.keys(appTranslations).sort(), [...languages].sort());
   assert.deepEqual(Object.keys(completionStatusTranslations).sort(), [...languages].sort());
-  assert.deepEqual(Object.keys(profileSetupPreviewTranslations).sort(), [...languages].sort());
   assert.match(
     appSource,
     /translations\[lang\]\?\.\[key\][\s\S]*translations\['en'\]\[key\][\s\S]*\|\|\s*key/,
@@ -908,36 +851,6 @@ test('profile completion labels, instructions, and validation text are translate
           englishStatusValues[key],
           `${language} should translate profile status copy ${key}`,
         );
-      }
-    }
-
-    const previewCopy = profileSetupPreviewTranslations[language];
-    const englishPreviewCopy = profileSetupPreviewTranslations.en;
-    const previewKeys = [
-      'eyebrow',
-      'title',
-      'intro',
-      'selected',
-      'identity',
-      'locked',
-      'editable',
-      'lockedDetail',
-      'editableDetail',
-      'localNotice',
-      'unavailable',
-    ];
-    assert.deepEqual(
-      Object.keys(previewCopy).sort(),
-      [...previewKeys].sort(),
-      `${language} should provide every profile-setup preview label`,
-    );
-    for (const key of previewKeys) {
-      const value = previewCopy[key];
-      assert.equal(typeof value, 'string', `${language} should define preview copy ${key}`);
-      assert.ok(value.trim(), `${language} preview copy ${key} should not be empty`);
-      assert.ok(!value.includes('\uFFFD'), `${language} preview copy ${key} should be valid text`);
-      if (language !== 'en') {
-        assert.notEqual(value, englishPreviewCopy[key], `${language} should translate preview copy ${key}`);
       }
     }
 
@@ -1026,45 +939,6 @@ test('profile completion labels, instructions, and validation text are translate
     });
     assert.ok(savedMarkup.includes(statusCopy.saved));
 
-    const previewMarkup = renderCompletionForm(entry, {
-      language,
-      t,
-      previewOnly: true,
-      values: { gender: entry.profileSetup.defaultGender, seeking: entry.profileSetup.defaultSeeking },
-      missingFields: { dob: true, gender: true, height: true, weight: true },
-    });
-    assert.ok(previewMarkup.includes(statusCopy.previewReadySummary));
-    assert.ok(!previewMarkup.includes('\uFFFD'));
-
-    const ownerPreviewMarkup = renderToStaticMarkup(React.createElement(
-      ProfileSetupPreviewModule,
-      {
-        entries: [config.entries['hkmo-date']],
-        language,
-        onClose: () => {},
-        t,
-      },
-    ));
-    for (const key of [
-      'eyebrow',
-      'title',
-      'intro',
-      'selected',
-      'identity',
-      'locked',
-      'lockedDetail',
-      'localNotice',
-    ]) {
-      assert.ok(ownerPreviewMarkup.includes(previewCopy[key]));
-    }
-    assert.ok(!ownerPreviewMarkup.includes('\uFFFD'));
-
-    const unavailablePreviewMarkup = renderToStaticMarkup(React.createElement(
-      ProfileSetupPreviewModule,
-      { entries: [], language, onClose: () => {}, t },
-    ));
-    assert.ok(unavailablePreviewMarkup.includes(previewCopy.unavailable));
-    assert.ok(!unavailablePreviewMarkup.includes('\uFFFD'));
   }
 });
 

@@ -36,6 +36,8 @@ export function handleVipGrantNoticeKeyDown(event, onDismiss) {
 export function VipGrantNoticeDialog({
   title,
   body,
+  rewards = [],
+  profileOffer = null,
   confirmLabel,
   retryLabel = confirmLabel,
   confirmingLabel = confirmLabel,
@@ -43,6 +45,8 @@ export function VipGrantNoticeDialog({
   errorMessage = '',
   onConfirm,
   onDismiss,
+  onUseNow,
+  onForfeit,
 }) {
   const actionLabel = confirming
     ? confirmingLabel
@@ -53,6 +57,7 @@ export function VipGrantNoticeDialog({
     'div',
     {
       role: 'dialog',
+      'data-testid': 'reward-congratulations-dialog',
       'aria-modal': true,
       'aria-labelledby': 'vip-grant-notice-title',
       tabIndex: -1,
@@ -98,6 +103,22 @@ export function VipGrantNoticeDialog({
         },
         body,
       ),
+      rewards.length > 0 && h(
+        'ul',
+        {
+          'aria-label': title,
+          style: {
+            margin: '0 0 20px',
+            padding: '0 0 0 20px',
+            color: '#fff',
+            textAlign: 'left',
+            fontSize: '14px',
+            lineHeight: 1.6,
+          },
+        },
+        rewards.map((reward, index) =>
+          h('li', { key: `${index}-${reward}`, style: { marginBottom: '4px' } }, reward)),
+      ),
       errorMessage && h(
         'p',
         {
@@ -106,7 +127,51 @@ export function VipGrantNoticeDialog({
         },
         errorMessage,
       ),
-      h(
+      profileOffer
+        ? h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: '9px' } },
+            h('button', {
+              type: 'button',
+              autoFocus: true,
+              disabled: confirming,
+              'aria-busy': confirming,
+              onClick: onUseNow,
+              'data-testid': 'profile-update-offer-use-now',
+              style: {
+                width: '100%',
+                minHeight: '44px',
+                padding: '11px 14px',
+                border: 0,
+                borderRadius: '8px',
+                backgroundColor: '#2563eb',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: confirming ? 'wait' : 'pointer',
+              },
+            }, profileOffer.useNowLabel),
+            h('button', {
+              type: 'button',
+              disabled: confirming,
+              'aria-busy': confirming,
+              onClick: onForfeit,
+              'data-testid': 'profile-update-offer-forfeit',
+              style: {
+                width: '100%',
+                minHeight: '44px',
+                padding: '11px 14px',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                backgroundColor: '#2a2a2a',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: confirming ? 'wait' : 'pointer',
+              },
+            }, profileOffer.forfeitLabel),
+          )
+        : h(
         'button',
         {
           type: 'button',

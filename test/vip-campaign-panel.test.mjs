@@ -24,6 +24,7 @@ const campaign = {
   id: campaignId,
   sourceBotKey: 'botA',
   durationDays: 30,
+  maxClaims: 10,
   eligibilityWindow: 'today',
   cutoffAt: '2026-12-01T00:00:00.000Z',
   randomize: true,
@@ -51,7 +52,7 @@ const copy = {
   window: 'Login window: {window}',
   noCutoff: 'No login cutoff',
   cutoff: 'Eligibility cutoff: {time}',
-  claimCount: 'Issued claims: {count}',
+  claimCount: 'Recipients: {count} / {max}',
   failedRewardNotifications: 'Failed reward messages: {count}',
   failedRewardNotificationsUnavailable: 'Failed reward message count unavailable on the current backend.',
   failedRewardsReview: 'Review failed messages ({count})',
@@ -199,10 +200,11 @@ function findElement(node, predicate) {
   return findElement(node.props?.children, predicate);
 }
 
-function compileAcknowledgeVipGrantHandler(environment) {
+function compileAcknowledgeRewardsHandler(environment) {
   environment.vipGrantAcknowledgementLockRef ??= { current: false };
   environment.setVipGrantAcknowledging ??= () => {};
   environment.setVipGrantAcknowledgementError ??= () => {};
+  environment.setRewardNotice ??= () => {};
   environment.vipGrantCopy ??= {
     en: {
       popupAckFailed: 'Could not save your confirmation. Please try again.',
@@ -211,7 +213,7 @@ function compileAcknowledgeVipGrantHandler(environment) {
     },
   };
   environment.lang ??= 'en';
-  const startMarker = 'const handleAcknowledgeVipGrant = async () => {';
+  const startMarker = 'const handleAcknowledgeRewards = async () => {';
   const endMarker = '\n  const handleSaveFlyingPrice = async () => {';
   const start = appSource.indexOf(startMarker);
   assert.notEqual(start, -1, `expected App.tsx to contain ${startMarker}`);
@@ -220,7 +222,7 @@ function compileAcknowledgeVipGrantHandler(environment) {
 
   const source = [
     appSource.slice(start, end),
-    'this.__handleAcknowledgeVipGrant = handleAcknowledgeVipGrant;',
+    'this.__handleAcknowledgeRewards = handleAcknowledgeRewards;',
   ].join('\n');
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -229,11 +231,11 @@ function compileAcknowledgeVipGrantHandler(environment) {
     },
   }).outputText;
   runInNewContext(transpiled, environment);
-  return environment.__handleAcknowledgeVipGrant;
+  return environment.__handleAcknowledgeRewards;
 }
 
-function compileVipGrantNoticeMapping(environment) {
-  const startMarker = 'const pendingVipGrant = authResponse.vipGrantNotice;';
+function compileRewardNoticeMapping(environment) {
+  const startMarker = 'const pendingRewards = parseRewardNotice(authResponse.rewardNotice);';
   const endMarker = "\n        setIsAdmin(authResponse.role === 'admin');";
   const start = appSource.indexOf(startMarker);
   assert.notEqual(start, -1, `expected App.tsx to contain ${startMarker}`);
@@ -241,7 +243,7 @@ function compileVipGrantNoticeMapping(environment) {
   assert.notEqual(end, -1, `expected App.tsx to contain ${endMarker}`);
 
   const source = [
-    'this.__applyVipGrantNotice = () => {',
+    'this.__applyRewardNotice = () => {',
     appSource.slice(start, end),
     '};',
   ].join('\n');
@@ -252,7 +254,7 @@ function compileVipGrantNoticeMapping(environment) {
     },
   }).outputText;
   runInNewContext(transpiled, environment);
-  return environment.__applyVipGrantNotice;
+  return environment.__applyRewardNotice;
 }
 
 test('VIP reward dialog focuses Confirm and traps Tab in both directions', () => {
@@ -312,23 +314,13 @@ test('VIP reward dialog focuses Confirm and traps Tab in both directions', () =>
   assert.equal(confirmFocusCount, 2);
 });
 
-test('Escape dismisses the VIP reward dialog without acknowledging the reward', () => {
-  const calls = [];
-  const environment = {
-    vipGrantNotice: { claimIds: ['claim-escape'], days: 3 },
-    setVipGrantNotice(value) {
-      calls.push(['close', value]);
-    },
-    workerPost: async (...args) => calls.push(['post', ...args]),
-    console: { error() {} },
-  };
-  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+test('Escape follows the reward dialog dismissal policy', () => {
   let dismissed = false;
   const dialog = VipGrantNoticeDialog({
     title: 'VIP reward',
     body: 'Your account received 3 VIP days.',
     confirmLabel: 'Confirm',
-    onConfirm,
+    onConfirm() {},
     onDismiss() {
       dismissed = true;
     },
@@ -354,16 +346,22 @@ test('Escape dismisses the VIP reward dialog without acknowledging the reward', 
 
   assert.equal(prevented, true);
   assert.equal(dismissed, true);
-  assert.deepEqual(calls, []);
-  assert.match(appSource, /onDismiss=\{\(\) => \{/);
-  assert.match(appSource, /if \(vipGrantAcknowledgementLockRef\.current\) return;/);
+  assert.match(appSource, /if \(!rewardNotice\.profileUpdateOfferAt\) void handleAcknowledgeRewards\(\)/);
+  assert.match(appSource, /if \(!notice \|\| notice\.profileUpdateOfferAt \|\| vipGrantAcknowledgementLockRef\.current\) return;/);
 });
 
-test('Confirm acknowledges the pending VIP reward claim IDs', async () => {
+test('Confirm acknowledges all pending reward types together', async () => {
   const calls = [];
   const environment = {
-    vipGrantNotice: { claimIds: ['claim-confirm-1', 'claim-confirm-2'], days: 3 },
-    setVipGrantNotice(value) {
+    rewardNotice: {
+      vipRewards: [
+        { claimId: 'claim-confirm-1', days: 1, expiresAt: '2027-01-01T00:00:00.000Z' },
+        { claimId: 'claim-confirm-2', days: 2, expiresAt: '2027-01-02T00:00:00.000Z' },
+      ],
+      raffleRewards: [{ roundKey: '2026-12', prizeKey: 'filter', expiresAt: '2027-01-03T00:00:00.000Z' }],
+      profileUpdateOfferAt: null,
+    },
+    setRewardNotice(value) {
       calls.push(['close', value]);
     },
     workerPost: async (...args) => {
@@ -372,7 +370,7 @@ test('Confirm acknowledges the pending VIP reward claim IDs', async () => {
     },
     console: { error() {} },
   };
-  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+  const onConfirm = compileAcknowledgeRewardsHandler(environment);
   const dialog = VipGrantNoticeDialog({
     title: 'VIP reward',
     body: 'Your account received 3 VIP days.',
@@ -385,89 +383,61 @@ test('Confirm acknowledges the pending VIP reward claim IDs', async () => {
   assert.ok(confirmButton);
   await confirmButton.props.onClick();
   assert.equal(JSON.stringify(calls), JSON.stringify([
-    ['post', '/api/vip-grants/ack', { claimIds: ['claim-confirm-1', 'claim-confirm-2'] }],
+    ['post', '/api/rewards/ack', {
+      vipClaimIds: ['claim-confirm-1', 'claim-confirm-2'],
+      raffleAwards: [{ roundKey: '2026-12', prizeKey: 'filter' }],
+    }],
     ['close', null],
   ]));
-  assert.match(appSource, /onConfirm=\{handleAcknowledgeVipGrant\}/);
+  assert.match(appSource, /onConfirm=\{handleAcknowledgeRewards\}/);
 });
 
-test('a combined login reward displays its total VIP days and confirms both claim IDs', async () => {
+test('login reads the unified reward notice and displays all rewards in one dialog', async () => {
   const state = { notice: null, acknowledgementError: '' };
-  const postCalls = [];
-  const copy = {
-    en: {
-      popupTitle: 'VIP reward received',
-      popupBody: 'Your account received {days} VIP days.',
-      popupConfirm: 'Confirm',
-      popupRetry: 'Retry',
-      popupSaving: 'Saving…',
-      popupAckFailed: 'Could not save your confirmation. Please try again.',
-    },
-  };
   const environment = {
     authResponse: {
-      vipGrantNotice: {
-        claimIds: ['claim-combined-1', 'claim-combined-2'],
-        days: 18,
-        vipUntil: '2027-01-01T00:00:00.000Z',
+      rewardNotice: {
+        vipRewards: [{ claimId: 'claim-combined-1', days: 18, expiresAt: '2027-01-01T00:00:00.000Z' }],
+        raffleRewards: [{ roundKey: '2026-12', prizeKey: 'vip', expiresAt: '2027-02-01T00:00:00.000Z' }],
+        profileUpdateOfferAt: null,
       },
     },
-    setVipGrantNotice(value) {
+    parseRewardNotice: (value) => value,
+    setRewardNotice(value) {
       state.notice = value;
-      environment.vipGrantNotice = value;
     },
     setVipGrantAcknowledgementError(value) {
       state.acknowledgementError = value;
     },
-    vipGrantCopy: copy,
-    lang: 'en',
-    workerPost: async (...args) => {
-      postCalls.push(args);
-      return { ok: true };
-    },
-    console: { error() {} },
   };
-  compileVipGrantNoticeMapping(environment)();
+  compileRewardNoticeMapping(environment)();
   assert.equal(JSON.stringify(state.notice), JSON.stringify({
-    claimIds: ['claim-combined-1', 'claim-combined-2'],
-    days: 18,
-    vipUntil: '2027-01-01T00:00:00.000Z',
+    vipRewards: [{ claimId: 'claim-combined-1', days: 18, expiresAt: '2027-01-01T00:00:00.000Z' }],
+    raffleRewards: [{ roundKey: '2026-12', prizeKey: 'vip', expiresAt: '2027-02-01T00:00:00.000Z' }],
+    profileUpdateOfferAt: null,
   }));
-  assert.match(
-    appSource,
-    /body=\{vipGrantCopy\[lang\]\.popupBody\.replace\('\{days\}', String\(vipGrantNotice\.days\)\)\}/,
-    'the dialog body uses the combined days from the login response',
-  );
-
-  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
-  const dialog = VipGrantNoticeDialog({
-    title: copy.en.popupTitle,
-    body: copy.en.popupBody.replace('{days}', String(state.notice.days)),
-    confirmLabel: copy.en.popupConfirm,
-    onConfirm,
-    onDismiss() {},
-  });
-  const html = renderToStaticMarkup(dialog);
-  const confirmButton = findElement(dialog, (node) => node.type === 'button');
-  assert.match(html, /Your account received 18 VIP days\./);
-  await confirmButton.props.onClick();
-  assert.equal(JSON.stringify(postCalls), JSON.stringify([
-    ['/api/vip-grants/ack', { claimIds: ['claim-combined-1', 'claim-combined-2'] }],
-  ]));
-  assert.equal(state.notice, null);
+  assert.match(appSource, /const rewardNoticeItems = rewardNotice/);
+  assert.match(appSource, /rewardNotice\.vipRewards\.reduce/);
+  assert.match(appSource, /rewardNotice\.raffleRewards\.map/);
+  assert.match(appSource, /profileOffer=\{rewardNotice\.profileUpdateOfferAt \?/);
+  assert.match(appSource, /onUseNow=\{\(\) => \{ void handleProfileUpdateOfferDecision\('use_now'\); \}\}/);
 });
 
 test('failed VIP reward acknowledgement stays visible and can be retried', async () => {
-  const notice = { claimIds: ['claim-retry'], days: 3 };
+  const notice = {
+    vipRewards: [{ claimId: 'claim-retry', days: 3, expiresAt: '2027-01-01T00:00:00.000Z' }],
+    raffleRewards: [],
+    profileUpdateOfferAt: null,
+  };
   const state = { notice, error: '', acknowledging: false, attempts: 0 };
   const postCalls = [];
   let rejectFirstAttempt;
   const environment = {
-    vipGrantNotice: notice,
+    rewardNotice: notice,
     vipGrantAcknowledgementLockRef: { current: false },
-    setVipGrantNotice(value) {
+    setRewardNotice(value) {
       state.notice = value;
-      environment.vipGrantNotice = value;
+      environment.rewardNotice = value;
     },
     setVipGrantAcknowledging(value) {
       state.acknowledging = value;
@@ -495,7 +465,7 @@ test('failed VIP reward acknowledgement stays visible and can be retried', async
     },
     console: { error() {} },
   };
-  const onConfirm = compileAcknowledgeVipGrantHandler(environment);
+  const onConfirm = compileAcknowledgeRewardsHandler(environment);
   const renderDialog = () => VipGrantNoticeDialog({
     title: 'VIP reward',
     body: 'Your account received 3 VIP days.',
@@ -539,8 +509,8 @@ test('failed VIP reward acknowledgement stays visible and can be retried', async
   assert.equal(state.notice, null, 'the popup closes only after the Worker acknowledgement succeeds');
   assert.equal(state.error, '');
   assert.equal(JSON.stringify(postCalls), JSON.stringify([
-    ['/api/vip-grants/ack', { claimIds: ['claim-retry'] }],
-    ['/api/vip-grants/ack', { claimIds: ['claim-retry'] }],
+    ['/api/rewards/ack', { vipClaimIds: ['claim-retry'], raffleAwards: [] }],
+    ['/api/rewards/ack', { vipClaimIds: ['claim-retry'], raffleAwards: [] }],
   ]));
 });
 
@@ -552,7 +522,7 @@ test('campaign panel shows duration, eligibility cutoff, claim count and active 
   assert.match(html, /Random: 1–30 days/);
   assert.match(html, /Login window: Today/);
   assert.match(html, /Eligibility cutoff: Dec 1, 2026/);
-  assert.match(html, /Issued claims: 7/);
+  assert.match(html, /Recipients: 7 \/ 10/);
   assert.match(html, /Failed reward messages: 2/);
   assert.match(html, /Review failed messages \(2\)/);
   assert.match(html, /Announcement: Queued/);
@@ -959,7 +929,7 @@ test('stopping preserves campaign details and hides the stop action for inactive
   const html = renderToStaticMarkup(tree);
 
   assert.match(html, /Inactive/);
-  assert.match(html, /Issued claims: 7/);
+  assert.match(html, /Recipients: 7 \/ 10/);
   assert.doesNotMatch(html, /Stop campaign/);
 });
 
@@ -979,6 +949,10 @@ test('campaign response parser rejects malformed counts and inconsistent cutoff 
   });
   assert.throws(() => parseVipCampaignPage({
     campaigns: [{ ...campaign, claimCount: -1 }],
+    hasMore: false,
+  }), /Invalid campaign list response/);
+  assert.throws(() => parseVipCampaignPage({
+    campaigns: [{ ...campaign, maxClaims: 0 }],
     hasMore: false,
   }), /Invalid campaign list response/);
   assert.throws(() => parseVipCampaignPage({

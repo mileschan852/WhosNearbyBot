@@ -137,9 +137,6 @@ const PaymentReviewPanel = lazy(() =>
     default: Panel,
   })),
 );
-const ProfileSetupPreviewModule = lazy(() =>
-  import('./modules/profile-completion/ProfileSetupPreviewModule'),
-);
 const ProfileCompletionModule = lazy(() =>
   import('./modules/profile-completion/ProfileCompletionModule'),
 );
@@ -1892,7 +1889,55 @@ const translations: Record<LangKey, Record<string, string>> = {
 };
 
 type VipGrantWindow = 'today' | 'week' | 'month' | '1_day' | '3_days';
-type VipGrantNotice = { claimIds: string[]; days: number; vipUntil: string | null };
+type VipGrantDurationUnit = 'days' | 'weeks' | 'months';
+type RewardNotice = {
+  vipRewards: { claimId: string; days: number; expiresAt: string }[];
+  raffleRewards: { roundKey: string; prizeKey: 'vip' | 'filter' | 'invisible' | 'hide_age'; expiresAt: string }[];
+  profileUpdateOfferAt: string | null;
+};
+
+function parseRewardNotice(value: unknown): RewardNotice | null {
+  if (!value || typeof value !== 'object') return null;
+  const notice = value as Record<string, unknown>;
+  const vipRewards = Array.isArray(notice.vipRewards)
+    ? notice.vipRewards.filter((reward): reward is RewardNotice['vipRewards'][number] => {
+        if (!reward || typeof reward !== 'object') return false;
+        const item = reward as Record<string, unknown>;
+        return typeof item.claimId === 'string' &&
+          /^[0-9a-f-]{36}$/i.test(item.claimId) &&
+          Number.isSafeInteger(Number(item.days)) &&
+          Number(item.days) > 0 &&
+          typeof item.expiresAt === 'string' &&
+          Number.isFinite(Date.parse(item.expiresAt));
+      })
+    : [];
+  const raffleRewards = Array.isArray(notice.raffleRewards)
+    ? notice.raffleRewards.filter((reward): reward is RewardNotice['raffleRewards'][number] => {
+        if (!reward || typeof reward !== 'object') return false;
+        const item = reward as Record<string, unknown>;
+        return typeof item.roundKey === 'string' &&
+          /^\d{4}-\d{2}$/.test(item.roundKey) &&
+          ['vip', 'filter', 'invisible', 'hide_age'].includes(String(item.prizeKey)) &&
+          typeof item.expiresAt === 'string' &&
+          Number.isFinite(Date.parse(item.expiresAt));
+      })
+    : [];
+  const profileUpdateOfferAt =
+    typeof notice.profileUpdateOfferAt === 'string' &&
+    Number.isFinite(Date.parse(notice.profileUpdateOfferAt))
+      ? notice.profileUpdateOfferAt
+      : null;
+  if (!vipRewards.length && !raffleRewards.length && !profileUpdateOfferAt) return null;
+  return {
+    vipRewards: vipRewards.map((reward) => ({
+      claimId: reward.claimId,
+      days: Number(reward.days),
+      expiresAt: reward.expiresAt,
+    })),
+    raffleRewards,
+    profileUpdateOfferAt,
+  };
+}
 
 const vipGrantCopy: Record<LangKey, {
   trigger: string;
@@ -1904,12 +1949,25 @@ const vipGrantCopy: Record<LangKey, {
   randomHint: string;
   allowNewUsers: string;
   campaignCreated: string;
+  durationAmountLabel: string;
+  durationUnitLabel: string;
+  maxClaimsLabel: string;
+  unitDays: string;
+  unitWeeks: string;
+  unitMonths: string;
+  createCampaign: string;
   popupTitle: string;
   popupBody: string;
   popupConfirm: string;
   popupAckFailed: string;
   popupRetry: string;
   popupSaving: string;
+  rewardVip: string;
+  rewardRaffleVip: string;
+  rewardFilter: string;
+  rewardInvisible: string;
+  rewardHideAge: string;
+  rewardProfileUpdate: string;
   campaignsTitle: string;
   campaign: string;
   sourceApp: string;
@@ -2000,8 +2058,21 @@ const vipGrantCopy: Record<LangKey, {
     randomHint: '1 day up to the selected duration',
     allowNewUsers: 'Allow new users created before the cutoff',
     campaignCreated: 'VIP campaign created. Its announcement is queued. Eligible users receive VIP days when they log in.',
-    popupTitle: 'VIP reward received',
-    popupBody: 'Your account received {days} VIP days.',
+    durationAmountLabel: 'Amount',
+    durationUnitLabel: 'Unit',
+    maxClaimsLabel: 'Max users',
+    unitDays: 'Days',
+    unitWeeks: 'Weeks',
+    unitMonths: 'Months',
+    createCampaign: 'Create campaign',
+    popupTitle: 'Congratulations!',
+    popupBody: 'You received these rewards:',
+    rewardVip: 'Free VIP · {days} days',
+    rewardRaffleVip: 'Raffle prize · VIP',
+    rewardFilter: 'Raffle prize · Filter access',
+    rewardInvisible: 'Raffle prize · Invisible',
+    rewardHideAge: 'Raffle prize · Hide age',
+    rewardProfileUpdate: 'Free profile update',
     popupConfirm: 'Confirm',
     popupAckFailed: 'Could not save your confirmation. Please try again.',
     popupRetry: 'Retry',
@@ -2023,7 +2094,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignWindow: 'Login window: {window}',
     campaignNoCutoff: 'No login cutoff',
     campaignCutoff: 'Eligibility cutoff: {time} (Hong Kong time)',
-    campaignClaims: 'Issued claims: {count}',
+    campaignClaims: 'Recipients: {count} / {max}',
     campaignFailedRewardNotifications: 'Reward messages needing review: {count}',
     campaignFailedRewardNotificationsUnavailable: 'Reward message count unavailable on the current backend.',
     campaignFailedRewardsReview: 'Review messages ({count})',
@@ -2096,8 +2167,21 @@ const vipGrantCopy: Record<LangKey, {
     randomHint: '1 天至所选时长',
     allowNewUsers: '允许截止时间前注册的新用户参加',
     campaignCreated: 'VIP 活动已创建，公告已加入发送队列。符合条件的用户登录后会收到 VIP 天数。',
-    popupTitle: '已收到 VIP 奖励',
-    popupBody: '你的账户已获得 {days} 天 VIP。',
+    durationAmountLabel: '数量',
+    durationUnitLabel: '单位',
+    maxClaimsLabel: '最多用户',
+    unitDays: '天',
+    unitWeeks: '周',
+    unitMonths: '月',
+    createCampaign: '创建活动',
+    popupTitle: '恭喜！',
+    popupBody: '你获得了以下奖励：',
+    rewardVip: '免费 VIP · {days} 天',
+    rewardRaffleVip: '抽奖奖励 · VIP',
+    rewardFilter: '抽奖奖励 · 筛选权限',
+    rewardInvisible: '抽奖奖励 · 隐身',
+    rewardHideAge: '抽奖奖励 · 隐藏年龄',
+    rewardProfileUpdate: '免费更新个人资料',
     popupConfirm: '确认',
     popupAckFailed: '确认未能保存，请重试。',
     popupRetry: '重试',
@@ -2119,7 +2203,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignWindow: '登录期限：{window}',
     campaignNoCutoff: '没有登录截止时间',
     campaignCutoff: '领取截止时间：{time}（香港时间）',
-    campaignClaims: '已发放：{count} 份',
+    campaignClaims: '领取人数：{count} / {max}',
     campaignFailedRewardNotifications: '需要检查的奖励通知：{count} 条',
     campaignFailedRewardNotificationsUnavailable: '目前的后端版本未提供奖励通知数量。',
     campaignFailedRewardsReview: '查看通知（{count}）',
@@ -2192,8 +2276,21 @@ const vipGrantCopy: Record<LangKey, {
     randomHint: '1 天至所選時長',
     allowNewUsers: '允許截止時間前建立的新使用者參加',
     campaignCreated: 'VIP 活動已建立，公告已加入傳送佇列。符合資格的使用者登入後會收到 VIP 天數。',
-    popupTitle: '已收到 VIP 獎勵',
-    popupBody: '你的帳戶已獲得 {days} 天 VIP。',
+    durationAmountLabel: '數量',
+    durationUnitLabel: '單位',
+    maxClaimsLabel: '最多使用者',
+    unitDays: '天',
+    unitWeeks: '週',
+    unitMonths: '月',
+    createCampaign: '建立活動',
+    popupTitle: '恭喜！',
+    popupBody: '你獲得了以下獎勵：',
+    rewardVip: '免費 VIP · {days} 天',
+    rewardRaffleVip: '抽獎獎勵 · VIP',
+    rewardFilter: '抽獎獎勵 · 篩選權限',
+    rewardInvisible: '抽獎獎勵 · 隱身',
+    rewardHideAge: '抽獎獎勵 · 隱藏年齡',
+    rewardProfileUpdate: '免費更新個人資料',
     popupConfirm: '確認',
     popupAckFailed: '確認未能儲存，請重試。',
     popupRetry: '重試',
@@ -2215,7 +2312,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignWindow: '登入期限：{window}',
     campaignNoCutoff: '沒有登入截止時間',
     campaignCutoff: '領取截止時間：{time}（香港時間）',
-    campaignClaims: '已發放：{count} 份',
+    campaignClaims: '領取人數：{count} / {max}',
     campaignFailedRewardNotifications: '需要檢查的獎勵通知：{count} 則',
     campaignFailedRewardNotificationsUnavailable: '目前的後端版本未提供獎勵通知數量。',
     campaignFailedRewardsReview: '查看通知（{count}）',
@@ -2288,8 +2385,21 @@ const vipGrantCopy: Record<LangKey, {
     randomHint: '1日から選択した期間まで',
     allowNewUsers: '締切前に登録した新規ユーザーも対象にする',
     campaignCreated: 'VIPキャンペーンを作成し、告知を送信キューに追加しました。対象ユーザーはログイン時にVIP日数を受け取ります。',
-    popupTitle: 'VIP特典を受け取りました',
-    popupBody: 'アカウントにVIPが{days}日分追加されました。',
+    durationAmountLabel: '数量',
+    durationUnitLabel: '単位',
+    maxClaimsLabel: '対象人数',
+    unitDays: '日',
+    unitWeeks: '週',
+    unitMonths: 'か月',
+    createCampaign: 'キャンペーン作成',
+    popupTitle: 'おめでとうございます！',
+    popupBody: '次の特典を受け取りました：',
+    rewardVip: '無料VIP · {days}日',
+    rewardRaffleVip: '抽選特典 · VIP',
+    rewardFilter: '抽選特典 · フィルター利用',
+    rewardInvisible: '抽選特典 · 非表示',
+    rewardHideAge: '抽選特典 · 年齢を隠す',
+    rewardProfileUpdate: '無料プロフィール更新',
     popupConfirm: '確認',
     popupAckFailed: '確認を保存できませんでした。もう一度お試しください。',
     popupRetry: '再試行',
@@ -2311,7 +2421,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignWindow: 'ログイン期間：{window}',
     campaignNoCutoff: 'ログイン締切なし',
     campaignCutoff: '対象締切：{time}（香港時間）',
-    campaignClaims: '付与済み：{count}件',
+    campaignClaims: '受取人数：{count} / {max}',
     campaignFailedRewardNotifications: '確認が必要な報酬通知：{count}件',
     campaignFailedRewardNotificationsUnavailable: '現在のバックエンド版では報酬通知数を取得できません。',
     campaignFailedRewardsReview: '通知を確認（{count}）',
@@ -2384,8 +2494,21 @@ const vipGrantCopy: Record<LangKey, {
     randomHint: '1일부터 선택한 기간까지',
     allowNewUsers: '마감 전 가입한 신규 사용자도 포함',
     campaignCreated: 'VIP 캠페인이 생성되었고 공지가 전송 대기열에 추가되었습니다. 대상 사용자는 로그인할 때 VIP 일수를 받습니다.',
-    popupTitle: 'VIP 보상을 받았습니다',
-    popupBody: '계정에 VIP {days}일이 추가되었습니다.',
+    durationAmountLabel: '수량',
+    durationUnitLabel: '단위',
+    maxClaimsLabel: '최대 사용자',
+    unitDays: '일',
+    unitWeeks: '주',
+    unitMonths: '개월',
+    createCampaign: '캠페인 만들기',
+    popupTitle: '축하합니다!',
+    popupBody: '다음 보상을 받았습니다:',
+    rewardVip: '무료 VIP · {days}일',
+    rewardRaffleVip: '추첨 보상 · VIP',
+    rewardFilter: '추첨 보상 · 필터 이용',
+    rewardInvisible: '추첨 보상 · 숨김',
+    rewardHideAge: '추첨 보상 · 나이 숨기기',
+    rewardProfileUpdate: '무료 프로필 업데이트',
     popupConfirm: '확인',
     popupAckFailed: '확인을 저장하지 못했습니다. 다시 시도해 주세요.',
     popupRetry: '다시 시도',
@@ -2407,7 +2530,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignWindow: '로그인 기간: {window}',
     campaignNoCutoff: '로그인 마감 없음',
     campaignCutoff: '대상 마감: {time} (홍콩 시간)',
-    campaignClaims: '지급 완료: {count}건',
+    campaignClaims: '수령자: {count} / {max}',
     campaignFailedRewardNotifications: '확인이 필요한 보상 알림: {count}건',
     campaignFailedRewardNotificationsUnavailable: '현재 백엔드 버전에서는 보상 알림 수를 제공하지 않습니다.',
     campaignFailedRewardsReview: '알림 확인 ({count})',
@@ -2480,8 +2603,21 @@ const vipGrantCopy: Record<LangKey, {
     randomHint: 'От 1 дня до выбранного срока',
     allowNewUsers: 'Включить новых пользователей, зарегистрированных до срока',
     campaignCreated: 'VIP-кампания создана, объявление поставлено в очередь. Подходящие пользователи получат VIP-дни при входе.',
-    popupTitle: 'VIP-награда получена',
-    popupBody: 'Ваш аккаунт получил VIP на {days} дн.',
+    durationAmountLabel: 'Количество',
+    durationUnitLabel: 'Единица',
+    maxClaimsLabel: 'Макс. пользователей',
+    unitDays: 'Дни',
+    unitWeeks: 'Недели',
+    unitMonths: 'Месяцы',
+    createCampaign: 'Создать кампанию',
+    popupTitle: 'Поздравляем!',
+    popupBody: 'Вы получили следующие награды:',
+    rewardVip: 'Бесплатный VIP · {days} дн.',
+    rewardRaffleVip: 'Приз розыгрыша · VIP',
+    rewardFilter: 'Приз розыгрыша · Фильтры',
+    rewardInvisible: 'Приз розыгрыша · Невидимость',
+    rewardHideAge: 'Приз розыгрыша · Скрыть возраст',
+    rewardProfileUpdate: 'Бесплатное обновление профиля',
     popupConfirm: 'Подтвердить',
     popupAckFailed: 'Не удалось сохранить подтверждение. Повторите попытку.',
     popupRetry: 'Повторить',
@@ -2503,7 +2639,7 @@ const vipGrantCopy: Record<LangKey, {
     campaignWindow: 'Период входа: {window}',
     campaignNoCutoff: 'Без срока входа',
     campaignCutoff: 'Срок участия: {time} (время Гонконга)',
-    campaignClaims: 'Выдано: {count}',
+    campaignClaims: 'Получатели: {count} / {max}',
     campaignFailedRewardNotifications: 'Уведомлений, требующих проверки: {count}',
     campaignFailedRewardNotificationsUnavailable: 'Текущая версия бэкенда не предоставляет число таких уведомлений.',
     campaignFailedRewardsReview: 'Проверить уведомления ({count})',
@@ -2985,8 +3121,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [rolesLoadError, setRolesLoadError] = useState('');
   const [showAdminMenu, setShowAdminMenu] = useState<boolean>(false);
-  const [showProfileSetupPreview, setShowProfileSetupPreview] = useState(false);
-  const profileSetupPreviewDialogRef = useRef<HTMLDivElement | null>(null);
   const [adminEditTarget, setAdminEditTarget] = useState<UserProfile | null>(null);
   const [adminEditDraft, setAdminEditDraft] = useState<ProfileCompletionValues | null>(null);
   const [adminEditTouched, setAdminEditTouched] = useState<Set<keyof ProfileCompletionValues>>(
@@ -3003,11 +3137,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [showVipPeriods, setShowVipPeriods] = useState<boolean>(false);
   const [vipGrantWindowEnabled, setVipGrantWindowEnabled] = useState<boolean>(false);
   const [vipGrantWindow, setVipGrantWindow] = useState<VipGrantWindow>('today');
+  const [vipDurationAmount, setVipDurationAmount] = useState('7');
+  const [vipDurationUnit, setVipDurationUnit] = useState<VipGrantDurationUnit>('days');
+  const [vipMaximumClaims, setVipMaximumClaims] = useState('10');
   const [randomVipDaysEnabled, setRandomVipDaysEnabled] = useState<boolean>(false);
   const [allowNewVipUsers, setAllowNewVipUsers] = useState<boolean>(false);
   const [savingVipGrant, setSavingVipGrant] = useState<boolean>(false);
   const vipGrantSaveLockRef = useRef<boolean>(false);
-  const [vipGrantNotice, setVipGrantNotice] = useState<VipGrantNotice | null>(null);
+  const [rewardNotice, setRewardNotice] = useState<RewardNotice | null>(null);
   const [vipGrantAcknowledging, setVipGrantAcknowledging] = useState(false);
   const [vipGrantAcknowledgementError, setVipGrantAcknowledgementError] = useState('');
   const vipGrantAcknowledgementLockRef = useRef(false);
@@ -3087,57 +3224,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [vipRewardQueueHealthError, setVipRewardQueueHealthError] = useState('');
   const vipRewardQueueHealthRequestRef = useRef(0);
   const loadVipRewardQueueHealthRef = useRef<() => Promise<void>>(async () => {});
-  useEffect(() => {
-    if (!showProfileSetupPreview) return;
-    if (!isAdmin) {
-      setShowProfileSetupPreview(false);
-      return;
-    }
-
-    const dialog = profileSetupPreviewDialogRef.current;
-    if (!dialog) return;
-
-    const previousFocus = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    const focusableSelector =
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-    const focusableElements = () =>
-      Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
-    focusableElements()[0]?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setShowProfileSetupPreview(false);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-
-      const focusables = focusableElements();
-      const first = focusables[0];
-      const last = focusables.at(-1);
-      if (!first || !last) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      if (previousFocus?.isConnected) previousFocus.focus();
-    };
-  }, [showProfileSetupPreview, isAdmin]);
-
   useEffect(() => {
     if (!adminEditTargetId) return;
     if (!isAdmin) {
@@ -3802,6 +3888,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         } catch {
           // The countdown has a local Hong Kong-time fallback; retry on the next interval.
         }
+        try {
+          const pendingRewards = await workerPostRef.current('/api/rewards/pending');
+          if (active) {
+            const notice = parseRewardNotice(pendingRewards?.rewardNotice);
+            setRewardNotice(notice);
+            setProfileUpdateOfferAt(notice?.profileUpdateOfferAt ?? null);
+          }
+        } catch {
+          // Keep any notice already shown; the next poll retries the lookup.
+        }
         const pending = pendingRafflePurchaseRef.current;
         if (active && pending) {
           if (Date.now() > pending.expiresAt) {
@@ -3998,22 +4094,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         // The Worker reads this server-side so no Supabase credential is sent to the browser.
         const globalVipUntil = Number(authResponse.globalVipUntil);
         if (Number.isFinite(globalVipUntil)) setGlobalVipUntil(globalVipUntil);
-        const pendingVipGrant = authResponse.vipGrantNotice;
-        const pendingClaimIds = Array.isArray(pendingVipGrant?.claimIds)
-          ? pendingVipGrant.claimIds
-              .filter((id: unknown): id is string => typeof id === 'string')
-              .slice(0, 50)
-          : [];
-        if (pendingVipGrant && Array.isArray(pendingVipGrant.claimIds) &&
-            pendingClaimIds.length > 0 &&
-            Number.isSafeInteger(Number(pendingVipGrant.days)) && Number(pendingVipGrant.days) > 0) {
-          setVipGrantNotice({
-            claimIds: pendingClaimIds,
-            days: Number(pendingVipGrant.days),
-            vipUntil: typeof pendingVipGrant.vipUntil === 'string' ? pendingVipGrant.vipUntil : null,
-          });
-          setVipGrantAcknowledgementError('');
-        }
+        const pendingRewards = parseRewardNotice(authResponse.rewardNotice);
+        setRewardNotice(pendingRewards);
+        if (pendingRewards) setVipGrantAcknowledgementError('');
         setIsAdmin(authResponse.role === 'admin');
         setIsVip(authResponse.role === 'vip');
         const userId = existingProfile.id;
@@ -4333,14 +4416,22 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const handleProfileUpdateOfferDecision = async (decision: 'use_now' | 'forfeit') => {
     if (!profileUpdateOfferAt || profileUpdateOfferBusy) return;
+    const notice = rewardNotice;
+    if (vipGrantAcknowledgementLockRef.current) return;
+    vipGrantAcknowledgementLockRef.current = true;
     setProfileUpdateOfferBusy(true);
     setProfileUpdateOfferError('');
     try {
-      await workerPost('/api/profile-update-offer/resolve', {
-        decision,
-        offer_at: profileUpdateOfferAt,
+      await workerPost('/api/rewards/ack', {
+        vipClaimIds: notice?.vipRewards.map((reward) => reward.claimId) ?? [],
+        raffleAwards: notice?.raffleRewards.map(({ roundKey, prizeKey }) => ({ roundKey, prizeKey })) ?? [],
+        profileUpdateOfferAt,
+        profileUpdateDecision: decision,
       });
+      setRewardNotice(null);
       setProfileUpdateOfferAt(null);
+      setProfileUpdateOfferError('');
+      setVipGrantAcknowledgementError('');
       if (decision === 'use_now') {
         setErrorMessage('');
         setShowProfileSetup(true);
@@ -4352,6 +4443,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     } catch {
       setProfileUpdateOfferError(PROFILE_UPDATE_OFFER_COPY[lang].failed);
     } finally {
+      vipGrantAcknowledgementLockRef.current = false;
       setProfileUpdateOfferBusy(false);
     }
   };
@@ -6059,7 +6151,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     } catch (e) { console.error(e); alert(formatAdminFailure(e, t('roleUpdateFailed'))); }
   };
 
-  const handleGrantGlobalVip = async (ms: number) => {
+  const handleCreateVipCampaign = () => {
+    const amount = Number(vipDurationAmount);
+    const maxClaims = Number(vipMaximumClaims);
+    const multiplier = vipDurationUnit === 'weeks' ? 7 : vipDurationUnit === 'months' ? 30 : 1;
+    const days = amount * multiplier;
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 99 ||
+        !Number.isSafeInteger(maxClaims) || maxClaims < 1 || maxClaims > 99 ||
+        !Number.isSafeInteger(days) || days > 365) {
+      alert('Enter an amount and maximum from 1 to 99. The VIP duration cannot exceed 365 days.');
+      return;
+    }
+    void handleGrantGlobalVip(days * 86_400_000, maxClaims);
+  };
+
+  const handleGrantGlobalVip = async (ms: number, maxClaims = Number(vipMaximumClaims)) => {
     if (ms <= 0) {
       try {
         await workerPost('/api/global-vip', { until: 0 });
@@ -6070,12 +6176,17 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       return;
     }
     if (vipGrantSaveLockRef.current) return;
+    if (!Number.isSafeInteger(maxClaims) || maxClaims < 1 || maxClaims > 99) {
+      alert(vipGrantCopy[lang].maxClaimsLabel + ': 1–99');
+      return;
+    }
     vipGrantSaveLockRef.current = true;
     setSavingVipGrant(true);
     try {
       await workerPost('/api/vip-campaigns', {
         requestId: crypto.randomUUID(),
         durationDays: Math.round(ms / 86_400_000),
+        maxClaims,
         eligibilityWindow: vipGrantWindowEnabled ? vipGrantWindow : null,
         randomize: randomVipDaysEnabled,
         allowNewUsers: vipGrantWindowEnabled && allowNewVipUsers,
@@ -6498,17 +6609,20 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
-  const handleAcknowledgeVipGrant = async () => {
-    const notice = vipGrantNotice;
-    if (!notice?.claimIds.length || vipGrantAcknowledgementLockRef.current) return;
+  const handleAcknowledgeRewards = async () => {
+    const notice = rewardNotice;
+    if (!notice || notice.profileUpdateOfferAt || vipGrantAcknowledgementLockRef.current) return;
     vipGrantAcknowledgementLockRef.current = true;
     setVipGrantAcknowledging(true);
     setVipGrantAcknowledgementError('');
     try {
-      await workerPost('/api/vip-grants/ack', { claimIds: notice.claimIds });
-      setVipGrantNotice(null);
+      await workerPost('/api/rewards/ack', {
+        vipClaimIds: notice.vipRewards.map((reward) => reward.claimId),
+        raffleAwards: notice.raffleRewards.map(({ roundKey, prizeKey }) => ({ roundKey, prizeKey })),
+      });
+      setRewardNotice(null);
     } catch (error) {
-      console.error('VIP reward acknowledgement failed:', error);
+      console.error('Reward acknowledgement failed:', error);
       setVipGrantAcknowledgementError(vipGrantCopy[lang].popupAckFailed);
     } finally {
       vipGrantAcknowledgementLockRef.current = false;
@@ -6693,6 +6807,24 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     fontFamily: 'sans-serif',
     overflow: 'hidden',
   };
+  const rewardNoticeItems = rewardNotice
+    ? [
+        rewardNotice.vipRewards.length
+          ? vipGrantCopy[lang].rewardVip.replace(
+              '{days}',
+              String(rewardNotice.vipRewards.reduce((total, reward) => total + reward.days, 0)),
+            )
+          : null,
+        ...rewardNotice.raffleRewards.map((reward) => {
+          if (reward.prizeKey === 'vip') return vipGrantCopy[lang].rewardRaffleVip;
+          if (reward.prizeKey === 'filter') return vipGrantCopy[lang].rewardFilter;
+          if (reward.prizeKey === 'invisible') return vipGrantCopy[lang].rewardInvisible;
+          return vipGrantCopy[lang].rewardHideAge;
+        }),
+        rewardNotice.profileUpdateOfferAt ? vipGrantCopy[lang].rewardProfileUpdate : null,
+      ].filter((item): item is string => Boolean(item))
+    : [];
+
   const profileCompletionView = (
     <Suspense
       fallback={
@@ -6785,67 +6917,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     return <div style={appShellStyle}>{profileCompletionView}</div>;
   }
 
+  const roleFilterActive = Boolean(filterRoleVal && filterRoleVal !== 'Off');
+
   return (
     <div style={appShellStyle}>
 
       {showProfileEditModal && profileCompletionView}
-
-      {isReady && profileUpdateOfferAt && !showProfileSetup && !showProfileEditModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="profile-update-offer-title"
-          aria-describedby="profile-update-offer-description"
-          data-testid="profile-update-offer-dialog"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 11000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            backgroundColor: 'rgba(0, 0, 0, 0.82)',
-          }}
-        >
-          <div style={{ width: '100%', maxWidth: '420px', padding: '24px', boxSizing: 'border-box', border: '1px solid #444', borderRadius: '14px', backgroundColor: '#1e1e1e', textAlign: 'center', boxShadow: '0 16px 48px rgba(0,0,0,0.55)' }}>
-            <h2 id="profile-update-offer-title" style={{ margin: '0 0 12px', color: '#fff', fontSize: '20px' }}>
-              {PROFILE_UPDATE_OFFER_COPY[lang].title}
-            </h2>
-            <p id="profile-update-offer-description" style={{ margin: '0 0 22px', color: '#d1d5db', fontSize: '15px', lineHeight: 1.5 }}>
-              {PROFILE_UPDATE_OFFER_COPY[lang].body}
-            </p>
-            {profileUpdateOfferError && (
-              <div role="alert" style={{ marginBottom: '14px', color: '#fca5a5', fontSize: '13px' }}>
-                {profileUpdateOfferError}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                type="button"
-                autoFocus
-                data-testid="profile-update-offer-use-now"
-                onClick={() => { void handleProfileUpdateOfferDecision('use_now'); }}
-                disabled={profileUpdateOfferBusy}
-                aria-busy={profileUpdateOfferBusy}
-                style={{ minHeight: '44px', padding: '10px 16px', border: '1px solid #60a5fa', borderRadius: '8px', backgroundColor: profileUpdateOfferBusy ? '#374151' : '#2563eb', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: profileUpdateOfferBusy ? 'wait' : 'pointer' }}
-              >
-                {PROFILE_UPDATE_OFFER_COPY[lang].useNow}
-              </button>
-              <button
-                type="button"
-                data-testid="profile-update-offer-forfeit"
-                onClick={() => { void handleProfileUpdateOfferDecision('forfeit'); }}
-                disabled={profileUpdateOfferBusy}
-                aria-busy={profileUpdateOfferBusy}
-                style={{ minHeight: '44px', padding: '10px 16px', border: '1px solid #4b5563', borderRadius: '8px', backgroundColor: '#2a2a2a', color: '#fff', fontSize: '15px', fontWeight: 600, cursor: profileUpdateOfferBusy ? 'wait' : 'pointer' }}
-              >
-                {PROFILE_UPDATE_OFFER_COPY[lang].forfeit}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', height: '60px', minHeight: '60px', backgroundColor: '#1e1e1e', borderBottom: '1px solid #333', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -6965,7 +7042,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 </div>
                 <div style={{ fontSize: '11px', color: '#888', marginTop: '2px', paddingLeft: '24px' }}>{t('m2m')}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px', paddingLeft: '24px' }}>
-                  <button type="button" onClick={() => handleToggleFilterValue('role')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterRoleVal ? '#e11d48' : '#2a2a2a', color: '#fff', border: filterRoleVal ? '1px solid #e11d48' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterRoleVal ? 1 : 0.45, filter: filterRoleVal ? 'none' : 'grayscale(100%)' }}>{filterRoleVal === 'Off' ? FILTER_CYCLE_COPY[lang].roleOff : filterRoleVal ? formatTagText(t(filterRoleVal)) : t('Off')}</button>
+                  <button type="button" onClick={() => handleToggleFilterValue('role')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: roleFilterActive ? '#e11d48' : '#2a2a2a', color: '#fff', border: roleFilterActive ? '1px solid #e11d48' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: roleFilterActive ? 1 : 0.45, filter: roleFilterActive ? 'none' : 'grayscale(100%)' }}>{filterRoleVal === 'Off' ? FILTER_CYCLE_COPY[lang].roleOff : filterRoleVal ? formatTagText(t(filterRoleVal)) : t('Off')}</button>
                   <button type="button" onClick={() => handleToggleFilterValue('safety')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterSafetyVal && filterSafetyVal !== 'Off' ? '#2563eb' : '#2a2a2a', color: '#fff', border: filterSafetyVal && filterSafetyVal !== 'Off' ? '1px solid #2563eb' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterSafetyVal && filterSafetyVal !== 'Off' ? 1 : 0.45, filter: filterSafetyVal && filterSafetyVal !== 'Off' ? 'none' : 'grayscale(100%)' }}>{filterSafetyVal && filterSafetyVal !== 'Off' ? formatTagText(t(filterSafetyVal)) : FILTER_CYCLE_COPY[lang].depends}</button>
                   <button type="button" onClick={() => handleToggleFilterValue('playstyle')} style={{ flex: '1 1 40%', minWidth: '90px', padding: '8px 4px', backgroundColor: filterPlaystyleVal && filterPlaystyleVal !== 'Off' ? '#16a34a' : '#2a2a2a', color: '#fff', border: filterPlaystyleVal && filterPlaystyleVal !== 'Off' ? '1px solid #16a34a' : '1px solid #444', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', opacity: filterPlaystyleVal && filterPlaystyleVal !== 'Off' ? 1 : 0.45, filter: filterPlaystyleVal && filterPlaystyleVal !== 'Off' ? 'none' : 'grayscale(100%)' }}>{filterPlaystyleVal === 'Party✓' ? FILTER_CYCLE_COPY[lang].partyWithStuff : filterPlaystyleVal && filterPlaystyleVal !== 'Off' ? formatTagText(t(filterPlaystyleVal)) : FILTER_CYCLE_COPY[lang].depends}</button>
                   <button
@@ -7161,17 +7238,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     <button type="button" onClick={() => { setShowAdminMenu(false); setShowVipPeriods(false); setShowRolesModal(true); loadRoles(); }} style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>{t('adminVipList')}</button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowAdminMenu(false);
-                        setShowProfileSetupPreview(true);
-                      }}
-                      data-testid="button-open-profile-setup-preview"
-                      style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                      {t('profileSetupPreview')}
-                    </button>
-                    <button
-                      type="button"
                       onClick={openPaymentReview}
                       data-testid="button-open-payment-review"
                       style={{ padding: '9px 10px', backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
@@ -7313,9 +7379,58 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                           />
                           <span>{vipGrantCopy[lang].allowNewUsers}</span>
                         </label>
-                        {([['1d', 1 * 864e5], ['3d', 3 * 864e5], ['1w', 7 * 864e5], ['1mo', 30 * 864e5], ['3mo', 90 * 864e5], ['6mo', 180 * 864e5], ['1y', 365 * 864e5]] as [string, number][]).map(([key, ms]) => (
-                          <button key={key} type="button" disabled={savingVipGrant} onClick={() => handleGrantGlobalVip(ms)} style={{ padding: '7px 10px', backgroundColor: '#3a2f00', border: '1px solid #665500', borderRadius: '6px', fontSize: '12px', color: '#f5c518', cursor: savingVipGrant ? 'wait' : 'pointer', textAlign: 'left', opacity: savingVipGrant ? 0.65 : 1 }}>{savingVipGrant ? `${t(`period_${key}`)}…` : t(`period_${key}`)}</button>
-                        ))}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(42px, 0.55fr) minmax(75px, 1fr) minmax(42px, 0.55fr)', gap: '5px', alignItems: 'end' }}>
+                          <label style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, color: '#bbb', fontSize: '9px' }}>
+                            {vipGrantCopy[lang].durationAmountLabel}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]{1,2}"
+                              maxLength={2}
+                              value={vipDurationAmount}
+                              onChange={(event) => setVipDurationAmount(event.target.value.replace(/\D/g, '').slice(0, 2))}
+                              aria-label={vipGrantCopy[lang].durationAmountLabel}
+                              disabled={savingVipGrant}
+                              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '7px 5px', backgroundColor: '#121212', color: '#fff', border: '1px solid #555', borderRadius: '5px', fontSize: '12px', textAlign: 'center' }}
+                            />
+                          </label>
+                          <label style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, color: '#bbb', fontSize: '9px' }}>
+                            {vipGrantCopy[lang].durationUnitLabel}
+                            <select
+                              value={vipDurationUnit}
+                              onChange={(event) => setVipDurationUnit(event.target.value as VipGrantDurationUnit)}
+                              aria-label={vipGrantCopy[lang].durationUnitLabel}
+                              disabled={savingVipGrant}
+                              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '7px 4px', backgroundColor: '#121212', color: '#fff', border: '1px solid #555', borderRadius: '5px', fontSize: '11px' }}
+                            >
+                              <option value="days">{vipGrantCopy[lang].unitDays}</option>
+                              <option value="weeks">{vipGrantCopy[lang].unitWeeks}</option>
+                              <option value="months">{vipGrantCopy[lang].unitMonths}</option>
+                            </select>
+                          </label>
+                          <label style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, color: '#bbb', fontSize: '9px' }}>
+                            {vipGrantCopy[lang].maxClaimsLabel}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]{1,2}"
+                              maxLength={2}
+                              value={vipMaximumClaims}
+                              onChange={(event) => setVipMaximumClaims(event.target.value.replace(/\D/g, '').slice(0, 2))}
+                              aria-label={vipGrantCopy[lang].maxClaimsLabel}
+                              disabled={savingVipGrant}
+                              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '7px 5px', backgroundColor: '#121212', color: '#fff', border: '1px solid #555', borderRadius: '5px', fontSize: '12px', textAlign: 'center' }}
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={savingVipGrant}
+                          onClick={handleCreateVipCampaign}
+                          style={{ padding: '8px 10px', backgroundColor: '#3a2f00', border: '1px solid #665500', borderRadius: '6px', fontSize: '12px', color: '#f5c518', cursor: savingVipGrant ? 'wait' : 'pointer', opacity: savingVipGrant ? 0.65 : 1 }}
+                        >
+                          {savingVipGrant ? vipGrantCopy[lang].popupSaving : vipGrantCopy[lang].createCampaign}
+                        </button>
                         {globalVipActive && (<button type="button" disabled={savingVipGrant} onClick={() => handleGrantGlobalVip(0)} style={{ padding: '7px 10px', backgroundColor: '#3a1010', border: '1px solid #663333', borderRadius: '6px', fontSize: '12px', color: '#f87171', cursor: savingVipGrant ? 'wait' : 'pointer', textAlign: 'left' }}>{t('revokeVipAll')}</button>)}
                       </div>
                     )}
@@ -7643,67 +7758,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           onTextChange={setFlyingMessageText}
           onSubmit={(event) => { event.preventDefault(); void handleSendFlyingMessage(); }}
         />
-      )}
-
-      {showProfileSetupPreview && isAdmin && (
-        <div
-          onClick={() => setShowProfileSetupPreview(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 5000,
-            backgroundColor: 'rgba(0,0,0,0.76)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '12px',
-            boxSizing: 'border-box',
-            overflowY: 'auto',
-          }}
-        >
-          <div
-            ref={profileSetupPreviewDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="profile-setup-preview-title"
-            data-testid="dialog-profile-setup-preview"
-            tabIndex={-1}
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '1104px',
-              maxHeight: 'calc(100vh - 24px)',
-              overflowY: 'auto',
-              borderRadius: '16px',
-              outline: 'none',
-            }}
-          >
-            <Suspense
-              fallback={
-                <div
-                  role="status"
-                  aria-live="polite"
-                  style={{
-                    padding: '24px',
-                    borderRadius: '12px',
-                    backgroundColor: '#161616',
-                    color: '#ccc',
-                    textAlign: 'center',
-                  }}
-                >
-                  {t('loading')}
-                </div>
-              }
-            >
-              <ProfileSetupPreviewModule
-                entries={Object.values(config.entries)}
-                language={lang}
-                onClose={() => setShowProfileSetupPreview(false)}
-                t={t}
-              />
-            </Suspense>
-          </div>
-        </div>
       )}
 
       {adminEditTarget && isAdmin && (
@@ -8158,20 +8212,27 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         </Suspense>
       )}
 
-      {vipGrantNotice && (
+      {isReady && rewardNotice && rewardNoticeItems.length > 0 && (
         <VipGrantNoticeDialog
           title={vipGrantCopy[lang].popupTitle}
-          body={vipGrantCopy[lang].popupBody.replace('{days}', String(vipGrantNotice.days))}
+          body={rewardNotice.profileUpdateOfferAt
+            ? PROFILE_UPDATE_OFFER_COPY[lang].body
+            : vipGrantCopy[lang].popupBody}
+          rewards={rewardNoticeItems}
           confirmLabel={vipGrantCopy[lang].popupConfirm}
           retryLabel={vipGrantCopy[lang].popupRetry}
           confirmingLabel={vipGrantCopy[lang].popupSaving}
           confirming={vipGrantAcknowledging}
-          errorMessage={vipGrantAcknowledgementError}
-          onConfirm={handleAcknowledgeVipGrant}
+          errorMessage={profileUpdateOfferError || vipGrantAcknowledgementError}
+          profileOffer={rewardNotice.profileUpdateOfferAt ? {
+            useNowLabel: PROFILE_UPDATE_OFFER_COPY[lang].useNow,
+            forfeitLabel: PROFILE_UPDATE_OFFER_COPY[lang].forfeit,
+          } : null}
+          onConfirm={handleAcknowledgeRewards}
+          onUseNow={() => { void handleProfileUpdateOfferDecision('use_now'); }}
+          onForfeit={() => { void handleProfileUpdateOfferDecision('forfeit'); }}
           onDismiss={() => {
-            if (vipGrantAcknowledgementLockRef.current) return;
-            setVipGrantNotice(null);
-            setVipGrantAcknowledgementError('');
+            if (!rewardNotice.profileUpdateOfferAt) void handleAcknowledgeRewards();
           }}
         />
       )}

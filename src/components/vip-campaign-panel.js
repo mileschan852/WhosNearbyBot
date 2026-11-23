@@ -129,6 +129,7 @@ export function parseVipCampaignPage(value) {
       id,
       sourceBotKey,
       durationDays,
+      maxClaims,
       eligibilityWindow,
       cutoffAt,
       randomize,
@@ -146,6 +147,7 @@ export function parseVipCampaignPage(value) {
         (sourceBotKey !== null && !isAppInstanceId(sourceBotKey)) ||
         !['pending', 'delivered', 'failed', 'cancelled', 'not_applicable'].includes(announcementStatus) ||
         !Number.isSafeInteger(durationDays) || durationDays < 1 || durationDays > 365 ||
+        !Number.isSafeInteger(maxClaims) || maxClaims < 1 || maxClaims > 1000000 ||
         (eligibilityWindow !== null && !VIP_CAMPAIGN_WINDOWS.has(eligibilityWindow)) ||
         (cutoffAt !== null && (typeof cutoffAt !== 'string' || !Number.isFinite(Date.parse(cutoffAt)))) ||
         ((eligibilityWindow === null) !== (cutoffAt === null)) ||
@@ -161,6 +163,7 @@ export function parseVipCampaignPage(value) {
       id,
       sourceBotKey,
       durationDays,
+      maxClaims,
       eligibilityWindow,
       cutoffAt,
       randomize,
@@ -969,7 +972,10 @@ export function VipCampaignPanel({
     h('p', { style: { margin: 0, color: '#ddd', fontSize: '12px' } }, duration),
     windowLabel ? h('p', { style: { margin: 0, color: '#aaa', fontSize: '11px' } }, copy.window.replace('{window}', windowLabel)) : null,
     h('p', { style: { margin: 0, color: '#aaa', fontSize: '11px' } }, cutoff),
-    h('p', { style: { margin: 0, color: '#ddd', fontSize: '11px' } }, copy.claimCount.replace('{count}', String(campaign.claimCount))),
+    h('p', { style: { margin: 0, color: '#ddd', fontSize: '11px' } },
+      copy.claimCount
+        .replace('{count}', String(campaign.claimCount))
+        .replace('{max}', String(campaign.maxClaims))),
     campaign.allowNewUsers ? h('p', { style: { margin: 0, color: '#93c5fd', fontSize: '11px' } }, copy.newUsers) : null,
     campaign.isActive ? h('button', {
       type: 'button',
