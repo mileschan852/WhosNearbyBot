@@ -173,12 +173,17 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     known: 'Known',
     karma: 'Karma',
     knownQuestionTitle: 'Have you met this person?',
-    knownQuestionBody: 'They want to know if you have met them.',
+    knownQuestionBody: 'Have you met this person? You can’t undo this later.',
     knownYes: 'Yes',
     knownNo: 'No',
     knownRecommendationTitle: 'Would you recommend this person?',
     knownRecommended: 'Recommend',
     knownNotRecommended: 'Not recommend',
+    knownLater: 'Later',
+    knownProfileAction: 'I haven’t met this person',
+    knownAlreadyAsked: 'Already asked',
+    knownProfileFailed: 'Could not send the question. Please try again.',
+    knownProfileSent: 'Question sent. You can ask this person only once.',
     knownCheckFailed: 'A required Known question could not be checked. Retry before continuing.',
     knownResponseFailed: 'Your answer could not be saved. Please try again.',
     knownSubmitting: 'Saving your answer…',
@@ -202,12 +207,17 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     known: '认识',
     karma: '口碑',
     knownQuestionTitle: '你见过这个人吗？',
-    knownQuestionBody: '对方想确认你们是否见过面。',
+    knownQuestionBody: '你见过这个人吗？提交后将无法撤回。',
     knownYes: '见过',
     knownNo: '没见过',
     knownRecommendationTitle: '你愿意推荐这个人吗？',
     knownRecommended: '推荐',
     knownNotRecommended: '不推荐',
+    knownLater: '稍后',
+    knownProfileAction: '我还没见过这个人',
+    knownAlreadyAsked: '已询问',
+    knownProfileFailed: '无法发送问题，请重试。',
+    knownProfileSent: '问题已发送。只能询问此人一次。',
     knownCheckFailed: '无法检查待回答的问题。请重试后再继续。',
     knownResponseFailed: '无法保存你的回答，请重试。',
     knownSubmitting: '正在保存回答…',
@@ -231,12 +241,17 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     known: '認識',
     karma: '口碑',
     knownQuestionTitle: '你見過這個人嗎？',
-    knownQuestionBody: '對方想確認你們是否見過面。',
+    knownQuestionBody: '你見過這個人嗎？提交後將無法撤回。',
     knownYes: '見過',
     knownNo: '沒見過',
     knownRecommendationTitle: '你願意推薦這個人嗎？',
     knownRecommended: '推薦',
     knownNotRecommended: '不推薦',
+    knownLater: '稍後',
+    knownProfileAction: '我還沒見過這個人',
+    knownAlreadyAsked: '已詢問',
+    knownProfileFailed: '無法傳送問題，請重試。',
+    knownProfileSent: '問題已傳送。只能詢問此人一次。',
     knownCheckFailed: '無法檢查待回答的問題。請重試後再繼續。',
     knownResponseFailed: '無法儲存你的回答，請重試。',
     knownSubmitting: '正在儲存回答…',
@@ -260,12 +275,17 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     known: '知り合い',
     karma: '評価',
     knownQuestionTitle: 'この人に会ったことがありますか？',
-    knownQuestionBody: '相手は、あなたが会ったことがあるか確認しています。',
+    knownQuestionBody: 'この人に会ったことがありますか？回答は取り消せません。',
     knownYes: 'はい',
     knownNo: 'いいえ',
     knownRecommendationTitle: 'この人をおすすめしますか？',
     knownRecommended: 'おすすめする',
     knownNotRecommended: 'おすすめしない',
+    knownLater: '後で',
+    knownProfileAction: 'この人とはまだ会ったことがありません',
+    knownAlreadyAsked: '質問済み',
+    knownProfileFailed: '質問を送信できませんでした。もう一度お試しください。',
+    knownProfileSent: '質問を送信しました。この人には一度だけ質問できます。',
     knownCheckFailed: '未回答の質問を確認できませんでした。続行する前に再試行してください。',
     knownResponseFailed: '回答を保存できませんでした。もう一度お試しください。',
     knownSubmitting: '回答を保存しています…',
@@ -289,12 +309,17 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     known: '아는 사람',
     karma: '평판',
     knownQuestionTitle: '이 사람을 만난 적이 있나요?',
-    knownQuestionBody: '상대방이 만난 적이 있는지 확인하고 싶어 합니다.',
+    knownQuestionBody: '이 사람을 만난 적이 있나요? 답변은 취소할 수 없습니다.',
     knownYes: '예',
     knownNo: '아니요',
     knownRecommendationTitle: '이 사람을 추천하시겠어요?',
     knownRecommended: '추천',
     knownNotRecommended: '추천하지 않음',
+    knownLater: '나중에',
+    knownProfileAction: '이 사람을 아직 만난 적이 없어요',
+    knownAlreadyAsked: '이미 질문함',
+    knownProfileFailed: '질문을 보내지 못했습니다. 다시 시도해 주세요.',
+    knownProfileSent: '질문을 보냈습니다. 이 사람에게는 한 번만 물을 수 있습니다.',
     knownCheckFailed: '답변이 필요한 질문을 확인하지 못했습니다. 계속하기 전에 다시 시도하세요.',
     knownResponseFailed: '답변을 저장하지 못했습니다. 다시 시도하세요.',
     knownSubmitting: '답변 저장 중…',
@@ -318,12 +343,17 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     known: 'Знакомы',
     karma: 'Репутация',
     knownQuestionTitle: 'Вы встречались с этим человеком?',
-    knownQuestionBody: 'Этот человек хочет узнать, встречались ли вы.',
+    knownQuestionBody: 'Вы встречались с этим человеком? Ответ нельзя будет отменить.',
     knownYes: 'Да',
     knownNo: 'Нет',
     knownRecommendationTitle: 'Вы рекомендуете этого человека?',
     knownRecommended: 'Рекомендую',
     knownNotRecommended: 'Не рекомендую',
+    knownLater: 'Позже',
+    knownProfileAction: 'Я ещё не встречал этого человека',
+    knownAlreadyAsked: 'Уже отправлено',
+    knownProfileFailed: 'Не удалось отправить вопрос. Попробуйте ещё раз.',
+    knownProfileSent: 'Вопрос отправлен. Спросить этого человека можно только один раз.',
     knownCheckFailed: 'Не удалось проверить ожидающий вопрос. Повторите попытку, прежде чем продолжить.',
     knownResponseFailed: 'Не удалось сохранить ответ. Попробуйте ещё раз.',
     knownSubmitting: 'Сохраняем ответ…',
@@ -3195,6 +3225,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [knownRequestCheckFailed, setKnownRequestCheckFailed] = useState(false);
   const [knownResponsePending, setKnownResponsePending] = useState(false);
   const [knownResponseError, setKnownResponseError] = useState('');
+  const [knownSendingTo, setKnownSendingTo] = useState<string | null>(null);
+  const [knownRequestFeedback, setKnownRequestFeedback] = useState<{
+    profileId: string;
+    status: 'sent' | 'failed';
+  } | null>(null);
+  const knownPromptDismissedIdRef = useRef<string | null>(null);
   const knownResponseLockRef = useRef(false);
   const knownPromptFocusRef = useRef<HTMLButtonElement | null>(null);
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
@@ -3787,7 +3823,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       if (result.pending !== null && !pending) {
         throw new Error('Pending Known request was invalid.');
       }
-      setPendingKnownRequest(pending);
+      setPendingKnownRequest(
+        pending?.status === 'pending' &&
+        pending.requestId === knownPromptDismissedIdRef.current
+          ? null
+          : pending,
+      );
       setKnownRequestCheckFailed(false);
       setKnownResponseError('');
       return true;
@@ -5868,22 +5909,40 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       targetUser.id === currentUser.id ||
       targetUser.known_request_state_known !== true ||
       targetUser.known_request_blocked === true ||
+      knownSendingTo !== null ||
       !checkFilterPass(targetUser)
     ) return false;
+    setKnownRequestFeedback(null);
+    setKnownSendingTo(targetUser.id);
     try {
       const result = await workerPostRef.current('/api/known/request', {
         recipientId: targetUser.id,
       });
-      if (result?.status !== 'created' && result?.status !== 'already_requested') return false;
-      setUsers((previous) => previous.map((profile) =>
+      if (result?.status !== 'created' && result?.status !== 'already_requested') {
+        setKnownRequestFeedback({ profileId: targetUser.id, status: 'failed' });
+        return false;
+      }
+      const markKnown = (profile: UserProfile) =>
         profile.id === targetUser.id
           ? { ...profile, known_request_blocked: true, known_request_state_known: true }
-          : profile
-      ));
+          : profile;
+      setUsers((previous) => previous.map(markKnown));
+      setSelectedProfile((previous) => previous ? markKnown(previous) : previous);
+      setKnownRequestFeedback({ profileId: targetUser.id, status: 'sent' });
       return true;
     } catch {
+      setKnownRequestFeedback({ profileId: targetUser.id, status: 'failed' });
       return false;
+    } finally {
+      setKnownSendingTo((previous) => previous === targetUser.id ? null : previous);
     }
+  };
+
+  const handleDismissPendingKnownRequest = () => {
+    if (pendingKnownRequest?.status !== 'pending' || knownResponsePending) return;
+    knownPromptDismissedIdRef.current = pendingKnownRequest.requestId;
+    setPendingKnownRequest(null);
+    setKnownResponseError('');
   };
 
   const handleKnownResponse = async (
@@ -5900,6 +5959,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         decision,
       });
       if (result?.status === 'awaiting_recommendation') {
+        knownPromptDismissedIdRef.current = null;
         setPendingKnownRequest({ ...pending, status: 'awaiting_recommendation' });
       } else if (
         result?.status === 'declined' ||
@@ -5907,6 +5967,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         result?.status === 'not_recommended' ||
         result?.status === 'already_resolved'
       ) {
+        knownPromptDismissedIdRef.current = null;
         setPendingKnownRequest(null);
         if (result.status === 'recommended' || result.status === 'not_recommended') {
           setUsers((previous) => previous.map((profile) =>
@@ -7198,6 +7259,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   );
 
   const knownCopy = DAILY_SWIPE_COPY[lang];
+  const knownRequestRequiresLock =
+    knownRequestCheckFailed || pendingKnownRequest?.status === 'awaiting_recommendation';
   const knownButtonStyle: React.CSSProperties = {
     minHeight: '48px',
     padding: '10px 16px',
@@ -7212,15 +7275,17 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const knownBlockingOverlay = knownRequestCheckFailed || pendingKnownRequest ? (
     <div
       role="dialog"
-      aria-modal="true"
+      aria-modal={knownRequestRequiresLock ? 'true' : 'false'}
       aria-labelledby="known-request-title"
       data-testid="known-request-blocking-dialog"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
+          if (pendingKnownRequest?.status === 'pending') handleDismissPendingKnownRequest();
           return;
         }
+        if (!knownRequestRequiresLock) return;
         if (event.key !== 'Tab') return;
         const controls = [...event.currentTarget.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -7247,9 +7312,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        background: '#121212',
+        background: knownRequestRequiresLock ? '#121212' : 'rgba(0, 0, 0, 0.62)',
         color: '#fff',
         fontFamily: 'sans-serif',
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && pendingKnownRequest?.status === 'pending') {
+          handleDismissPendingKnownRequest();
+        }
       }}
     >
       <section
@@ -7376,6 +7446,17 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                 </>
               )}
             </div>
+            {pendingKnownRequest.status === 'pending' && (
+              <button
+                type="button"
+                data-testid="known-request-later"
+                disabled={knownResponsePending}
+                onClick={handleDismissPendingKnownRequest}
+                style={{ ...knownButtonStyle, width: '100%', background: '#374151' }}
+              >
+                {knownCopy.knownLater}
+              </button>
+            )}
             {knownResponsePending && <p role="status" style={{ margin: 0 }}>{knownCopy.knownSubmitting}</p>}
             {knownResponseError && <p role="alert" style={{ margin: 0, color: '#fca5a5' }}>{knownResponseError}</p>}
           </>
@@ -8061,6 +8142,82 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     </svg>
                     <span>{t('sendMessage')}</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleSendKnownRequest(activeProfile);
+                    }}
+                    disabled={
+                      knownSendingTo !== null ||
+                      activeProfile.known_request_state_known !== true ||
+                      activeProfile.known_request_blocked === true
+                    }
+                    aria-busy={knownSendingTo === activeProfile.id}
+                    aria-label={
+                      activeProfile.known_request_blocked === true
+                        ? knownCopy.knownAlreadyAsked
+                        : knownCopy.knownProfileAction
+                    }
+                    data-testid={`button-known-profile-${activeProfile.id}`}
+                    style={{
+                      flex: '1 0 100%',
+                      minWidth: 0,
+                      minHeight: '48px',
+                      padding: '10px 12px',
+                      backgroundColor:
+                        activeProfile.known_request_state_known !== true ||
+                        activeProfile.known_request_blocked === true ||
+                        knownSendingTo !== null
+                          ? '#374151'
+                          : '#7c3aed',
+                      color:
+                        activeProfile.known_request_state_known !== true ||
+                        activeProfile.known_request_blocked === true ||
+                        knownSendingTo !== null
+                          ? '#9ca3af'
+                          : '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor:
+                        activeProfile.known_request_state_known !== true ||
+                        activeProfile.known_request_blocked === true ||
+                        knownSendingTo !== null
+                          ? 'not-allowed'
+                          : 'pointer',
+                      opacity:
+                        activeProfile.known_request_state_known !== true ||
+                        activeProfile.known_request_blocked === true ||
+                        knownSendingTo !== null
+                          ? 0.7
+                          : 1,
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {knownSendingTo === activeProfile.id
+                      ? knownCopy.knownSubmitting
+                      : activeProfile.known_request_blocked === true
+                        ? knownCopy.knownAlreadyAsked
+                        : knownCopy.knownProfileAction}
+                  </button>
+                  {knownRequestFeedback?.profileId === activeProfile.id && (
+                    <div
+                      role={knownRequestFeedback.status === 'failed' ? 'alert' : 'status'}
+                      data-testid={`status-known-${activeProfile.id}`}
+                      style={{
+                        flexBasis: '100%',
+                        color: knownRequestFeedback.status === 'failed' ? '#fca5a5' : '#86efac',
+                        fontSize: '12px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {knownRequestFeedback.status === 'failed'
+                        ? knownCopy.knownProfileFailed
+                        : knownCopy.knownProfileSent}
+                    </div>
+                  )}
                   {activeInterestStatusMessage && (
                     <div
                       role="status"

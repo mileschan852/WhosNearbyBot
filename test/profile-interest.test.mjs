@@ -67,14 +67,19 @@ test("the nearby grid refreshes while the Mini App is active so other users see 
   assert.match(appSource, /document\.addEventListener\('visibilitychange', refreshNearby\)/);
 });
 
-test("Known requests are excluded from Swipe and keep a blocking prompt until answered", () => {
+test("Known requests can be sent from profiles and lock navigation only after a Yes answer", () => {
   assert.match(appSource, /user\.known_request_state_known === true/);
   assert.match(appSource, /user\.known_request_blocked !== true/);
   assert.match(appSource, /\/api\/known\/request/);
   assert.match(appSource, /\/api\/known\/pending/);
   assert.match(appSource, /\/api\/known\/respond/);
+  assert.match(appSource, /data-testid=\{`button-known-profile-\$\{activeProfile\.id\}`\}/);
+  assert.match(appSource, /knownProfileAction: 'I haven’t met this person'/);
+  assert.match(appSource, /knownPromptDismissedIdRef\.current = pendingKnownRequest\.requestId/);
+  assert.match(appSource, /knownRequestRequiresLock =\s*knownRequestCheckFailed \|\| pendingKnownRequest\?\.status === 'awaiting_recommendation'/);
   assert.match(appSource, /known-request-blocking-dialog/);
-  assert.match(appSource, /aria-modal="true"/);
+  assert.match(appSource, /aria-modal=\{knownRequestRequiresLock \? 'true' : 'false'\}/);
+  assert.match(appSource, /data-testid="known-request-later"/);
   assert.match(appSource, /setPendingKnownRequest\(\{ \.\.\.pending, status: 'awaiting_recommendation' \}\)/);
   assert.match(swipeSource, /data-testid="daily-swipe-known"/);
   assert.match(swipeSource, /advance\('known'\)/);
