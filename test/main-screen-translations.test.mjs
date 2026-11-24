@@ -331,7 +331,19 @@ test('Swipe renders visible Telegram-photo profiles and accessible pass/interest
         id: 'candidate-photo',
         name: 'Uploaded Telegram photo',
         avatar: 'https://images.example/telegram-photo?file=primary',
+        karma: 3,
+        known_request_state_known: true,
         grid_visible: true,
+        age: 34,
+        hide_age: false,
+        last_seen: '2026-11-20T10:00:00.000Z',
+        height: '180 cm',
+        weight: '75 kg',
+        role_pref: 'Top',
+        safety_pref: 'Safe',
+        playstyle_pref: 'Party',
+        how_many_pref: 'group',
+        where_pref: 'Host',
       },
       {
         id: 'candidate-hidden',
@@ -350,22 +362,48 @@ test('Swipe renders visible Telegram-photo profiles and accessible pass/interest
         name: 'Insecure photo',
         avatar: 'http://images.example/insecure-photo',
         grid_visible: true,
+        known_request_state_known: true,
+      },
+      {
+        id: 'candidate-known',
+        name: 'Previously known profile',
+        avatar: 'https://images.example/known.jpg',
+        grid_visible: true,
+        known_request_state_known: true,
+        known_request_blocked: true,
       },
     ],
     accountId: 'viewer',
     onRightSwipe: async () => true,
+    onKnown: async () => true,
+    onSwipeDecision: () => {},
     onRefresh: () => {},
     formatDistance: () => '1 km',
+    formatLastSeen: () => '2h ago',
+    formatHowMany: (value) => value === 'group' ? 'Groups Only' : value || '',
+    showPreferenceTags: true,
     t: (key) => dictionary[key] || appTranslations.en[key] || key,
   }));
 
   assert.ok(markup.includes('data-testid="daily-swipe-card-candidate-photo"'));
   assert.ok(markup.includes('Uploaded Telegram photo'));
+  assert.ok(markup.includes('data-testid="daily-swipe-last-online"'));
+  assert.ok(markup.includes('Last online'));
+  assert.ok(markup.includes('2h ago'));
+  assert.ok(markup.includes('180 cm'));
+  assert.ok(markup.includes('75 kg'));
+  assert.ok(markup.includes('Groups Only'));
+  assert.ok(markup.includes('Karma: 3'));
   assert.ok(markup.includes('aria-label="Pass"'));
   assert.ok(markup.includes('aria-label="Interested"'));
+  assert.ok(markup.includes('aria-label="Known"'));
+  assert.ok(markup.includes('data-testid="daily-swipe-known"'));
+  assert.ok(markup.includes('aria-label="Skip for later (tomorrow)"'));
+  assert.ok(markup.includes('data-testid="daily-swipe-later"'));
   assert.ok(!markup.includes('Hidden photo'));
   assert.ok(!markup.includes('No uploaded photo'));
   assert.ok(!markup.includes('Insecure photo'));
+  assert.ok(!markup.includes('Previously known profile'));
 });
 
 test('flying-message composer and payment status are localized for all languages', () => {

@@ -12,8 +12,13 @@ interface DailySwipeModuleProps {
   users: UserProfile[];
   accountId: string | null;
   onRightSwipe: (user: UserProfile) => Promise<boolean>;
+  onKnown: (user: UserProfile) => Promise<boolean>;
+  onSwipeDecision: (user: UserProfile, direction: 'left' | 'right') => void;
   onRefresh: () => void;
   formatDistance: (distance?: number) => string;
+  formatLastSeen: (lastSeen?: string | null) => string;
+  formatHowMany: (value?: string | null) => string;
+  showPreferenceTags: boolean;
   t: (key: string) => string;
 }
 
@@ -32,8 +37,13 @@ export default function DailySwipeModule({
   users,
   accountId,
   onRightSwipe,
+  onKnown,
+  onSwipeDecision,
   onRefresh,
   formatDistance,
+  formatLastSeen,
+  formatHowMany,
+  showPreferenceTags,
   t,
 }: DailySwipeModuleProps) {
   const [session, setSession] = useState(() => {
@@ -46,6 +56,7 @@ export default function DailySwipeModule({
   const [isDragging, setIsDragging] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [sendError, setSendError] = useState(false);
+  const [failedAction, setFailedAction] = useState<'interest' | 'known' | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
     typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
@@ -64,6 +75,7 @@ export default function DailySwipeModule({
       });
       setStorageError(false);
       setSendError(false);
+      setFailedAction(null);
     }, 60_000);
     return () => window.clearInterval(timer);
   }, [accountId]);
@@ -80,6 +92,8 @@ export default function DailySwipeModule({
       .filter((user) =>
         user.id !== accountId &&
         user.grid_visible !== false &&
+        user.known_request_state_known === true &&
+        user.known_request_blocked !== true &&
         hasUploadedMainProfileImage(user.avatar),
       )
       .slice()
@@ -93,14 +107,15 @@ export default function DailySwipeModule({
   const complete = progress.completed ||
     (candidates.length > 0 && remainingUsers.length === 0);
 
-  const advance = async (interested: boolean) => {
+  const advance = async (direction: 'left' | 'right' | 'later' | 'known') => {
     if (!activeUser || actionPending || storageError) return;
     setActionPending(true);
     setSendError(false);
+    setFailedAction(null);
     setDragX(0);
 
     try {
-      if (interested) {
+      if (direction === 'right') {
         let sent = false;
         try {
           sent = await onRightSwipe(activeUser);
@@ -109,6 +124,20 @@ export default function DailySwipeModule({
         }
         if (!sent) {
           setSendError(true);
+          setFailedAction('interest');
+          return;
+        }
+      }
+      if (direction === 'known') {
+        let sent = false;
+        try {
+          sent = await onKnown(activeUser);
+        } catch {
+          sent = false;
+        }
+        if (!sent) {
+          setSendError(true);
+          setFailedAction('known');
           return;
         }
       }
@@ -123,6 +152,7 @@ export default function DailySwipeModule({
         setStorageError(true);
         return;
       }
+      if (direction === 'left' || direction === 'right') onSwipeDecision(activeUser, direction);
       setSession((previous) =>
         previous.dateKey === dateKey
           ? { ...previous, progress: next }
@@ -154,7 +184,7 @@ export default function DailySwipeModule({
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
     if (Math.abs(deltaX) >= 80 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-      void advance(deltaX > 0);
+      void advance(deltaX > 0 ? 'right' : 'left');
     } else {
       setDragX(0);
     }
@@ -234,46 +264,89 @@ export default function DailySwipeModule({
             <div
               style={{
                 position: 'absolute',
-                inset: '45% 0 0',
+                inset: '38% 0 0',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'flex-end',
-                gap: '5px',
-                padding: '18px',
+                gap: '7px',
+                padding: '14px',
                 background: 'linear-gradient(transparent, rgba(0,0,0,.86))',
+                overflowY: 'auto',
               }}
             >
               <strong style={{ fontSize: '24px' }}>
                 {activeUser.name || t('profileImage')}
-                {typeof activeUser.age === 'number' ? `, ${activeUser.age}` : ''}
+                {!activeUser.hide_age && typeof activeUser.age === 'number' ? `, ${activeUser.age}` : ''}
               </strong>
-              {typeof activeUser.distance === 'number' && (
-                <span style={{ color: '#eee', fontSize: '14px' }}>
-                  {formatDistance(activeUser.distance)}
+              {typeof activeUser.karma === 'number' && (
+                <span data-testid="daily-swipe-karma" style={{ fontSize: '13px', fontWeight: 700 }}>
+                  {t('karma')}: {activeUser.karma}
                 </span>
               )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 10px', color: '#eee', fontSize: '12px' }}>
+                {typeof activeUser.distance === 'number' && (
+                  <span data-testid="daily-swipe-distance">{formatDistance(activeUser.distance)}</span>
+                )}
+                <span data-testid="daily-swipe-last-online">
+                  {t('lastOnline')}: {formatLastSeen(activeUser.last_seen)}
+                </span>
+              </div>
+              <div data-testid="daily-swipe-profile-stats" style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                {activeUser.height && <span style={statChipStyle}>{t('height')} {activeUser.height}</span>}
+                {activeUser.weight && <span style={statChipStyle}>{t('weight')} {activeUser.weight}</span>}
+                {showPreferenceTags && activeUser.role_pref && <span style={statChipStyle}>{t(activeUser.role_pref)}</span>}
+                {showPreferenceTags && activeUser.safety_pref && <span style={statChipStyle}>{t(activeUser.safety_pref)}</span>}
+                {showPreferenceTags && activeUser.playstyle_pref && <span style={statChipStyle}>{t(activeUser.playstyle_pref)}</span>}
+                {showPreferenceTags && activeUser.how_many_pref && <span style={statChipStyle}>{formatHowMany(activeUser.how_many_pref)}</span>}
+                {showPreferenceTags && (
+                  <span style={statChipStyle}>
+                    {activeUser.where_pref ? t(activeUser.where_pref) : t('Anywhere')}
+                  </span>
+                )}
+              </div>
             </div>
           </article>
-          <div style={{ display: 'flex', width: 'min(100%, 390px)', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', width: 'min(100%, 390px)', gap: '8px' }}>
             <button
               type="button"
               aria-label={t('pass')}
               data-testid="daily-swipe-left"
               disabled={actionPending || storageError}
-              onClick={() => void advance(false)}
-              style={{ ...actionButtonStyle, flex: 1, color: '#f87171' }}
+              onClick={() => void advance('left')}
+              style={{ ...actionButtonStyle, minWidth: 0, padding: '10px 4px', color: '#f87171' }}
             >
               {t('pass')}
+            </button>
+            <button
+              type="button"
+              aria-label={t('dailySwipeLater')}
+              title={t('dailySwipeLater')}
+              data-testid="daily-swipe-later"
+              disabled={actionPending || storageError}
+              onClick={() => void advance('later')}
+              style={{ ...actionButtonStyle, minWidth: 0, padding: '10px 4px', color: '#fbbf24' }}
+            >
+              ?
             </button>
             <button
               type="button"
               aria-label={t('interested')}
               data-testid="daily-swipe-right"
               disabled={actionPending || storageError}
-              onClick={() => void advance(true)}
-              style={{ ...actionButtonStyle, flex: 1, color: '#fb7185' }}
+              onClick={() => void advance('right')}
+              style={{ ...actionButtonStyle, minWidth: 0, padding: '10px 4px', color: '#fb7185' }}
             >
               ❤️ {t('interested')}
+            </button>
+            <button
+              type="button"
+              aria-label={t('known')}
+              data-testid="daily-swipe-known"
+              disabled={actionPending || storageError || activeUser.known_request_state_known !== true || activeUser.known_request_blocked === true}
+              onClick={() => void advance('known')}
+              style={{ ...actionButtonStyle, minWidth: 0, padding: '10px 4px', color: '#93c5fd' }}
+            >
+              {t('known')}
             </button>
           </div>
           {storageError && (
@@ -283,7 +356,7 @@ export default function DailySwipeModule({
           )}
           {sendError && (
             <p role="alert" style={{ color: '#fca5a5', textAlign: 'center', margin: 0 }}>
-              {t('dailySwipeSendFailed')}
+              {t(failedAction === 'known' ? 'dailySwipeKnownFailed' : 'dailySwipeSendFailed')}
             </p>
           )}
           {actionPending && (
@@ -294,6 +367,16 @@ export default function DailySwipeModule({
     </section>
   );
 }
+
+const statChipStyle: React.CSSProperties = {
+  padding: '4px 8px',
+  border: '1px solid rgba(255,255,255,.2)',
+  borderRadius: '12px',
+  background: 'rgba(18,18,18,.78)',
+  color: '#fff',
+  fontSize: '11px',
+  lineHeight: 1.25,
+};
 
 const actionButtonStyle: React.CSSProperties = {
   minHeight: '48px',

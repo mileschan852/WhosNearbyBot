@@ -7,6 +7,10 @@ const gridSource = readFileSync(
   new URL("../src/modules/nearby-grid/NearbyGridModule.tsx", import.meta.url),
   "utf8",
 );
+const swipeSource = readFileSync(
+  new URL("../src/modules/nearby-grid/DailySwipeModule.tsx", import.meta.url),
+  "utf8",
+);
 
 test("the profile-card heart sends the signed-in user's interest and consumes the cooldown response", () => {
   assert.match(appSource, /workerPostRef\.current\('\/api\/profile-interest\/send'/);
@@ -61,6 +65,21 @@ test("the nearby grid refreshes while the Mini App is active so other users see 
   assert.match(appSource, /const NEARBY_REFRESH_INTERVAL_MS = 15 \* 60_000/);
   assert.match(appSource, /window\.setInterval\(refreshNearby, NEARBY_REFRESH_INTERVAL_MS\)/);
   assert.match(appSource, /document\.addEventListener\('visibilitychange', refreshNearby\)/);
+});
+
+test("Known requests are excluded from Swipe and keep a blocking prompt until answered", () => {
+  assert.match(appSource, /user\.known_request_state_known === true/);
+  assert.match(appSource, /user\.known_request_blocked !== true/);
+  assert.match(appSource, /\/api\/known\/request/);
+  assert.match(appSource, /\/api\/known\/pending/);
+  assert.match(appSource, /\/api\/known\/respond/);
+  assert.match(appSource, /known-request-blocking-dialog/);
+  assert.match(appSource, /aria-modal="true"/);
+  assert.match(appSource, /setPendingKnownRequest\(\{ \.\.\.pending, status: 'awaiting_recommendation' \}\)/);
+  assert.match(swipeSource, /data-testid="daily-swipe-known"/);
+  assert.match(swipeSource, /advance\('known'\)/);
+  assert.match(swipeSource, /daily-swipe-karma/);
+  assert.match(appSource, /const appendSwipeDirectionToPrivateNote[\s\S]*?savePrivateNote\(targetId, nextNote\)/);
 });
 
 test("Map requests coordinates on demand and closes cards for stale pins", () => {

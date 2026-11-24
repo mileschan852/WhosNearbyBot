@@ -160,11 +160,28 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: 'No visible profiles with uploaded Telegram photos are available right now.',
     dailySwipeStorageError: 'Today’s swipe progress could not be saved. Please retry.',
     dailySwipeSendFailed: 'Interest could not be sent. Your place in the deck has been kept.',
+    dailySwipeKnownFailed: 'Known request could not be sent. This profile remains in the deck.',
     dailySwipePhotoRequired: 'Swipe is only available to users with an uploaded Telegram profile photo.',
     swipeProfile: 'Swipe profile',
     pass: 'Pass',
     interested: 'Interested',
     dailySwipeSending: 'Sending interest…',
+    dailySwipeLeftNote: 'Swiped left',
+    dailySwipeRightNote: 'Swiped right',
+    dailySwipeLater: 'Skip for later (tomorrow)',
+    lastOnline: 'Last online',
+    known: 'Known',
+    karma: 'Karma',
+    knownQuestionTitle: 'Have you met this person?',
+    knownQuestionBody: 'They want to know if you have met them.',
+    knownYes: 'Yes',
+    knownNo: 'No',
+    knownRecommendationTitle: 'Would you recommend this person?',
+    knownRecommended: 'Recommend',
+    knownNotRecommended: 'Not recommend',
+    knownCheckFailed: 'A required Known question could not be checked. Retry before continuing.',
+    knownResponseFailed: 'Your answer could not be saved. Please try again.',
+    knownSubmitting: 'Saving your answer…',
   },
   'zh-CN': {
     swipe: '滑动',
@@ -172,11 +189,28 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '目前没有带有已上传 Telegram 个人照片的可见资料。',
     dailySwipeStorageError: '无法保存今日浏览进度，请重试。',
     dailySwipeSendFailed: '无法发送兴趣信号，当前资料仍会保留。',
+    dailySwipeKnownFailed: '无法发送认识请求，此资料仍会保留。',
     dailySwipePhotoRequired: '只有已在 Telegram 上传个人照片的用户才能使用滑动功能。',
     swipeProfile: '滑动资料',
     pass: '跳过',
     interested: '感兴趣',
     dailySwipeSending: '正在发送兴趣信号…',
+    dailySwipeLeftNote: '向左滑过',
+    dailySwipeRightNote: '向右滑过',
+    dailySwipeLater: '稍后再看（明天）',
+    lastOnline: '上次在线',
+    known: '认识',
+    karma: '口碑',
+    knownQuestionTitle: '你见过这个人吗？',
+    knownQuestionBody: '对方想确认你们是否见过面。',
+    knownYes: '见过',
+    knownNo: '没见过',
+    knownRecommendationTitle: '你愿意推荐这个人吗？',
+    knownRecommended: '推荐',
+    knownNotRecommended: '不推荐',
+    knownCheckFailed: '无法检查待回答的问题。请重试后再继续。',
+    knownResponseFailed: '无法保存你的回答，请重试。',
+    knownSubmitting: '正在保存回答…',
   },
   'zh-TW': {
     swipe: '滑動',
@@ -184,11 +218,28 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '目前沒有可見且已上傳 Telegram 個人照片的資料。',
     dailySwipeStorageError: '無法儲存今日瀏覽進度，請重試。',
     dailySwipeSendFailed: '無法傳送興趣訊號，目前資料仍會保留。',
+    dailySwipeKnownFailed: '無法傳送認識請求，目前資料仍會保留。',
     dailySwipePhotoRequired: '只有已在 Telegram 上傳個人照片的用戶才能使用滑動功能。',
     swipeProfile: '滑動資料',
     pass: '略過',
     interested: '感興趣',
     dailySwipeSending: '正在傳送興趣訊號…',
+    dailySwipeLeftNote: '向左滑過',
+    dailySwipeRightNote: '向右滑過',
+    dailySwipeLater: '稍後再看（明天）',
+    lastOnline: '上次上線',
+    known: '認識',
+    karma: '口碑',
+    knownQuestionTitle: '你見過這個人嗎？',
+    knownQuestionBody: '對方想確認你們是否見過面。',
+    knownYes: '見過',
+    knownNo: '沒見過',
+    knownRecommendationTitle: '你願意推薦這個人嗎？',
+    knownRecommended: '推薦',
+    knownNotRecommended: '不推薦',
+    knownCheckFailed: '無法檢查待回答的問題。請重試後再繼續。',
+    knownResponseFailed: '無法儲存你的回答，請重試。',
+    knownSubmitting: '正在儲存回答…',
   },
   ja: {
     swipe: 'スワイプ',
@@ -196,11 +247,28 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '現在、Telegramにプロフィール写真をアップロードしている表示可能なプロフィールはありません。',
     dailySwipeStorageError: '今日の閲覧状況を保存できませんでした。もう一度お試しください。',
     dailySwipeSendFailed: '興味を送信できませんでした。このプロフィールはそのまま表示されます。',
+    dailySwipeKnownFailed: '知り合いの確認を送信できませんでした。このプロフィールはそのまま表示されます。',
     dailySwipePhotoRequired: 'Telegramにプロフィール写真をアップロードしたユーザーのみスワイプを利用できます。',
     swipeProfile: 'スワイププロフィール',
     pass: 'スキップ',
     interested: '興味あり',
     dailySwipeSending: '興味を送信中…',
+    dailySwipeLeftNote: '左にスワイプ',
+    dailySwipeRightNote: '右にスワイプ',
+    dailySwipeLater: '後で見る（明日）',
+    lastOnline: '最終オンライン',
+    known: '知り合い',
+    karma: '評価',
+    knownQuestionTitle: 'この人に会ったことがありますか？',
+    knownQuestionBody: '相手は、あなたが会ったことがあるか確認しています。',
+    knownYes: 'はい',
+    knownNo: 'いいえ',
+    knownRecommendationTitle: 'この人をおすすめしますか？',
+    knownRecommended: 'おすすめする',
+    knownNotRecommended: 'おすすめしない',
+    knownCheckFailed: '未回答の質問を確認できませんでした。続行する前に再試行してください。',
+    knownResponseFailed: '回答を保存できませんでした。もう一度お試しください。',
+    knownSubmitting: '回答を保存しています…',
   },
   ko: {
     swipe: '스와이프',
@@ -208,11 +276,28 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '현재 Telegram 프로필 사진을 업로드한 공개 프로필이 없습니다.',
     dailySwipeStorageError: '오늘의 진행 상태를 저장하지 못했습니다. 다시 시도해 주세요.',
     dailySwipeSendFailed: '관심을 보내지 못했습니다. 현재 프로필은 그대로 남아 있습니다.',
+    dailySwipeKnownFailed: '아는 사람 요청을 보내지 못했습니다. 현재 프로필은 그대로 유지됩니다.',
     dailySwipePhotoRequired: 'Telegram 프로필 사진을 업로드한 사용자만 스와이프를 사용할 수 있습니다.',
     swipeProfile: '스와이프 프로필',
     pass: '건너뛰기',
     interested: '관심 있음',
     dailySwipeSending: '관심을 보내는 중…',
+    dailySwipeLeftNote: '왼쪽으로 넘김',
+    dailySwipeRightNote: '오른쪽으로 넘김',
+    dailySwipeLater: '나중에 보기(내일)',
+    lastOnline: '마지막 접속',
+    known: '아는 사람',
+    karma: '평판',
+    knownQuestionTitle: '이 사람을 만난 적이 있나요?',
+    knownQuestionBody: '상대방이 만난 적이 있는지 확인하고 싶어 합니다.',
+    knownYes: '예',
+    knownNo: '아니요',
+    knownRecommendationTitle: '이 사람을 추천하시겠어요?',
+    knownRecommended: '추천',
+    knownNotRecommended: '추천하지 않음',
+    knownCheckFailed: '답변이 필요한 질문을 확인하지 못했습니다. 계속하기 전에 다시 시도하세요.',
+    knownResponseFailed: '답변을 저장하지 못했습니다. 다시 시도하세요.',
+    knownSubmitting: '답변 저장 중…',
   },
   ru: {
     swipe: 'Просмотр',
@@ -220,11 +305,28 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: 'Сейчас нет видимых профилей с загруженной фотографией Telegram.',
     dailySwipeStorageError: 'Не удалось сохранить прогресс за сегодня. Попробуйте ещё раз.',
     dailySwipeSendFailed: 'Не удалось отправить сигнал интереса. Профиль останется на месте.',
+    dailySwipeKnownFailed: 'Не удалось отправить запрос о знакомстве. Профиль останется в списке.',
     dailySwipePhotoRequired: 'Просмотр доступен только пользователям, загрузившим фотографию профиля в Telegram.',
     swipeProfile: 'Профиль для просмотра',
     pass: 'Пропустить',
     interested: 'Интересно',
     dailySwipeSending: 'Отправляем сигнал интереса…',
+    dailySwipeLeftNote: 'Смахнул влево',
+    dailySwipeRightNote: 'Смахнул вправо',
+    dailySwipeLater: 'На потом (завтра)',
+    lastOnline: 'Последний онлайн',
+    known: 'Знакомы',
+    karma: 'Репутация',
+    knownQuestionTitle: 'Вы встречались с этим человеком?',
+    knownQuestionBody: 'Этот человек хочет узнать, встречались ли вы.',
+    knownYes: 'Да',
+    knownNo: 'Нет',
+    knownRecommendationTitle: 'Вы рекомендуете этого человека?',
+    knownRecommended: 'Рекомендую',
+    knownNotRecommended: 'Не рекомендую',
+    knownCheckFailed: 'Не удалось проверить ожидающий вопрос. Повторите попытку, прежде чем продолжить.',
+    knownResponseFailed: 'Не удалось сохранить ответ. Попробуйте ещё раз.',
+    knownSubmitting: 'Сохраняем ответ…',
   },
 };
 const PROFILE_UPDATE_OFFER_COPY: Record<LangKey, {
@@ -2739,6 +2841,46 @@ export interface UserProfile {
   interest_received?: boolean;
   interest_cooldown_until?: string | null;
   interest_state_known?: boolean;
+  known_request_blocked?: boolean;
+  known_request_state_known?: boolean;
+  karma?: number | null;
+}
+
+interface PendingKnownRequest {
+  requestId: string;
+  requester: {
+    id: string;
+    name: string;
+    username: string;
+    avatar: string;
+  };
+  status: 'pending' | 'awaiting_recommendation';
+}
+
+function normalizePendingKnownRequest(value: unknown): PendingKnownRequest | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, any>;
+  const requester = record.requester;
+  if (
+    typeof record.requestId !== 'string' ||
+    !/^[0-9a-f-]{36}$/i.test(record.requestId) ||
+    !requester ||
+    typeof requester.id !== 'string' ||
+    !/^tg_[1-9][0-9]{0,19}$/.test(requester.id) ||
+    !['pending', 'awaiting_recommendation'].includes(record.status)
+  ) {
+    return null;
+  }
+  return {
+    requestId: record.requestId,
+    requester: {
+      id: requester.id,
+      name: typeof requester.name === 'string' ? requester.name.slice(0, 80) : 'Anonymous',
+      username: typeof requester.username === 'string' ? requester.username.slice(0, 32) : '',
+      avatar: typeof requester.avatar === 'string' ? requester.avatar.slice(0, 2048) : '',
+    },
+    status: record.status,
+  };
 }
 
 function toAdminProfileValues(profile: Partial<UserProfile>): ProfileCompletionValues {
@@ -3049,6 +3191,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 22.3193, lng: 114.1694 });
   const [isReady, setIsReady] = useState<boolean>(false);
   const [startupError, setStartupError] = useState<string>('');
+  const [pendingKnownRequest, setPendingKnownRequest] = useState<PendingKnownRequest | null>(null);
+  const [knownRequestCheckFailed, setKnownRequestCheckFailed] = useState(false);
+  const [knownResponsePending, setKnownResponsePending] = useState(false);
+  const [knownResponseError, setKnownResponseError] = useState('');
+  const knownResponseLockRef = useRef(false);
+  const knownPromptFocusRef = useRef<HTMLButtonElement | null>(null);
   const [showProfileSetup, setShowProfileSetup] = useState<boolean>(false);
   const [profileUpdateOfferAt, setProfileUpdateOfferAt] = useState<string | null>(null);
   const [profileUpdateOfferBusy, setProfileUpdateOfferBusy] = useState(false);
@@ -3627,6 +3775,28 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   };
   workerPostRef.current = workerPost;
 
+  const refreshPendingKnownRequest = async () => {
+    try {
+      const result = await workerPostRef.current('/api/known/pending');
+      if (!result || !Object.hasOwn(result, 'pending')) {
+        throw new Error('Pending Known response was invalid.');
+      }
+      const pending = result.pending === null
+        ? null
+        : normalizePendingKnownRequest(result.pending);
+      if (result.pending !== null && !pending) {
+        throw new Error('Pending Known request was invalid.');
+      }
+      setPendingKnownRequest(pending);
+      setKnownRequestCheckFailed(false);
+      setKnownResponseError('');
+      return true;
+    } catch {
+      setKnownRequestCheckFailed(true);
+      return false;
+    }
+  };
+
   const enqueuePendingAccessRecoverySync = (operation: () => Promise<unknown>) => {
     const next = pendingAccessRecoverySyncRef.current.then(
       async () => { await operation(); },
@@ -4025,6 +4195,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           ? u.interest_cooldown_until
           : null,
         interest_state_known: u.interest_state_known === true,
+        known_request_blocked: u.known_request_blocked === true,
+        known_request_state_known: u.known_request_state_known === true,
+        karma: Number.isInteger(u.karma) ? u.karma : null,
       })).sort((a, b) => {
         if (a.id === currentUser?.id) return -1;
         if (b.id === currentUser?.id) return 1;
@@ -4086,6 +4259,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           throw new Error('This app entry is not registered with its backend bot.');
         }
         verifiedBotKeyRef.current = activeEntry.botKey;
+        await refreshPendingKnownRequest();
         const existingProfile: any = authResponse.profile;
         if (!existingProfile?.id) throw new Error('Your profile could not be loaded.');
         const userUsername = existingProfile.username || tgUser?.username || '';
@@ -4200,6 +4374,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           name: userName,
           username: userUsername,
           avatar: userAvatar,
+          karma: Number.isInteger(existingProfile.karma) ? existingProfile.karma : null,
           lat: currentLoc.lat,
           lng: currentLoc.lng,
           last_seen: new Date().toISOString(),
@@ -4227,7 +4402,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           setCurrentUser(myProfile);
         } else if (!isFullySetup) {
           setShowProfileSetup(true);
-          setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null, vip_expiry: existingProfile?.vip_expiry || null });
+          setCurrentUser({ id: userId, name: userName, username: userUsername, avatar: userAvatar, karma: Number.isInteger(existingProfile.karma) ? existingProfile.karma : null, lat: null, lng: null, last_seen: null, gender: initialGender, seeking: initialSeeking, dob: null, height: null, weight: null, role_pref: null, safety_pref: null, playstyle_pref: null, where_pref: null, how_many_pref: null, non_man_mode: null, is_underage: false, hide_age: false, grid_visible: true, map_visible: false, hide_age_expiry: null, invisible_expiry: null, vip_expiry: existingProfile?.vip_expiry || null });
         } else {
           setCurrentUser(myProfile);
           // The existing profile is enough to show the app. Nearby results
@@ -4263,6 +4438,32 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     initApp();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount; deps are intentionally frozen at init
   }, []);
+
+  useEffect(() => {
+    if (!isReady || !currentUser?.id) return;
+    let checking = false;
+    const refresh = async () => {
+      if (checking || knownResponseLockRef.current) return;
+      checking = true;
+      await refreshPendingKnownRequest();
+      checking = false;
+    };
+    const timer = window.setInterval(() => {
+      if (!pendingKnownRequest && document.visibilityState === 'visible') void refresh();
+    }, 15_000);
+    const handleVisibility = () => {
+      if (!pendingKnownRequest && document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isReady, currentUser?.id, pendingKnownRequest]);
+
+  useEffect(() => {
+    if (pendingKnownRequest) knownPromptFocusRef.current?.focus();
+  }, [pendingKnownRequest, knownRequestCheckFailed]);
 
   const handleRefresh = async () => {
     if (!currentUser) return;
@@ -5661,6 +5862,70 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
+  const handleSendKnownRequest = async (targetUser: UserProfile): Promise<boolean> => {
+    if (
+      !currentUser ||
+      targetUser.id === currentUser.id ||
+      targetUser.known_request_state_known !== true ||
+      targetUser.known_request_blocked === true ||
+      !checkFilterPass(targetUser)
+    ) return false;
+    try {
+      const result = await workerPostRef.current('/api/known/request', {
+        recipientId: targetUser.id,
+      });
+      if (result?.status !== 'created' && result?.status !== 'already_requested') return false;
+      setUsers((previous) => previous.map((profile) =>
+        profile.id === targetUser.id
+          ? { ...profile, known_request_blocked: true, known_request_state_known: true }
+          : profile
+      ));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleKnownResponse = async (
+    decision: 'met_yes' | 'met_no' | 'recommended' | 'not_recommended',
+  ) => {
+    const pending = pendingKnownRequest;
+    if (!pending || knownResponseLockRef.current) return;
+    knownResponseLockRef.current = true;
+    setKnownResponsePending(true);
+    setKnownResponseError('');
+    try {
+      const result = await workerPostRef.current('/api/known/respond', {
+        requestId: pending.requestId,
+        decision,
+      });
+      if (result?.status === 'awaiting_recommendation') {
+        setPendingKnownRequest({ ...pending, status: 'awaiting_recommendation' });
+      } else if (
+        result?.status === 'declined' ||
+        result?.status === 'recommended' ||
+        result?.status === 'not_recommended' ||
+        result?.status === 'already_resolved'
+      ) {
+        setPendingKnownRequest(null);
+        if (result.status === 'recommended' || result.status === 'not_recommended') {
+          setUsers((previous) => previous.map((profile) =>
+            profile.id === pending.requester.id && Number.isInteger(result.karma)
+              ? { ...profile, karma: result.karma }
+              : profile
+          ));
+        }
+      } else {
+        throw new Error('Known response was invalid.');
+      }
+    } catch {
+      setKnownResponseError(DAILY_SWIPE_COPY[lang].knownResponseFailed);
+    } finally {
+      knownResponseLockRef.current = false;
+      setKnownResponsePending(false);
+    }
+  };
+
   const handleOpenExternalApp = (url: string) => {
     if (url.includes('t.me') && window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(url);
     else if (window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(url);
@@ -5789,6 +6054,23 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     const payload = JSON.stringify({ t: text, x: text ? Date.now() + NOTE_TTL_MS : null });
     try { localStorage.setItem(key, payload); } catch {}
     try { window.Telegram?.WebApp?.CloudStorage?.setItem?.(key, payload); } catch {}
+  };
+
+  const appendSwipeDirectionToPrivateNote = (
+    targetId: string,
+    direction: 'left' | 'right',
+  ) => {
+    let existingNote = notesMap[targetId];
+    if (existingNote === undefined) {
+      try {
+        existingNote = parseNotePayload(localStorage.getItem(noteKeyFor(targetId))) || '';
+      } catch {
+        existingNote = '';
+      }
+    }
+    const swipeNote = t(direction === 'left' ? 'dailySwipeLeftNote' : 'dailySwipeRightNote');
+    const nextNote = `${existingNote.trim()}${existingNote.trim() ? '\n' : ''}${swipeNote}`.slice(-100);
+    savePrivateNote(targetId, nextNote);
   };
 
   const closeAdminEdit = () => {
@@ -6727,6 +7009,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         user.id !== currentUser?.id &&
         resolveGridVisibility(user.grid_visible, user.invisible_expiry) &&
         hasUploadedMainProfileImage(user.avatar) &&
+        user.known_request_state_known === true &&
+        user.known_request_blocked !== true &&
         checkFilterPass(user),
       )
     : [];
@@ -6913,8 +7197,195 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     </Suspense>
   );
 
+  const knownCopy = DAILY_SWIPE_COPY[lang];
+  const knownButtonStyle: React.CSSProperties = {
+    minHeight: '48px',
+    padding: '10px 16px',
+    border: '1px solid #4b5563',
+    borderRadius: '10px',
+    background: '#2563eb',
+    color: '#fff',
+    font: 'inherit',
+    fontWeight: 700,
+    cursor: knownResponsePending ? 'wait' : 'pointer',
+  };
+  const knownBlockingOverlay = knownRequestCheckFailed || pendingKnownRequest ? (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="known-request-title"
+      data-testid="known-request-blocking-dialog"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        if (event.key !== 'Tab') return;
+        const controls = [...event.currentTarget.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )];
+        if (!controls.length) {
+          event.preventDefault();
+          return;
+        }
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 20000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        background: '#121212',
+        color: '#fff',
+        fontFamily: 'sans-serif',
+      }}
+    >
+      <section
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '14px',
+          width: 'min(100%, 420px)',
+          maxHeight: '90dvh',
+          overflowY: 'auto',
+          padding: '24px',
+          border: '1px solid #444',
+          borderRadius: '18px',
+          background: '#1e1e1e',
+          textAlign: 'center',
+        }}
+      >
+        <h1 id="known-request-title" style={{ margin: 0, fontSize: '22px' }}>
+          {knownRequestCheckFailed
+            ? knownCopy.known
+            : pendingKnownRequest?.status === 'awaiting_recommendation'
+              ? knownCopy.knownRecommendationTitle
+              : knownCopy.knownQuestionTitle}
+        </h1>
+        {knownRequestCheckFailed ? (
+          <>
+            <p style={{ margin: 0, color: '#fca5a5', lineHeight: 1.5 }}>{knownCopy.knownCheckFailed}</p>
+            <button
+              ref={knownPromptFocusRef}
+              type="button"
+              data-testid="known-request-retry"
+              onClick={() => { void refreshPendingKnownRequest(); }}
+              style={knownButtonStyle}
+            >
+              {t('refresh')}
+            </button>
+          </>
+        ) : pendingKnownRequest ? (
+          <>
+            {pendingKnownRequest.requester.avatar ? (
+              <img
+                src={pendingKnownRequest.requester.avatar}
+                alt={pendingKnownRequest.requester.name}
+                style={{
+                  width: 'min(64vw, 240px)',
+                  height: 'min(64vw, 240px)',
+                  objectFit: 'cover',
+                  borderRadius: '16px',
+                }}
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                style={{
+                  width: '120px',
+                  height: '120px',
+                  display: 'grid',
+                  placeItems: 'center',
+                  borderRadius: '50%',
+                  background: '#374151',
+                  fontSize: '40px',
+                  fontWeight: 700,
+                }}
+              >
+                {pendingKnownRequest.requester.name.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <strong style={{ fontSize: '19px' }}>
+              {pendingKnownRequest.requester.name}
+              {pendingKnownRequest.requester.username
+                ? ` · @${pendingKnownRequest.requester.username.replace(/^@/, '')}`
+                : ''}
+            </strong>
+            <p style={{ margin: 0, color: '#d1d5db', lineHeight: 1.5 }}>
+              {pendingKnownRequest.status === 'awaiting_recommendation'
+                ? knownCopy.knownRecommendationTitle
+                : knownCopy.knownQuestionBody}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', width: '100%' }}>
+              {pendingKnownRequest.status === 'pending' ? (
+                <>
+                  <button
+                    ref={knownPromptFocusRef}
+                    type="button"
+                    data-testid="known-request-yes"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownResponse('met_yes'); }}
+                    style={knownButtonStyle}
+                  >
+                    {knownCopy.knownYes}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="known-request-no"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownResponse('met_no'); }}
+                    style={{ ...knownButtonStyle, background: '#374151' }}
+                  >
+                    {knownCopy.knownNo}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    ref={knownPromptFocusRef}
+                    type="button"
+                    data-testid="known-request-recommend"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownResponse('recommended'); }}
+                    style={knownButtonStyle}
+                  >
+                    {knownCopy.knownRecommended}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="known-request-not-recommend"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownResponse('not_recommended'); }}
+                    style={{ ...knownButtonStyle, background: '#374151' }}
+                  >
+                    {knownCopy.knownNotRecommended}
+                  </button>
+                </>
+              )}
+            </div>
+            {knownResponsePending && <p role="status" style={{ margin: 0 }}>{knownCopy.knownSubmitting}</p>}
+            {knownResponseError && <p role="alert" style={{ margin: 0, color: '#fca5a5' }}>{knownResponseError}</p>}
+          </>
+        ) : null}
+      </section>
+    </div>
+  ) : null;
+
   if (showProfileSetup && !showProfileEditModal) {
-    return <div style={appShellStyle}>{profileCompletionView}</div>;
+    return <div style={appShellStyle}>{profileCompletionView}{knownBlockingOverlay}</div>;
   }
 
   const roleFilterActive = Boolean(filterRoleVal && filterRoleVal !== 'Off');
@@ -7166,8 +7637,15 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               users={dailySwipeUsers}
               accountId={currentUser?.id || null}
               onRightSwipe={handleSendInterest}
+              onKnown={handleSendKnownRequest}
+              onSwipeDecision={(user, direction) =>
+                appendSwipeDirectionToPrivateNote(user.id, direction)}
               onRefresh={() => { void handleRefresh(); }}
               formatDistance={formatDistanceBigUnit}
+              formatLastSeen={(lastSeen) =>
+                renderLastSeenBigUnit(formatLastSeenBigUnit(lastSeen), t)}
+              formatHowMany={howManyLabel}
+              showPreferenceTags={currentUserIsM2M}
               t={t}
             />
           </Suspense>
@@ -7448,6 +7926,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {!activeProfile.hide_age && (typeof activeProfile.age === 'number' ? activeProfile.age : calculateAge(activeProfile.dob)) && <span>{typeof activeProfile.age === 'number' ? activeProfile.age : calculateAge(activeProfile.dob)}</span>}
                 <span style={{ fontSize: '6.5px', lineHeight: 1 }}>{activeProfile.zodiac || getZodiacSignEmoji(activeProfile.dob)}</span><span>&bull;</span><span>{activeProfile.height}</span><span>&bull;</span><span>{activeProfile.weight}</span>
+                {typeof activeProfile.karma === 'number' && <span data-testid={`profile-karma-${activeProfile.id}`}>{t('karma')}: {activeProfile.karma}</span>}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', fontSize: '13px', color: '#ccc', marginBottom: '16px', alignItems: 'center' }}>
                 {isViewingSelf ? <span>&nbsp;</span> : <><span>{formatDistanceBigUnit(activeProfile.distance)} {t('away')}</span><span>&bull;</span></>}<span style={{ color: '#4ade80' }}>{renderLastSeenBigUnit(formatLastSeenBigUnit(activeProfile.last_seen), t)}</span>
@@ -8236,6 +8715,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
           }}
         />
       )}
+      {knownBlockingOverlay}
     </div>
   );
 }
