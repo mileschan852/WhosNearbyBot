@@ -5909,8 +5909,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       targetUser.id === currentUser.id ||
       targetUser.known_request_state_known !== true ||
       targetUser.known_request_blocked === true ||
-      knownSendingTo !== null ||
-      !checkFilterPass(targetUser)
+      knownSendingTo !== null
     ) return false;
     setKnownRequestFeedback(null);
     setKnownSendingTo(targetUser.id);
@@ -8142,6 +8141,22 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     </svg>
                     <span>{t('sendMessage')}</span>
                   </button>
+                  {activeInterestStatusMessage && (
+                    <div
+                      role="status"
+                      data-testid={`status-interest-${activeProfile.id}`}
+                      style={{ flexBasis: '100%', marginTop: '0', color: '#d1d5db', fontSize: '12px', textAlign: 'center' }}
+                    >
+                      {activeInterestStatusMessage}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isViewingSelf && (
+                <div
+                  data-testid={`known-profile-actions-${activeProfile.id}`}
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', width: '100%', marginTop: '12px' }}
+                >
                   <button
                     type="button"
                     onClick={(event) => {
@@ -8216,15 +8231,6 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                       {knownRequestFeedback.status === 'failed'
                         ? knownCopy.knownProfileFailed
                         : knownCopy.knownProfileSent}
-                    </div>
-                  )}
-                  {activeInterestStatusMessage && (
-                    <div
-                      role="status"
-                      data-testid={`status-interest-${activeProfile.id}`}
-                      style={{ flexBasis: '100%', marginTop: '0', color: '#d1d5db', fontSize: '12px', textAlign: 'center' }}
-                    >
-                      {activeInterestStatusMessage}
                     </div>
                   )}
                 </div>
