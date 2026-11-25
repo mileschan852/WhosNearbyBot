@@ -92,8 +92,8 @@ export default function DailySwipeModule({
       .filter((user) =>
         user.id !== accountId &&
         user.grid_visible !== false &&
-        user.known_request_state_known === true &&
-        user.known_request_blocked !== true &&
+        user.known_review_state_known === true &&
+        user.known_reviewed !== true &&
         hasUploadedMainProfileImage(user.avatar),
       )
       .slice()
@@ -342,7 +342,7 @@ export default function DailySwipeModule({
               type="button"
               aria-label={t('known')}
               data-testid="daily-swipe-known"
-              disabled={actionPending || storageError || activeUser.known_request_state_known !== true || activeUser.known_request_blocked === true}
+              disabled={actionPending || storageError || activeUser.known_review_state_known !== true || activeUser.known_reviewed === true}
               onClick={() => void advance('known')}
               style={{ ...actionButtonStyle, minWidth: 0, padding: '10px 4px', color: '#93c5fd' }}
             >

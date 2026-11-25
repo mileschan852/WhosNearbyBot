@@ -160,7 +160,7 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: 'No visible profiles with uploaded Telegram photos are available right now.',
     dailySwipeStorageError: 'Today’s swipe progress could not be saved. Please retry.',
     dailySwipeSendFailed: 'Interest could not be sent. Your place in the deck has been kept.',
-    dailySwipeKnownFailed: 'Known request could not be sent. This profile remains in the deck.',
+    dailySwipeKnownFailed: 'Could not open the private Known review. This profile remains in the deck.',
     dailySwipePhotoRequired: 'Swipe is only available to users with an uploaded Telegram profile photo.',
     swipeProfile: 'Swipe profile',
     pass: 'Pass',
@@ -181,9 +181,9 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     knownNotRecommended: 'Not recommend',
     knownLater: 'Later',
     knownProfileAction: 'I haven’t met this person',
-    knownAlreadyAsked: 'Already asked',
-    knownProfileFailed: 'Could not send the question. Please try again.',
-    knownProfileSent: 'Question sent. You can ask this person only once.',
+    knownAlreadyAsked: 'Already submitted',
+    knownProfileFailed: 'Could not save your review. Please try again.',
+    knownProfileSent: 'Saved privately. The other person was not notified.',
     knownCheckFailed: 'A required Known question could not be checked. Retry before continuing.',
     knownResponseFailed: 'Your answer could not be saved. Please try again.',
     knownSubmitting: 'Saving your answer…',
@@ -194,7 +194,7 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '目前没有带有已上传 Telegram 个人照片的可见资料。',
     dailySwipeStorageError: '无法保存今日浏览进度，请重试。',
     dailySwipeSendFailed: '无法发送兴趣信号，当前资料仍会保留。',
-    dailySwipeKnownFailed: '无法发送认识请求，此资料仍会保留。',
+    dailySwipeKnownFailed: '无法打开私下的认识评价，此资料仍会保留。',
     dailySwipePhotoRequired: '只有已在 Telegram 上传个人照片的用户才能使用滑动功能。',
     swipeProfile: '滑动资料',
     pass: '跳过',
@@ -215,9 +215,9 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     knownNotRecommended: '不推荐',
     knownLater: '稍后',
     knownProfileAction: '我还没见过这个人',
-    knownAlreadyAsked: '已询问',
-    knownProfileFailed: '无法发送问题，请重试。',
-    knownProfileSent: '问题已发送。只能询问此人一次。',
+    knownAlreadyAsked: '已提交',
+    knownProfileFailed: '无法保存评价，请重试。',
+    knownProfileSent: '已私下保存，对方不会收到通知。',
     knownCheckFailed: '无法检查待回答的问题。请重试后再继续。',
     knownResponseFailed: '无法保存你的回答，请重试。',
     knownSubmitting: '正在保存回答…',
@@ -228,7 +228,7 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '目前沒有可見且已上傳 Telegram 個人照片的資料。',
     dailySwipeStorageError: '無法儲存今日瀏覽進度，請重試。',
     dailySwipeSendFailed: '無法傳送興趣訊號，目前資料仍會保留。',
-    dailySwipeKnownFailed: '無法傳送認識請求，目前資料仍會保留。',
+    dailySwipeKnownFailed: '無法開啟私下的認識評價，目前資料仍會保留。',
     dailySwipePhotoRequired: '只有已在 Telegram 上傳個人照片的用戶才能使用滑動功能。',
     swipeProfile: '滑動資料',
     pass: '略過',
@@ -249,9 +249,9 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     knownNotRecommended: '不推薦',
     knownLater: '稍後',
     knownProfileAction: '我還沒見過這個人',
-    knownAlreadyAsked: '已詢問',
-    knownProfileFailed: '無法傳送問題，請重試。',
-    knownProfileSent: '問題已傳送。只能詢問此人一次。',
+    knownAlreadyAsked: '已提交',
+    knownProfileFailed: '無法儲存評價，請重試。',
+    knownProfileSent: '已私下儲存，對方不會收到通知。',
     knownCheckFailed: '無法檢查待回答的問題。請重試後再繼續。',
     knownResponseFailed: '無法儲存你的回答，請重試。',
     knownSubmitting: '正在儲存回答…',
@@ -262,7 +262,7 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '現在、Telegramにプロフィール写真をアップロードしている表示可能なプロフィールはありません。',
     dailySwipeStorageError: '今日の閲覧状況を保存できませんでした。もう一度お試しください。',
     dailySwipeSendFailed: '興味を送信できませんでした。このプロフィールはそのまま表示されます。',
-    dailySwipeKnownFailed: '知り合いの確認を送信できませんでした。このプロフィールはそのまま表示されます。',
+    dailySwipeKnownFailed: '非公開の知り合いレビューを開けませんでした。このプロフィールは引き続き表示されます。',
     dailySwipePhotoRequired: 'Telegramにプロフィール写真をアップロードしたユーザーのみスワイプを利用できます。',
     swipeProfile: 'スワイププロフィール',
     pass: 'スキップ',
@@ -283,9 +283,9 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     knownNotRecommended: 'おすすめしない',
     knownLater: '後で',
     knownProfileAction: 'この人とはまだ会ったことがありません',
-    knownAlreadyAsked: '質問済み',
-    knownProfileFailed: '質問を送信できませんでした。もう一度お試しください。',
-    knownProfileSent: '質問を送信しました。この人には一度だけ質問できます。',
+    knownAlreadyAsked: '回答済み',
+    knownProfileFailed: '評価を保存できませんでした。もう一度お試しください。',
+    knownProfileSent: '非公開で保存しました。相手に通知は送られません。',
     knownCheckFailed: '未回答の質問を確認できませんでした。続行する前に再試行してください。',
     knownResponseFailed: '回答を保存できませんでした。もう一度お試しください。',
     knownSubmitting: '回答を保存しています…',
@@ -296,7 +296,7 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: '현재 Telegram 프로필 사진을 업로드한 공개 프로필이 없습니다.',
     dailySwipeStorageError: '오늘의 진행 상태를 저장하지 못했습니다. 다시 시도해 주세요.',
     dailySwipeSendFailed: '관심을 보내지 못했습니다. 현재 프로필은 그대로 남아 있습니다.',
-    dailySwipeKnownFailed: '아는 사람 요청을 보내지 못했습니다. 현재 프로필은 그대로 유지됩니다.',
+    dailySwipeKnownFailed: '비공개 지인 평가를 열 수 없습니다. 이 프로필은 덱에 남습니다.',
     dailySwipePhotoRequired: 'Telegram 프로필 사진을 업로드한 사용자만 스와이프를 사용할 수 있습니다.',
     swipeProfile: '스와이프 프로필',
     pass: '건너뛰기',
@@ -317,9 +317,9 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     knownNotRecommended: '추천하지 않음',
     knownLater: '나중에',
     knownProfileAction: '이 사람을 아직 만난 적이 없어요',
-    knownAlreadyAsked: '이미 질문함',
-    knownProfileFailed: '질문을 보내지 못했습니다. 다시 시도해 주세요.',
-    knownProfileSent: '질문을 보냈습니다. 이 사람에게는 한 번만 물을 수 있습니다.',
+    knownAlreadyAsked: '이미 제출함',
+    knownProfileFailed: '평가를 저장하지 못했습니다. 다시 시도해 주세요.',
+    knownProfileSent: '비공개로 저장했습니다. 상대방에게 알림은 가지 않습니다.',
     knownCheckFailed: '답변이 필요한 질문을 확인하지 못했습니다. 계속하기 전에 다시 시도하세요.',
     knownResponseFailed: '답변을 저장하지 못했습니다. 다시 시도하세요.',
     knownSubmitting: '답변 저장 중…',
@@ -330,7 +330,7 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     dailySwipeEmpty: 'Сейчас нет видимых профилей с загруженной фотографией Telegram.',
     dailySwipeStorageError: 'Не удалось сохранить прогресс за сегодня. Попробуйте ещё раз.',
     dailySwipeSendFailed: 'Не удалось отправить сигнал интереса. Профиль останется на месте.',
-    dailySwipeKnownFailed: 'Не удалось отправить запрос о знакомстве. Профиль останется в списке.',
+    dailySwipeKnownFailed: 'Не удалось открыть приватный отзыв о знакомстве. Профиль останется в списке.',
     dailySwipePhotoRequired: 'Просмотр доступен только пользователям, загрузившим фотографию профиля в Telegram.',
     swipeProfile: 'Профиль для просмотра',
     pass: 'Пропустить',
@@ -352,8 +352,8 @@ const DAILY_SWIPE_COPY: Record<LangKey, Record<string, string>> = {
     knownLater: 'Позже',
     knownProfileAction: 'Я ещё не встречал этого человека',
     knownAlreadyAsked: 'Уже отправлено',
-    knownProfileFailed: 'Не удалось отправить вопрос. Попробуйте ещё раз.',
-    knownProfileSent: 'Вопрос отправлен. Спросить этого человека можно только один раз.',
+    knownProfileFailed: 'Не удалось сохранить отзыв. Попробуйте ещё раз.',
+    knownProfileSent: 'Сохранено приватно. Другой пользователь не получит уведомление.',
     knownCheckFailed: 'Не удалось проверить ожидающий вопрос. Повторите попытку, прежде чем продолжить.',
     knownResponseFailed: 'Не удалось сохранить ответ. Попробуйте ещё раз.',
     knownSubmitting: 'Сохраняем ответ…',
@@ -2873,6 +2873,8 @@ export interface UserProfile {
   interest_state_known?: boolean;
   known_request_blocked?: boolean;
   known_request_state_known?: boolean;
+  known_reviewed?: boolean;
+  known_review_state_known?: boolean;
   karma?: number | null;
 }
 
@@ -2887,29 +2889,40 @@ interface PendingKnownRequest {
   status: 'pending' | 'awaiting_recommendation';
 }
 
-function normalizePendingKnownRequest(value: unknown): PendingKnownRequest | null {
+interface KnownSelfReviewPrompt {
+  reviewId: string | null;
+  target: {
+    id: string;
+    name: string;
+    username: string;
+    avatar: string;
+  };
+  status: 'confirming' | 'awaiting_recommendation';
+}
+
+function normalizePendingKnownSelfReview(value: unknown): KnownSelfReviewPrompt | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, any>;
-  const requester = record.requester;
+  const subject = record.subject;
   if (
-    typeof record.requestId !== 'string' ||
-    !/^[0-9a-f-]{36}$/i.test(record.requestId) ||
-    !requester ||
-    typeof requester.id !== 'string' ||
-    !/^tg_[1-9][0-9]{0,19}$/.test(requester.id) ||
-    !['pending', 'awaiting_recommendation'].includes(record.status)
+    typeof record.reviewId !== 'string' ||
+    !/^[0-9a-f-]{36}$/i.test(record.reviewId) ||
+    !subject ||
+    typeof subject.id !== 'string' ||
+    !/^tg_[1-9][0-9]{0,19}$/.test(subject.id) ||
+    record.status !== 'awaiting_recommendation'
   ) {
     return null;
   }
   return {
-    requestId: record.requestId,
-    requester: {
-      id: requester.id,
-      name: typeof requester.name === 'string' ? requester.name.slice(0, 80) : 'Anonymous',
-      username: typeof requester.username === 'string' ? requester.username.slice(0, 32) : '',
-      avatar: typeof requester.avatar === 'string' ? requester.avatar.slice(0, 2048) : '',
+    reviewId: record.reviewId,
+    target: {
+      id: subject.id,
+      name: typeof subject.name === 'string' ? subject.name.slice(0, 80) : 'Anonymous',
+      username: typeof subject.username === 'string' ? subject.username.slice(0, 32) : '',
+      avatar: typeof subject.avatar === 'string' ? subject.avatar.slice(0, 2048) : '',
     },
-    status: record.status,
+    status: 'awaiting_recommendation',
   };
 }
 
@@ -3222,6 +3235,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   const [isReady, setIsReady] = useState<boolean>(false);
   const [startupError, setStartupError] = useState<string>('');
   const [pendingKnownRequest, setPendingKnownRequest] = useState<PendingKnownRequest | null>(null);
+  const [knownSelfReview, setKnownSelfReview] = useState<KnownSelfReviewPrompt | null>(null);
   const [knownRequestCheckFailed, setKnownRequestCheckFailed] = useState(false);
   const [knownResponsePending, setKnownResponsePending] = useState(false);
   const [knownResponseError, setKnownResponseError] = useState('');
@@ -3813,22 +3827,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
 
   const refreshPendingKnownRequest = async () => {
     try {
-      const result = await workerPostRef.current('/api/known/pending');
-      if (!result || !Object.hasOwn(result, 'pending')) {
-        throw new Error('Pending Known response was invalid.');
+      const reviewResult = await workerPostRef.current('/api/known/review/pending');
+      if (!reviewResult || !Object.hasOwn(reviewResult, 'pending')) {
+        throw new Error('Pending Known self-review response was invalid.');
       }
-      const pending = result.pending === null
+      const pendingReview = reviewResult.pending === null
         ? null
-        : normalizePendingKnownRequest(result.pending);
-      if (result.pending !== null && !pending) {
-        throw new Error('Pending Known request was invalid.');
+        : normalizePendingKnownSelfReview(reviewResult.pending);
+      if (reviewResult.pending !== null && !pendingReview) {
+        throw new Error('Pending Known self-review was invalid.');
       }
-      setPendingKnownRequest(
-        pending?.status === 'pending' &&
-        pending.requestId === knownPromptDismissedIdRef.current
-          ? null
-          : pending,
-      );
+      setPendingKnownRequest(null);
+      setKnownSelfReview((current) => {
+        if (pendingReview) return pendingReview;
+        return current?.status === 'awaiting_recommendation' ? null : current;
+      });
       setKnownRequestCheckFailed(false);
       setKnownResponseError('');
       return true;
@@ -4238,6 +4251,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         interest_state_known: u.interest_state_known === true,
         known_request_blocked: u.known_request_blocked === true,
         known_request_state_known: u.known_request_state_known === true,
+        known_reviewed: u.known_reviewed === true,
+        known_review_state_known: u.known_review_state_known === true,
         karma: Number.isInteger(u.karma) ? u.karma : null,
       })).sort((a, b) => {
         if (a.id === currentUser?.id) return -1;
@@ -4490,21 +4505,21 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
       checking = false;
     };
     const timer = window.setInterval(() => {
-      if (!pendingKnownRequest && document.visibilityState === 'visible') void refresh();
+      if (!pendingKnownRequest && !knownSelfReview && document.visibilityState === 'visible') void refresh();
     }, 15_000);
     const handleVisibility = () => {
-      if (!pendingKnownRequest && document.visibilityState === 'visible') void refresh();
+      if (!pendingKnownRequest && !knownSelfReview && document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isReady, currentUser?.id, pendingKnownRequest]);
+  }, [isReady, currentUser?.id, pendingKnownRequest, knownSelfReview]);
 
   useEffect(() => {
-    if (pendingKnownRequest) knownPromptFocusRef.current?.focus();
-  }, [pendingKnownRequest, knownRequestCheckFailed]);
+    if (pendingKnownRequest || knownSelfReview) knownPromptFocusRef.current?.focus();
+  }, [pendingKnownRequest, knownSelfReview, knownRequestCheckFailed]);
 
   const handleRefresh = async () => {
     if (!currentUser) return;
@@ -5903,38 +5918,108 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     }
   };
 
-  const handleSendKnownRequest = async (targetUser: UserProfile): Promise<boolean> => {
+  const handleStartKnownReview = async (targetUser: UserProfile): Promise<boolean> => {
     if (
       !currentUser ||
       targetUser.id === currentUser.id ||
-      targetUser.known_request_state_known !== true ||
-      targetUser.known_request_blocked === true ||
-      knownSendingTo !== null
+      targetUser.known_review_state_known !== true ||
+      targetUser.known_reviewed === true ||
+      knownResponsePending
     ) return false;
     setKnownRequestFeedback(null);
-    setKnownSendingTo(targetUser.id);
+    setKnownResponseError('');
+    setKnownSelfReview({
+      reviewId: null,
+      target: {
+        id: targetUser.id,
+        name: targetUser.name || 'Anonymous',
+        username: targetUser.username || '',
+        avatar: targetUser.avatar || '',
+      },
+      status: 'confirming',
+    });
+    return true;
+  };
+
+  const markKnownSelfReviewComplete = (
+    targetId: string,
+    karma: number | null,
+  ) => {
+    const markReviewed = (profile: UserProfile) =>
+      profile.id === targetId
+        ? {
+          ...profile,
+          known_reviewed: true,
+          known_review_state_known: true,
+          ...(Number.isInteger(karma) ? { karma } : {}),
+        }
+        : profile;
+    setUsers((previous) => previous.map(markReviewed));
+    setSelectedProfile((previous) => previous ? markReviewed(previous) : previous);
+    setKnownSelfReview(null);
+    setKnownRequestFeedback({ profileId: targetId, status: 'sent' });
+  };
+
+  const handleKnownSelfReviewResponse = async (
+    decision: 'met_yes' | 'met_no' | 'recommended' | 'not_recommended',
+  ) => {
+    const review = knownSelfReview;
+    if (!review || knownResponseLockRef.current) return;
+    if (review.status === 'confirming' && !['met_yes', 'met_no'].includes(decision)) return;
+    if (review.status === 'awaiting_recommendation' &&
+        !['recommended', 'not_recommended'].includes(decision)) return;
+
+    knownResponseLockRef.current = true;
+    setKnownResponsePending(true);
+    setKnownSendingTo(review.target.id);
+    setKnownResponseError('');
     try {
-      const result = await workerPostRef.current('/api/known/request', {
-        recipientId: targetUser.id,
+      const result = await workerPostRef.current('/api/known/review/respond', {
+        targetId: review.target.id,
+        reviewId: review.reviewId,
+        decision,
       });
-      if (result?.status !== 'created' && result?.status !== 'already_requested') {
-        setKnownRequestFeedback({ profileId: targetUser.id, status: 'failed' });
-        return false;
+      if (result?.status === 'awaiting_recommendation' &&
+          decision === 'met_yes' &&
+          typeof result.reviewId === 'string' &&
+          /^[0-9a-f-]{36}$/i.test(result.reviewId)) {
+        setKnownSelfReview({ ...review, reviewId: result.reviewId, status: 'awaiting_recommendation' });
+        return;
       }
-      const markKnown = (profile: UserProfile) =>
-        profile.id === targetUser.id
-          ? { ...profile, known_request_blocked: true, known_request_state_known: true }
-          : profile;
-      setUsers((previous) => previous.map(markKnown));
-      setSelectedProfile((previous) => previous ? markKnown(previous) : previous);
-      setKnownRequestFeedback({ profileId: targetUser.id, status: 'sent' });
-      return true;
+      if (result?.status === 'not_met' && decision === 'met_no') {
+        markKnownSelfReviewComplete(review.target.id, null);
+        return;
+      }
+      if (
+        (result?.status === 'recommended' || result?.status === 'not_recommended') &&
+        (decision === 'recommended' || decision === 'not_recommended')
+      ) {
+        markKnownSelfReviewComplete(
+          review.target.id,
+          Number.isInteger(result.karma) ? result.karma : null,
+        );
+        return;
+      }
+      if (result?.status === 'already_reviewed') {
+        markKnownSelfReviewComplete(review.target.id, null);
+        return;
+      }
+      throw new Error('Known self-review response was invalid.');
     } catch {
-      setKnownRequestFeedback({ profileId: targetUser.id, status: 'failed' });
-      return false;
+      setKnownResponseError(DAILY_SWIPE_COPY[lang].knownProfileFailed);
+      setKnownRequestFeedback({ profileId: review.target.id, status: 'failed' });
+      void refreshPendingKnownRequest().then(() => fetchUsersData());
     } finally {
-      setKnownSendingTo((previous) => previous === targetUser.id ? null : previous);
+      knownResponseLockRef.current = false;
+      setKnownResponsePending(false);
+      setKnownSendingTo(null);
     }
+  };
+
+  const handleDismissKnownSelfReview = () => {
+    if (knownSelfReview?.status !== 'confirming' || knownResponsePending) return;
+    setKnownSelfReview(null);
+    setKnownResponseError('');
   };
 
   const handleDismissPendingKnownRequest = () => {
@@ -7069,8 +7154,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         user.id !== currentUser?.id &&
         resolveGridVisibility(user.grid_visible, user.invisible_expiry) &&
         hasUploadedMainProfileImage(user.avatar) &&
-        user.known_request_state_known === true &&
-        user.known_request_blocked !== true &&
+        user.known_review_state_known === true &&
+        user.known_reviewed !== true &&
         checkFilterPass(user),
       )
     : [];
@@ -7258,8 +7343,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
   );
 
   const knownCopy = DAILY_SWIPE_COPY[lang];
+  const knownSelfReviewRequiresLock = knownSelfReview?.status === 'awaiting_recommendation';
+  const knownReviewSubject = knownSelfReview?.target || pendingKnownRequest?.requester;
   const knownRequestRequiresLock =
-    knownRequestCheckFailed || pendingKnownRequest?.status === 'awaiting_recommendation';
+    knownRequestCheckFailed ||
+    knownSelfReviewRequiresLock ||
+    pendingKnownRequest?.status === 'awaiting_recommendation';
   const knownButtonStyle: React.CSSProperties = {
     minHeight: '48px',
     padding: '10px 16px',
@@ -7271,7 +7360,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
     fontWeight: 700,
     cursor: knownResponsePending ? 'wait' : 'pointer',
   };
-  const knownBlockingOverlay = knownRequestCheckFailed || pendingKnownRequest ? (
+  const knownBlockingOverlay = knownRequestCheckFailed || pendingKnownRequest || knownSelfReview ? (
     <div
       role="dialog"
       aria-modal={knownRequestRequiresLock ? 'true' : 'false'}
@@ -7281,7 +7370,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
-          if (pendingKnownRequest?.status === 'pending') handleDismissPendingKnownRequest();
+          if (knownSelfReview?.status === 'confirming') handleDismissKnownSelfReview();
+          else if (pendingKnownRequest?.status === 'pending') handleDismissPendingKnownRequest();
           return;
         }
         if (!knownRequestRequiresLock) return;
@@ -7316,7 +7406,9 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         fontFamily: 'sans-serif',
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget && pendingKnownRequest?.status === 'pending') {
+        if (event.target === event.currentTarget && knownSelfReview?.status === 'confirming') {
+          handleDismissKnownSelfReview();
+        } else if (event.target === event.currentTarget && pendingKnownRequest?.status === 'pending') {
           handleDismissPendingKnownRequest();
         }
       }}
@@ -7340,7 +7432,8 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
         <h1 id="known-request-title" style={{ margin: 0, fontSize: '22px' }}>
           {knownRequestCheckFailed
             ? knownCopy.known
-            : pendingKnownRequest?.status === 'awaiting_recommendation'
+            : knownSelfReview?.status === 'awaiting_recommendation' ||
+                pendingKnownRequest?.status === 'awaiting_recommendation'
               ? knownCopy.knownRecommendationTitle
               : knownCopy.knownQuestionTitle}
         </h1>
@@ -7357,12 +7450,12 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               {t('refresh')}
             </button>
           </>
-        ) : pendingKnownRequest ? (
+        ) : knownSelfReview || pendingKnownRequest ? (
           <>
-            {pendingKnownRequest.requester.avatar ? (
+            {knownReviewSubject?.avatar ? (
               <img
-                src={pendingKnownRequest.requester.avatar}
-                alt={pendingKnownRequest.requester.name}
+                src={knownReviewSubject.avatar}
+                alt={knownReviewSubject.name}
                 style={{
                   width: 'min(64vw, 240px)',
                   height: 'min(64vw, 240px)',
@@ -7384,22 +7477,69 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                   fontWeight: 700,
                 }}
               >
-                {pendingKnownRequest.requester.name.slice(0, 1).toUpperCase()}
+                {knownReviewSubject?.name.slice(0, 1).toUpperCase() || '?'}
               </div>
             )}
             <strong style={{ fontSize: '19px' }}>
-              {pendingKnownRequest.requester.name}
-              {pendingKnownRequest.requester.username
-                ? ` · @${pendingKnownRequest.requester.username.replace(/^@/, '')}`
+              {knownReviewSubject?.name || 'Anonymous'}
+              {knownReviewSubject?.username
+                ? ` · @${knownReviewSubject.username.replace(/^@/, '')}`
                 : ''}
             </strong>
             <p style={{ margin: 0, color: '#d1d5db', lineHeight: 1.5 }}>
-              {pendingKnownRequest.status === 'awaiting_recommendation'
-                ? knownCopy.knownRecommendationTitle
-                : knownCopy.knownQuestionBody}
+              {knownSelfReview?.status === 'confirming'
+                ? knownCopy.knownQuestionBody
+                : knownSelfReview?.status === 'awaiting_recommendation' ||
+                    pendingKnownRequest?.status === 'awaiting_recommendation'
+                  ? knownCopy.knownRecommendationTitle
+                  : knownCopy.knownQuestionBody}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', width: '100%' }}>
-              {pendingKnownRequest.status === 'pending' ? (
+              {knownSelfReview?.status === 'confirming' ? (
+                <>
+                  <button
+                    ref={knownPromptFocusRef}
+                    type="button"
+                    data-testid="known-self-review-met-yes"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownSelfReviewResponse('met_yes'); }}
+                    style={knownButtonStyle}
+                  >
+                    {knownCopy.knownYes}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="known-self-review-met-no"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownSelfReviewResponse('met_no'); }}
+                    style={{ ...knownButtonStyle, background: '#374151' }}
+                  >
+                    {knownCopy.knownNo}
+                  </button>
+                </>
+              ) : knownSelfReview?.status === 'awaiting_recommendation' ? (
+                <>
+                  <button
+                    ref={knownPromptFocusRef}
+                    type="button"
+                    data-testid="known-self-review-recommend"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownSelfReviewResponse('recommended'); }}
+                    style={knownButtonStyle}
+                  >
+                    {knownCopy.knownRecommended}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="known-self-review-not-recommend"
+                    disabled={knownResponsePending}
+                    onClick={() => { void handleKnownSelfReviewResponse('not_recommended'); }}
+                    style={{ ...knownButtonStyle, background: '#374151' }}
+                  >
+                    {knownCopy.knownNotRecommended}
+                  </button>
+                </>
+              ) : pendingKnownRequest?.status === 'pending' ? (
                 <>
                   <button
                     ref={knownPromptFocusRef}
@@ -7421,7 +7561,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     {knownCopy.knownNo}
                   </button>
                 </>
-              ) : (
+              ) : pendingKnownRequest ? (
                 <>
                   <button
                     ref={knownPromptFocusRef}
@@ -7443,14 +7583,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     {knownCopy.knownNotRecommended}
                   </button>
                 </>
-              )}
+              ) : null}
             </div>
-            {pendingKnownRequest.status === 'pending' && (
+            {(knownSelfReview?.status === 'confirming' || pendingKnownRequest?.status === 'pending') && (
               <button
                 type="button"
                 data-testid="known-request-later"
                 disabled={knownResponsePending}
-                onClick={handleDismissPendingKnownRequest}
+                onClick={knownSelfReview?.status === 'confirming'
+                  ? handleDismissKnownSelfReview
+                  : handleDismissPendingKnownRequest}
                 style={{ ...knownButtonStyle, width: '100%', background: '#374151' }}
               >
                 {knownCopy.knownLater}
@@ -7717,7 +7859,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
               users={dailySwipeUsers}
               accountId={currentUser?.id || null}
               onRightSwipe={handleSendInterest}
-              onKnown={handleSendKnownRequest}
+              onKnown={handleStartKnownReview}
               onSwipeDecision={(user, direction) =>
                 appendSwipeDirectionToPrivateNote(user.id, direction)}
               onRefresh={() => { void handleRefresh(); }}
@@ -8161,16 +8303,16 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      void handleSendKnownRequest(activeProfile);
+                      void handleStartKnownReview(activeProfile);
                     }}
                     disabled={
                       knownSendingTo !== null ||
-                      activeProfile.known_request_state_known !== true ||
-                      activeProfile.known_request_blocked === true
+                      activeProfile.known_review_state_known !== true ||
+                      activeProfile.known_reviewed === true
                     }
                     aria-busy={knownSendingTo === activeProfile.id}
                     aria-label={
-                      activeProfile.known_request_blocked === true
+                      activeProfile.known_reviewed === true
                         ? knownCopy.knownAlreadyAsked
                         : knownCopy.knownProfileAction
                     }
@@ -8181,14 +8323,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                       minHeight: '48px',
                       padding: '10px 12px',
                       backgroundColor:
-                        activeProfile.known_request_state_known !== true ||
-                        activeProfile.known_request_blocked === true ||
+                        activeProfile.known_review_state_known !== true ||
+                        activeProfile.known_reviewed === true ||
                         knownSendingTo !== null
                           ? '#374151'
                           : '#7c3aed',
                       color:
-                        activeProfile.known_request_state_known !== true ||
-                        activeProfile.known_request_blocked === true ||
+                        activeProfile.known_review_state_known !== true ||
+                        activeProfile.known_reviewed === true ||
                         knownSendingTo !== null
                           ? '#9ca3af'
                           : '#fff',
@@ -8197,14 +8339,14 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                       fontSize: '13px',
                       fontWeight: 700,
                       cursor:
-                        activeProfile.known_request_state_known !== true ||
-                        activeProfile.known_request_blocked === true ||
+                        activeProfile.known_review_state_known !== true ||
+                        activeProfile.known_reviewed === true ||
                         knownSendingTo !== null
                           ? 'not-allowed'
                           : 'pointer',
                       opacity:
-                        activeProfile.known_request_state_known !== true ||
-                        activeProfile.known_request_blocked === true ||
+                        activeProfile.known_review_state_known !== true ||
+                        activeProfile.known_reviewed === true ||
                         knownSendingTo !== null
                           ? 0.7
                           : 1,
@@ -8213,7 +8355,7 @@ export default function App({ config }: { config: AppRuntimeConfig }) {
                   >
                     {knownSendingTo === activeProfile.id
                       ? knownCopy.knownSubmitting
-                      : activeProfile.known_request_blocked === true
+                      : activeProfile.known_reviewed === true
                         ? knownCopy.knownAlreadyAsked
                         : knownCopy.knownProfileAction}
                   </button>

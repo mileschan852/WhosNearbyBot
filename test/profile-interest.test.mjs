@@ -67,17 +67,24 @@ test("the nearby grid refreshes while the Mini App is active so other users see 
   assert.match(appSource, /document\.addEventListener\('visibilitychange', refreshNearby\)/);
 });
 
-test("Known requests can be sent from profiles and lock navigation only after a Yes answer", () => {
-  assert.match(appSource, /user\.known_request_state_known === true/);
-  assert.match(appSource, /user\.known_request_blocked !== true/);
-  assert.match(appSource, /\/api\/known\/request/);
-  assert.match(appSource, /\/api\/known\/pending/);
+test("Known is a private self-review, with persistent navigation lock only after confirming a meeting", () => {
+  assert.match(appSource, /user\.known_review_state_known === true/);
+  assert.match(appSource, /user\.known_reviewed !== true/);
+  assert.doesNotMatch(appSource, /workerPostRef\.current\('\/api\/known\/request'/);
+  assert.match(appSource, /\/api\/known\/review\/respond/);
+  assert.match(appSource, /\/api\/known\/review\/pending/);
+  assert.doesNotMatch(appSource, /workerPostRef\.current\('\/api\/known\/pending'/);
   assert.match(appSource, /\/api\/known\/respond/);
-  const knownHandlerStart = appSource.indexOf('const handleSendKnownRequest =');
-  const knownHandlerEnd = appSource.indexOf('const handleDismissPendingKnownRequest =', knownHandlerStart);
+  const knownHandlerStart = appSource.indexOf('const handleStartKnownReview =');
+  const knownHandlerEnd = appSource.indexOf('const markKnownSelfReviewComplete =', knownHandlerStart);
   assert.notEqual(knownHandlerStart, -1);
   assert.notEqual(knownHandlerEnd, -1);
   assert.doesNotMatch(appSource.slice(knownHandlerStart, knownHandlerEnd), /checkFilterPass/);
+  assert.doesNotMatch(appSource.slice(knownHandlerStart, knownHandlerEnd), /workerPostRef/);
+  assert.match(appSource, /data-testid="known-self-review-met-yes"/);
+  assert.match(appSource, /data-testid="known-self-review-met-no"/);
+  assert.match(appSource, /data-testid="known-self-review-recommend"/);
+  assert.match(appSource, /data-testid="known-self-review-not-recommend"/);
   assert.match(appSource, /data-testid=\{`button-known-profile-\$\{activeProfile\.id\}`\}/);
   assert.match(appSource, /data-testid=\{`known-profile-actions-\$\{activeProfile\.id\}`\}/);
   assert.match(appSource, /knownProfileAction: 'I haven’t met this person'/);
@@ -87,11 +94,13 @@ test("Known requests can be sent from profiles and lock navigation only after a 
   assert.notEqual(knownActionsEnd, -1);
   assert.doesNotMatch(appSource.slice(knownActionsStart, knownActionsEnd), /passesFilterForActive/);
   assert.match(appSource, /knownPromptDismissedIdRef\.current = pendingKnownRequest\.requestId/);
-  assert.match(appSource, /knownRequestRequiresLock =\s*knownRequestCheckFailed \|\| pendingKnownRequest\?\.status === 'awaiting_recommendation'/);
+  assert.match(appSource, /knownSelfReviewRequiresLock = knownSelfReview\?\.status === 'awaiting_recommendation'/);
+  assert.match(appSource, /knownRequestRequiresLock =\s*knownRequestCheckFailed \|\|\s*knownSelfReviewRequiresLock/);
   assert.match(appSource, /known-request-blocking-dialog/);
   assert.match(appSource, /aria-modal=\{knownRequestRequiresLock \? 'true' : 'false'\}/);
   assert.match(appSource, /data-testid="known-request-later"/);
   assert.match(appSource, /setPendingKnownRequest\(\{ \.\.\.pending, status: 'awaiting_recommendation' \}\)/);
+  assert.match(appSource, /Saved privately\. The other person was not notified\./);
   assert.match(swipeSource, /data-testid="daily-swipe-known"/);
   assert.match(swipeSource, /advance\('known'\)/);
   assert.match(swipeSource, /daily-swipe-karma/);
